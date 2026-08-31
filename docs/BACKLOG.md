@@ -44,7 +44,12 @@ Real lever = stock SELECTION + holding + low turnover. So:
   metrics not one-line summaries. Majority-vote only the genuinely subjective questions.
 - [ ] **Per-position council stance** on the portfolio view (keep / trim / add / exit).
 - [ ] **Candidate ranking** — for the weekly DCA, rank which names best deserve new money.
-- [ ] Cost-basis entry + real P&L (shares are in; costBasis field exists, no UI yet).
+- [x] **Paste-import positions** — tolerant parser for broker copy-paste / CSV.
+- [~] **Broker auto-sync (SnapTrade)** — full integration built (register / portal /
+  sync holdings + cost basis into linked accounts). INERT until SNAPTRADE_CLIENT_ID +
+  SNAPTRADE_CONSUMER_KEY are set in Render. NOTE: SnapTrade prod access may need a
+  signup form / sales contact and may not be free — verify before relying on it.
+- [ ] Cost-basis entry UI for manual accounts (field + parser exist; no dedicated input).
 
 ## Quant service (Python, `quant/`)
 
