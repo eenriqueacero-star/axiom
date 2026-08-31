@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    background: theme('colors.ink.950');
+  }
+  body {
+    @apply bg-ink-950 text-neutral-200 font-sans antialiased;
+    margin: 0;
+    min-height: 100dvh;
+  }
+  ::selection {
+    background: rgba(99, 102, 241, 0.35);
+  }
+}
+
+@layer utilities {
+  .card {
+    @apply bg-ink-900 border border-ink-800 rounded-xl;
+  }
+  .hairline {
+    @apply border-ink-800;
+  }
+}

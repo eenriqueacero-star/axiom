@@ -100,6 +100,47 @@ export async function callAgent({ system, user, useSearch = false, maxTokens = 7
   return { text: '', grounded: false, warning: 'All keys exhausted' };
 }
 
+// --- Key health --------------------------------------------------------------
+
+let _keyCache = { ts: 0, data: null };
+
+async function probeKey(apiKey, i) {
+  const started = Date.now();
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/models', {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    const ms = Date.now() - started;
+    if (res.ok) return { index: i + 1, ok: true, status: res.status, ms };
+    const body = await res.json().catch(() => ({}));
+    return { index: i + 1, ok: false, status: res.status, ms, error: body.error?.message || `HTTP ${res.status}` };
+  } catch (err) {
+    return { index: i + 1, ok: false, status: 0, ms: Date.now() - started, error: err.message };
+  }
+}
+
+// Checks every configured Groq key against the API. Cached for 60s.
+export async function checkGroqKeys({ force = false } = {}) {
+  if (!force && _keyCache.data && Date.now() - _keyCache.ts < 60_000) return _keyCache.data;
+
+  const keys = getKeys();
+  const slots = [
+    'GROQ_API_KEY', 'GROQ_API_KEY_2', 'GROQ_API_KEY_3', 'GROQ_API_KEY_4', 'GROQ_API_KEY_5',
+  ];
+  const configured = slots.filter(s => process.env[s]);
+  const results = await Promise.all(keys.map((k, i) => probeKey(k, i)))
+    .then(rs => rs.map((r, i) => ({ ...r, name: configured[i] || `key ${i + 1}` })));
+
+  const data = {
+    total: keys.length,
+    live: results.filter(r => r.ok).length,
+    checkedAt: Date.now(),
+    keys: results,
+  };
+  _keyCache = { ts: Date.now(), data };
+  return data;
+}
+
 export async function callSynthesis({ system, user, maxTokens = 2000 }) {
   const keys = getKeys();
   const key = keys[keys.length - 1];
