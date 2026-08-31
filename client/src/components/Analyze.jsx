@@ -33,18 +33,18 @@ export default function Analyze() {
     });
   }, [user]);
 
-  const run = async (e) => {
+  const run = async (e, force = false) => {
     e?.preventDefault();
-    const sym = ticker.toUpperCase().trim();
+    const sym = (force ? current?.ticker : ticker).toUpperCase().trim();
     if (!/^[A-Z.\-]{1,10}$/.test(sym)) {
       setError('Enter a valid ticker');
       return;
     }
     setError('');
     setRunning(true);
-    setCurrent(null);
+    if (!force) setCurrent(null);
     try {
-      const result = await runCouncil(sym);
+      const result = await runCouncil(sym, force);
       setCurrent(result);
     } catch (err) {
       setError(err.message);
@@ -81,13 +81,26 @@ export default function Analyze() {
 
       {running && (
         <p className="text-xs text-haze animate-pulse">
-          The council is deliberating. This takes ~20–40s.
+          The council is deliberating. This takes ~10–20s.
         </p>
       )}
 
       {shown && (
         <div className="space-y-4">
           <VerdictBanner analysis={shown} />
+          <div className="flex items-center justify-between text-xs text-haze">
+            <span>
+              {shown.cached ? 'Reused a recent run' : 'Fresh run'}
+              {shown.ts ? ` · ${new Date(shown.ts).toLocaleString()}` : ''}
+            </span>
+            <button
+              onClick={() => run(null, true)}
+              disabled={running}
+              className="text-indigo-400 hover:text-indigo-300 disabled:opacity-50"
+            >
+              {running ? 'Re-running…' : 'Re-run council'}
+            </button>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {agentList.map((a) => (
               <AgentCard key={a.id} agent={a} result={shown.agents?.[a.id]} />

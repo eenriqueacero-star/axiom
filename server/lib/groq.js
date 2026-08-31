@@ -6,6 +6,10 @@ const MODEL_SEARCH = 'groq/compound';
 const GROQ_URL    = 'https://api.groq.com/openai/v1/chat/completions';
 const COMPOUND_CAP = 600;
 
+// Deterministic sampling — the same facts must produce the same verdict
+// (definitions.js STABILITY RULE). temperature:0 + a fixed seed.
+const DETERMINISM = { temperature: 0, seed: 42, top_p: 1 };
+
 function getKeys() {
   return [
     process.env.GROQ_API_KEY,
@@ -43,7 +47,7 @@ async function callBase(apiKey, system, user, maxTokens, effort = 'low') {
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: MODEL_BASE, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, reasoning_effort: effort }),
+    body: JSON.stringify({ model: MODEL_BASE, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, reasoning_effort: effort, ...DETERMINISM }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -60,6 +64,7 @@ async function callCompound(apiKey, system, user, maxTokens) {
   const c = await client.chat.completions.create({
     model: MODEL_SEARCH, max_tokens: maxTokens,
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    ...DETERMINISM,
   });
   return c.choices?.[0]?.message?.content || '';
 }
@@ -149,7 +154,7 @@ export async function callSynthesis({ system, user, maxTokens = 2000 }) {
       const res = await fetch(GROQ_URL, {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: MODEL_SYNTH, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, reasoning_effort: 'medium' }),
+        body: JSON.stringify({ model: MODEL_SYNTH, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, reasoning_effort: 'medium', ...DETERMINISM }),
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw Object.assign(new Error(e.error?.message), { status: res.status }); }
       const data = await res.json();

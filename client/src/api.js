@@ -29,4 +29,5 @@ export async function getAgents() {
   return res.json();
 }
 
-export const runCouncil = (ticker) => request('/council/run', { method: 'POST', body: { ticker } });
+export const runCouncil = (ticker, force = false) =>
+  request('/council/run', { method: 'POST', body: { ticker, force } });
