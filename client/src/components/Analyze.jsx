@@ -8,10 +8,10 @@ import VerdictBanner from './VerdictBanner';
 import NewsPanel from './NewsPanel';
 import { verdictStyle } from './stance';
 
-export default function Analyze() {
+export default function Analyze({ initialTicker = '' }) {
   const { user } = useAuth();
   const [agents, setAgents] = useState([]);
-  const [ticker, setTicker] = useState('');
+  const [ticker, setTicker] = useState(initialTicker);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [current, setCurrent] = useState(null);
@@ -20,6 +20,21 @@ export default function Analyze() {
   useEffect(() => {
     getAgents().then(setAgents).catch(() => setError('Could not load agents'));
   }, []);
+
+  // Auto-run when arriving from a Portfolio ticker tap.
+  useEffect(() => {
+    if (initialTicker && /^[A-Z.\-]{1,10}$/.test(initialTicker)) {
+      setTicker(initialTicker);
+      setError('');
+      setRunning(true);
+      setCurrent(null);
+      runCouncil(initialTicker)
+        .then(setCurrent)
+        .catch((err) => setError(err.message))
+        .finally(() => setRunning(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTicker]);
 
   // Realtime history — updates live across every signed-in device.
   useEffect(() => {
