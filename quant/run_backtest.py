@@ -55,7 +55,7 @@ def main() -> None:
 
     # Benchmark row for reference
     bench = run_backtest(prices, strategies.buy_and_hold(prices, ["SPY"]), name="SPY")
-    rows.append({"strategy": "— SPY (benchmark) —", **bench.metrics, "corr_spy": 1.0})
+    rows.append({"strategy": ">> SPY (benchmark)", **bench.metrics, "corr_spy": 1.0})
 
     df = pd.DataFrame(rows).set_index("strategy")
     order = ["cagr", "total_return", "max_drawdown", "sharpe", "sortino",

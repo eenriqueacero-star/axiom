@@ -27,21 +27,23 @@ def relative_momentum(
     lookback_days: int = 126,
     top_n: int = 5,
     trend_ma_days: int | None = 200,
-    start_after_days: int = 200,
 ) -> pd.DataFrame:
     """Monthly: hold the top_n names by trailing return, each also above its
     `trend_ma_days` SMA. Names failing the trend filter go to cash.
     """
     universe = [t for t in universe if t in prices.columns]
     px = prices[universe]
+    warmup = max(lookback_days, trend_ma_days or 0) + 5
     rebal = _month_ends(px.index)
-    rebal = rebal[rebal >= px.index[start_after_days]]
+    rebal = rebal[rebal >= px.index[warmup]]
 
     rows = {}
     for d in rebal:
         window = px.loc[:d]
         mom = window.iloc[-1] / window.iloc[-lookback_days] - 1
-        ranked = mom.dropna().sort_values(ascending=False)
+        # only rank names with a full lookback of real (non-NaN) data
+        valid = window.iloc[-lookback_days].notna()
+        ranked = mom[valid].dropna().sort_values(ascending=False)
         picks = list(ranked.index[:top_n])
 
         if trend_ma_days:
@@ -62,7 +64,6 @@ def dual_momentum(
     risk_asset: str = "QQQ",
     safe_asset: str = "BIL",
     lookback_days: int = 252,
-    start_after_days: int = 252,
 ) -> pd.DataFrame:
     """Monthly: if risk_asset's trailing return > safe_asset's, hold risk_asset;
     else hold safe_asset. Antonacci-style absolute momentum, single sleeve.
@@ -70,7 +71,7 @@ def dual_momentum(
     cols = [risk_asset, safe_asset]
     px = prices[cols]
     rebal = _month_ends(px.index)
-    rebal = rebal[rebal >= px.index[start_after_days]]
+    rebal = rebal[rebal >= px.index[lookback_days + 5]]
 
     rows = {}
     for d in rebal:
