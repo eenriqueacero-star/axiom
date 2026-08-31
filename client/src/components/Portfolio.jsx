@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getPortfolio, setHolding, addTicker, removeTicker, importPositions } from '../api';
+import BrokerLink from './BrokerLink';
 
 const money = (n) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -75,6 +76,8 @@ export default function Portfolio({ onAnalyze }) {
           </p>
         )}
       </div>
+
+      <BrokerLink onSynced={setData} />
 
       {data.accounts.map((acct) => (
         <section key={acct.id}>

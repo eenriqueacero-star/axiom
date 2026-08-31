@@ -57,3 +57,8 @@ export const removeTicker = (accountId, ticker) =>
   request(`/portfolio/${accountId}/${ticker.toUpperCase()}`, { method: 'DELETE' });
 export const importPositions = (accountId, text) =>
   request(`/portfolio/${accountId}/import`, { method: 'POST', body: { text } });
+
+export const getBrokerStatus = () => request('/broker/status');
+export const connectBroker = (redirect) =>
+  request('/broker/connect', { method: 'POST', body: { redirect } });
+export const syncBroker = () => request('/broker/sync', { method: 'POST' });

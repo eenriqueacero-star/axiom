@@ -30,6 +30,7 @@ const { default: statusRoute }  = await import('./routes/status.js');
 const { default: signalsRoute } = await import('./routes/signals.js');
 const { default: portfolioRoute } = await import('./routes/portfolio.js');
 const { default: scorecardRoute } = await import('./routes/scorecard.js');
+const { default: brokerRoute }    = await import('./routes/broker.js');
 
 app.use('/api/agent',   agentRoute);
 app.use('/api/council', councilRoute);
@@ -41,6 +42,7 @@ app.use('/api/status',  statusRoute);
 app.use('/api/signals', signalsRoute);
 app.use('/api/portfolio', portfolioRoute);
 app.use('/api/scorecard', scorecardRoute);
+app.use('/api/broker',    brokerRoute);
 
 app.get('/health', (_, res) => res.json({
   ok: true,
@@ -48,6 +50,7 @@ app.get('/health', (_, res) => res.json({
   firebase: firebaseReady,
   push: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
   groq: Boolean(process.env.GROQ_API_KEY),
+  broker: Boolean(process.env.SNAPTRADE_CLIENT_ID && process.env.SNAPTRADE_CONSUMER_KEY),
 }));
 
 // Global error handler — never leak a stack trace, never crash the process.
