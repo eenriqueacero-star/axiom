@@ -3,7 +3,9 @@ import { getPortfolio, setHolding, addTicker, removeTicker } from '../api';
 
 const money = (n) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+// ratios (gain/loss) → *100; Finnhub day-change % is already in percent units
 const pct = (n) => (n == null ? '' : `${n >= 0 ? '+' : ''}${(n * 100).toFixed(1)}%`);
+const pctRaw = (n) => (n == null ? '' : `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`);
 const cls = (n) => (n == null ? 'text-haze' : n >= 0 ? 'text-emerald-400' : 'text-red-400');
 
 export default function Portfolio({ onAnalyze }) {
@@ -85,7 +87,7 @@ export default function Portfolio({ onAnalyze }) {
                     <div className="text-xs text-neutral-400">
                       {p.price != null ? `$${p.price.toFixed(2)}` : '—'}
                       {p.changePct != null && (
-                        <span className={`ml-1 ${cls(p.changePct)}`}>{pct(p.changePct)}</span>
+                        <span className={`ml-1 ${cls(p.changePct)}`}>{pctRaw(p.changePct)}</span>
                       )}
                     </div>
                     <div className="text-[11px] text-haze flex items-center gap-1">

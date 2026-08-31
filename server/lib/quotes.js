@@ -17,7 +17,9 @@ export async function getQuote(ticker) {
     if (r.status === 429) { data = { error: 'rate_limited' }; break; }
     const d = await safeJson(r);
     if (d && ((d.c ?? 0) > 0 || (d.pc ?? 0) > 0)) {
-      data = { price: d.c, changePct: d.dp, change: d.d, high: d.h, low: d.l, open: d.o, prevClose: d.pc };
+      // Finnhub `dp` is already in percent units (1.48 = 1.48%), `d` is $ change.
+      data = { price: d.c, changePct: d.dp ?? null, change: d.d ?? null,
+               high: d.h, low: d.l, open: d.o, prevClose: d.pc };
       break;
     }
   }
