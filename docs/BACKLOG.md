@@ -29,16 +29,19 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
   through real crashes. Waiting on Tiingo rate-limit reset, then auto-runs. This
   result gates the strategy-rebuild decision.
 
-## Next big decisions (need the backtest first)
+## DECIDED (2026-08-31): Axiom = long-term quality-basket manager, NOT a trading bot
 
-- [ ] **Go / no-go on a mechanical strategy core.** If momentum beats the index after
-  removing bias → rebuild Axiom around it. If not → simplify (DCA into an index) and
-  focus the app on tracking + catalysts, not stock-picking.
-- [ ] **Rebuild the strategy core** around the winner. Likely shape: mechanical
-  momentum/trend core + LLM agents as a news/risk/catalyst overlay. Retire or re-weight
-  the brittle 4-gate design.
-- [ ] **Proper point-in-time backtest** (full S&P 500 historical membership, longer
-  history) if the quick pass looks promising — `constituents.py` already built.
+Backtest verdict: momentum's edge over "equal-weight the same universe + hold" is only
+~2% gross, eaten by taxes/costs for a small retail account. No downside protection.
+Real lever = stock SELECTION + holding + low turnover. So:
+
+- [~] **Portfolio view** — holdings are the home screen. Live quotes, editable shares,
+  tap a ticker → council. DONE (deploying).
+- [ ] **Re-point the agents** — from "should I trade this week" to: (1) Still belongs?
+  (2) Right size? (3) Broken? Rewrite agent prompts in definitions.js + council flow.
+- [ ] **Per-position council stance** on the portfolio view (keep / trim / add / exit).
+- [ ] **Candidate ranking** — for the weekly DCA, rank which names best deserve new money.
+- [ ] Cost-basis entry + real P&L (shares are in; costBasis field exists, no UI yet).
 
 ## Quant service (Python, `quant/`)
 
