@@ -5,7 +5,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Finnhub endpoints not on the free tier 302-redirect to their marketing site,
 // which fetch follows to a 200 HTML page — so never trust res.ok alone.
-async function safeJson(res) {
+export async function safeJson(res) {
   if (!res.ok) return null;
   if (!res.headers.get('content-type')?.includes('application/json')) return null;
   try { return await res.json(); } catch { return null; }

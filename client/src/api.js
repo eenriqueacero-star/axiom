@@ -42,3 +42,6 @@ export async function getHealth() {
 // Per-key Groq probe (authenticated). ?force=1 skips the 60s server cache.
 export const getKeyStatus = (force = false) =>
   request(`/status/groq-keys${force ? '?force=1' : ''}`);
+
+export const getMarketNews = () => request('/signals/market');
+export const getTickerNews = (ticker) => request(`/signals/${ticker.toUpperCase()}`);

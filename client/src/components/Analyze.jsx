@@ -5,6 +5,7 @@ import { useAuth } from '../AuthProvider';
 import { getAgents, runCouncil } from '../api';
 import AgentCard from './AgentCard';
 import VerdictBanner from './VerdictBanner';
+import NewsPanel from './NewsPanel';
 import { verdictStyle } from './stance';
 
 export default function Analyze() {
@@ -106,6 +107,7 @@ export default function Analyze() {
               <AgentCard key={a.id} agent={a} result={shown.agents?.[a.id]} />
             ))}
           </div>
+          <NewsPanel ticker={shown.ticker} />
         </div>
       )}
 
