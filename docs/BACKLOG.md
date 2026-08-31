@@ -58,11 +58,13 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 ## Features
 
-- [ ] **Events / catalyst signal service** — server cron ingests Finnhub news +
-  market-news, SEC EDGAR 8-K, congress trades (house/senate stock-watcher JSON, free),
-  Fed/econ/FDA calendars, later Quiver gov contracts. Normalize → tag tickers →
-  Firestore `signals` → feed NOVA agent + push alerts.
-- [ ] **Congressional / government trading tracker** (part of the events service).
+- [x] **News feed (v1)** — `server/lib/signals.js` marketNews + tickerNews via Finnhub;
+  `/api/signals/*`; NewsPanel under the agent cards. Congress/SEC still TODO.
+- [ ] **Events service — remaining**: SEC EDGAR 8-K, Fed/econ/FDA calendars, persist to
+  Firestore `signals`, feed NOVA agent context, push alerts on holdings hits.
+- [ ] **Congressional trading tracker** — BLOCKED on data source. Free sources dead in
+  2026 (old S3/github datasets gone; CongressInvests API rate-shared + 3mo stale).
+  Decide: Disclosed Capitol free-tier signup, Quiver $25/mo, or defer.
 - [ ] **Live verdict scorecard** — track every real verdict vs forward returns; per-agent
   hit rate; feeds the self-improvement loop.
 - [ ] **Paper-portfolio of AXIOM's own calls** — makes "the edge" a real number.
