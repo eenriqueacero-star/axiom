@@ -2,7 +2,7 @@
  * Real-world signal feeds. v1: news via Finnhub (free tier).
  * Congressional trades / SEC filings to be added when a data source is settled.
  */
-import { safeJson } from './council.js';
+import { safeJson } from './fetchJson.js';
 
 const FINNHUB = () => process.env.FINNHUB_KEY;
 

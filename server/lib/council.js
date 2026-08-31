@@ -1,15 +1,11 @@
 import { AGENTS, PROTOCOLS, AXIOM_SYSTEM } from '../agents/definitions.js';
 import { callAgent, callSynthesis } from './groq.js';
+import { safeJson } from './fetchJson.js';
+import { tickerNews } from './signals.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Finnhub endpoints not on the free tier 302-redirect to their marketing site,
-// which fetch follows to a 200 HTML page — so never trust res.ok alone.
-export async function safeJson(res) {
-  if (!res.ok) return null;
-  if (!res.headers.get('content-type')?.includes('application/json')) return null;
-  try { return await res.json(); } catch { return null; }
-}
+export { safeJson };
 
 export function extractJSON(text) {
   try {
@@ -27,15 +23,13 @@ export async function fetchLiveData(ticker) {
   const from  = new Date(Date.now() - 5 * 864e5).toISOString().slice(0, 10);
   const in90d = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
 
-  const [qRes, nRes, eRes] = await Promise.all([
+  const [qRes, eRes, news] = await Promise.all([
     fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB}`),
-    fetch(`https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${from}&to=${today}&token=${FINNHUB}`),
     fetch(`https://finnhub.io/api/v1/stock/earnings-calendar?from=${today}&to=${in90d}&symbol=${ticker}&token=${FINNHUB}`),
+    tickerNews(ticker, { days: 7, limit: 8 }).catch(() => []),
   ]);
 
   const q = (await safeJson(qRes)) || {};
-  const newsRaw = await safeJson(nRes);
-  const news = Array.isArray(newsRaw) ? newsRaw.slice(0, 5) : [];
   const earnings = (await safeJson(eRes)) || {};
 
   const price = q.c > 0 ? q.c : q.pc;
@@ -48,9 +42,14 @@ export async function fetchLiveData(ticker) {
   const earningsLine = nextEarnings
     ? `Next earnings: ${nextEarnings} (in ${Math.round((new Date(nextEarnings) - new Date(today)) / 864e5)} days)`
     : 'Next earnings: none scheduled within 90 days';
-  const newsText = news.map(a => `- [${new Date(a.datetime * 1000).toISOString().slice(0, 10)}] ${a.headline}`).join('\n');
+  // Headline + first sentence of summary so NOVA/VEGA can reason about the event.
+  const newsText = news.map(a => {
+    const d = new Date(a.ts).toISOString().slice(0, 10);
+    const gist = (a.summary || '').split(/(?<=[.!?])\s/)[0].slice(0, 180);
+    return `- [${d}] ${a.headline}${gist ? ` — ${gist}` : ''} (${a.source})`;
+  }).join('\n');
 
-  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${newsText || 'No recent news.'}\n`;
+  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\nRECENT NEWS:\n${newsText || 'No recent news.'}\n`;
   return { liveDataBlock, price, changePct, nextEarnings, news };
 }
 
@@ -80,14 +79,14 @@ export async function runCouncil(ticker, { mode = 'full' } = {}) {
   }).join('\n');
 
   const synthSys = `You are AXIOM delivering the council's verdict on ${sym}. ${PROTOCOLS}
-Output ONLY raw JSON: {"verdict":"BUY"|"WATCH"|"SKIP","conviction":<0-10>,"headline":"<one bold line>","rationale":"<2-4 sentences, direct and casual>"}
+Output ONLY raw JSON: {"verdict":"BUY"|"WATCH"|"SKIP","conviction":<0-10>,"headline":"<one bold line>","rationale":"<2-4 sentences, direct and casual>","catalyst":"<the single news item or event most driving this call, or null>"}
 BUY = strong opportunity (conviction 7+). WATCH = interesting but not ready. SKIP = pass.`;
 
-  let synth = { verdict: 'WATCH', conviction: 5, headline: '', rationale: '' };
+  let synth = { verdict: 'WATCH', conviction: 5, headline: '', rationale: '', catalyst: null };
   try {
     const text = await callSynthesis({
       system: synthSys,
-      user: `Agent results:\n${summary}\nPrice: ${price ? '$' + price.toFixed(2) : 'unknown'}`,
+      user: `${liveDataBlock}\nAgent results:\n${summary}\nPrice: ${price ? '$' + price.toFixed(2) : 'unknown'}`,
       maxTokens: 512,
     });
     synth = { ...synth, ...(extractJSON(text) || {}) };
@@ -95,7 +94,11 @@ BUY = strong opportunity (conviction 7+). WATCH = interesting but not ready. SKI
 
   return {
     ticker: sym, price, changePct, nextEarnings,
-    news: news.map(a => ({ headline: a.headline, url: a.url, date: new Date(a.datetime * 1000).toISOString().slice(0, 10) })),
+    // exactly the headlines the agents saw — the panel renders these, not a separate fetch
+    news: news.map(a => ({
+      headline: a.headline, url: a.url, source: a.source,
+      date: new Date(a.ts).toISOString().slice(0, 10), ts: a.ts,
+    })),
     agents, ...synth, ts: Date.now(),
   };
 }

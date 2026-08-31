@@ -107,7 +107,7 @@ export default function Analyze() {
               <AgentCard key={a.id} agent={a} result={shown.agents?.[a.id]} />
             ))}
           </div>
-          <NewsPanel ticker={shown.ticker} />
+          <NewsPanel news={shown.news} catalyst={shown.catalyst} />
         </div>
       )}
 

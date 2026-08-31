@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
-import { getTickerNews } from '../api';
-
 const ago = (ts) => {
+  if (!ts) return '';
   const m = Math.round((Date.now() - ts) / 60000);
   if (m < 60) return `${m}m ago`;
   const h = Math.round(m / 60);
@@ -9,36 +7,28 @@ const ago = (ts) => {
   return `${Math.round(h / 24)}d ago`;
 };
 
-export default function NewsPanel({ ticker }) {
-  const [items, setItems] = useState(null);
-  const [err, setErr] = useState('');
-
-  useEffect(() => {
-    if (!ticker) return;
-    setItems(null);
-    setErr('');
-    getTickerNews(ticker).then(setItems).catch((e) => setErr(e.message));
-  }, [ticker]);
-
-  if (err) return null;
+/** Renders exactly the headlines the council saw (analysis.news). */
+export default function NewsPanel({ news, catalyst }) {
+  if (!news) return null;
 
   return (
     <section className="pt-2">
       <h2 className="text-[11px] uppercase tracking-widest text-haze mb-2">
-        {ticker} news
+        News the council considered
       </h2>
-      {!items ? (
-        <div className="space-y-2">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-10 rounded bg-ink-900 animate-pulse" />
-          ))}
-        </div>
-      ) : items.length === 0 ? (
-        <p className="text-xs text-ink-600">No recent headlines.</p>
+
+      {catalyst && (
+        <p className="text-xs text-neutral-300 mb-2">
+          <span className="text-indigo-400">Key catalyst:</span> {catalyst}
+        </p>
+      )}
+
+      {news.length === 0 ? (
+        <p className="text-xs text-ink-600">No recent headlines were available.</p>
       ) : (
         <ul className="divide-y divide-ink-800 card overflow-hidden">
-          {items.slice(0, 8).map((n) => (
-            <li key={n.id}>
+          {news.map((n, i) => (
+            <li key={n.url || i}>
               <a
                 href={n.url}
                 target="_blank"
@@ -47,7 +37,7 @@ export default function NewsPanel({ ticker }) {
               >
                 <p className="text-sm text-neutral-200 leading-snug">{n.headline}</p>
                 <p className="text-xs text-haze mt-1">
-                  {n.source} · {ago(n.ts)}
+                  {n.source}{n.ts ? ` · ${ago(n.ts)}` : n.date ? ` · ${n.date}` : ''}
                 </p>
               </a>
             </li>
