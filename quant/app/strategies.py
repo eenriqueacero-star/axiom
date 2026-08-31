@@ -58,6 +58,49 @@ def relative_momentum(
     return pd.DataFrame(rows).T
 
 
+def relative_momentum_pit(
+    prices: pd.DataFrame,
+    members_on,
+    *,
+    lookback_days: int = 126,
+    top_n: int = 15,
+    trend_ma_days: int | None = 200,
+    skip_recent_days: int = 21,
+) -> pd.DataFrame:
+    """Point-in-time momentum. At each month-end, rank only the tickers that
+    were index members then (and have data), by trailing return excluding the
+    most recent `skip_recent_days` (classic momentum skips the last month).
+    """
+    px = prices
+    warmup = max(lookback_days, trend_ma_days or 0) + skip_recent_days + 5
+    rebal = _month_ends(px.index)
+    rebal = rebal[rebal >= px.index[warmup]]
+
+    rows = {}
+    for d in rebal:
+        window = px.loc[:d]
+        elig = [t for t in members_on(d) if t in window.columns]
+        if not elig:
+            continue
+        w = window[elig]
+        past = w.iloc[-(lookback_days + skip_recent_days)]
+        recent = w.iloc[-(skip_recent_days + 1)]
+        mom = (recent / past - 1)[w.iloc[-(lookback_days + skip_recent_days)].notna()]
+        ranked = mom.dropna().sort_values(ascending=False)
+        picks = list(ranked.index[:top_n])
+
+        if trend_ma_days:
+            ma = w[picks].rolling(trend_ma_days).mean().iloc[-1]
+            picks = [t for t in picks if w[t].iloc[-1] > ma[t]]
+
+        vec = pd.Series(0.0, index=px.columns)
+        if picks:
+            vec[picks] = 1.0 / len(picks)
+        rows[d] = vec
+
+    return pd.DataFrame(rows).T
+
+
 def dual_momentum(
     prices: pd.DataFrame,
     *,
