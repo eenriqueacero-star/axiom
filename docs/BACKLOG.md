@@ -38,7 +38,10 @@ Real lever = stock SELECTION + holding + low turnover. So:
 - [~] **Portfolio view** — holdings are the home screen. Live quotes, editable shares,
   tap a ticker → council. DONE (deploying).
 - [ ] **Re-point the agents** — from "should I trade this week" to: (1) Still belongs?
-  (2) Right size? (3) Broken? Rewrite agent prompts in definitions.js + council flow.
+  (2) Right size? (3) Broken? AND switch from freeform 0-10 scores to **binary yes/no
+  sub-questions scored in code** (LLM holistic scoring is provably inconsistent — see
+  the AMD 5/5/4/5/3/5/5 evidence; BINEVAL / rubric research). Feed real computed
+  metrics not one-line summaries. Majority-vote only the genuinely subjective questions.
 - [ ] **Per-position council stance** on the portfolio view (keep / trim / add / exit).
 - [ ] **Candidate ranking** — for the weekly DCA, rank which names best deserve new money.
 - [ ] Cost-basis entry + real P&L (shares are in; costBasis field exists, no UI yet).
@@ -77,8 +80,11 @@ Real lever = stock SELECTION + holding + low turnover. So:
 - [ ] **Congressional trading tracker** — BLOCKED on data source. Free sources dead in
   2026 (old S3/github datasets gone; CongressInvests API rate-shared + 3mo stale).
   Decide: Disclosed Capitol free-tier signup, Quiver $25/mo, or defer.
-- [ ] **Live verdict scorecard** — track every real verdict vs forward returns; per-agent
-  hit rate; feeds the self-improvement loop.
+- [x] **Verdict scorecard (v1)** — `lib/scorecard.js` scores past analyses vs actual
+  price move; aggregate hit rate by verdict + agent stance; daily cron + Scorecard tab.
+  Empty until verdicts age 7d — data accumulates from here.
+- [ ] **Scorecard → agent weights** — once there's data, tune AXIOM's agent weighting
+  and drop/fix agents that don't predict. (The point of collecting it.)
 - [ ] **Paper-portfolio of AXIOM's own calls** — makes "the edge" a real number.
 - [ ] Watchlist + auto-scan (scout job exists) → daily conviction-ranked digest push.
 - [ ] Portfolio / accounts view (Edwin / Dad / Bro holdings already in definitions.js).
