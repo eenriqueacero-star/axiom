@@ -2,50 +2,9 @@ import { AGENTS, ACCOUNTS, DISCOVERY_POOL, PROTOCOLS } from '../agents/definitio
 import { callAgent, callSynthesis } from '../lib/groq.js';
 import { db } from '../lib/firebase.js';
 import { sendPush } from '../routes/push.js';
+import { extractJSON, fetchLiveData } from '../lib/council.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-function extractJSON(text) {
-  try {
-    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const raw = fenceMatch ? fenceMatch[1] : text;
-    const start = raw.indexOf('{'), end = raw.lastIndexOf('}');
-    if (start === -1 || end === -1) return null;
-    return JSON.parse(raw.slice(start, end + 1));
-  } catch { return null; }
-}
-
-async function fetchLiveData(ticker) {
-  const FINNHUB = process.env.FINNHUB_KEY;
-  const today = new Date().toISOString().slice(0, 10);
-  const from  = new Date(Date.now() - 5 * 864e5).toISOString().slice(0, 10);
-  const in90d = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);
-
-  const [qRes, nRes, eRes] = await Promise.all([
-    fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB}`),
-    fetch(`https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${from}&to=${today}&token=${FINNHUB}`),
-    fetch(`https://finnhub.io/api/v1/stock/earnings-calendar?from=${today}&to=${in90d}&symbol=${ticker}&token=${FINNHUB}`),
-  ]);
-
-  const q = qRes.ok ? await qRes.json() : {};
-  const news = nRes.ok ? (await nRes.json()).slice(0, 5) : [];
-  const earnings = eRes.ok ? await eRes.json() : {};
-
-  const price = q.c > 0 ? q.c : q.pc;
-  const changePct = q.dp ?? null;
-  const nextEarnings = earnings.earningsCalendar?.[0]?.date || null;
-
-  const timeStr = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
-  const priceStr = price ? `$${price.toFixed(2)}` : 'N/A';
-  const changeStr = changePct != null ? ` ${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}% today` : '';
-  const earningsLine = nextEarnings
-    ? `Next earnings: ${nextEarnings} (in ${Math.round((new Date(nextEarnings) - new Date(today)) / 864e5)} days)`
-    : 'Next earnings: none scheduled within 90 days';
-  const newsText = news.map(a => `- [${new Date(a.datetime * 1000).toISOString().slice(0, 10)}] ${a.headline}`).join('\n');
-
-  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${newsText || 'No recent news.'}\n`;
-  return { liveDataBlock, price, changePct };
-}
 
 async function scoutOne(ticker) {
   const { liveDataBlock, price, changePct } = await fetchLiveData(ticker);
