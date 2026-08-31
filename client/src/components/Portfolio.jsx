@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getPortfolio, setHolding, addTicker, removeTicker } from '../api';
+import { getPortfolio, setHolding, addTicker, removeTicker, importPositions } from '../api';
 
 const money = (n) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -15,6 +15,9 @@ export default function Portfolio({ onAnalyze }) {
   const [draft, setDraft] = useState('');
   const [adding, setAdding] = useState(null); // accountId
   const [newTicker, setNewTicker] = useState('');
+  const [importing, setImporting] = useState(null); // accountId
+  const [importText, setImportText] = useState('');
+  const [importBusy, setImportBusy] = useState(false);
 
   const load = () => getPortfolio().then(setData).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
@@ -35,6 +38,18 @@ export default function Portfolio({ onAnalyze }) {
 
   const doRemove = async (acct, ticker) => {
     try { setData(await removeTicker(acct, ticker)); } catch (e) { setErr(e.message); }
+  };
+
+  const doImport = async (acct) => {
+    setImportBusy(true);
+    setErr('');
+    try {
+      const { portfolio } = await importPositions(acct, importText);
+      setData(portfolio);
+      setImporting(null);
+      setImportText('');
+    } catch (e) { setErr(e.message); }
+    finally { setImportBusy(false); }
   };
 
   if (err) return <p className="text-xs text-red-400">{err}</p>;
@@ -68,8 +83,48 @@ export default function Portfolio({ onAnalyze }) {
               <h2 className="text-sm text-neutral-200">{acct.label}</h2>
               <p className="text-[11px] text-haze">{acct.sub}{acct.dcaNote ? ` · ${acct.dcaNote}` : ''}</p>
             </div>
-            <span className="font-mono text-sm text-neutral-300">{money(acct.value)}</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => { setImporting(acct.id); setImportText(''); }}
+                className="text-[11px] text-indigo-400 hover:text-indigo-300"
+              >
+                paste positions
+              </button>
+              <span className="font-mono text-sm text-neutral-300">{money(acct.value)}</span>
+            </div>
           </div>
+
+          {importing === acct.id && (
+            <div className="card p-3 mb-2 space-y-2">
+              <p className="text-[11px] text-haze">
+                Paste from your broker — any format works (<span className="font-mono">NVDA 12</span>,
+                CSV, or the copied positions table). Shares first, cost basis second if you have it.
+              </p>
+              <textarea
+                autoFocus
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                rows={6}
+                placeholder={'NVDA 12 180.50\nAMD 8 175'}
+                className="w-full bg-ink-900 border border-ink-800 rounded p-2 text-xs font-mono"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => doImport(acct.id)}
+                  disabled={importBusy || !importText.trim()}
+                  className="h-8 px-4 rounded bg-indigo-500 text-white text-xs disabled:opacity-50"
+                >
+                  {importBusy ? 'Importing…' : 'Import'}
+                </button>
+                <button
+                  onClick={() => setImporting(null)}
+                  className="h-8 px-3 rounded bg-ink-800 text-xs text-haze"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
           <ul className="divide-y divide-ink-800 card overflow-hidden">
             {acct.positions.map((p) => {

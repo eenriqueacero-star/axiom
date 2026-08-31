@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { verifyToken } from '../lib/auth.js';
-import { getPortfolio, setHolding, addTicker, removeTicker } from '../lib/portfolio.js';
+import { getPortfolio, setHolding, addTicker, removeTicker, importPositions } from '../lib/portfolio.js';
 
 const router = Router();
 router.use(verifyToken);
@@ -24,6 +24,15 @@ router.put('/:accountId/:ticker', async (req, res) => {
       costBasis: req.body?.costBasis,
     });
     res.json(await getPortfolio(req.uid));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/:accountId/import', async (req, res) => {
+  try {
+    const parsed = await importPositions(req.uid, req.params.accountId, req.body?.text || '');
+    res.json({ imported: parsed, portfolio: await getPortfolio(req.uid) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

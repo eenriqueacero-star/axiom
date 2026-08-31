@@ -55,3 +55,5 @@ export const addTicker = (accountId, ticker) =>
   request(`/portfolio/${accountId}/${ticker.toUpperCase()}`, { method: 'POST' });
 export const removeTicker = (accountId, ticker) =>
   request(`/portfolio/${accountId}/${ticker.toUpperCase()}`, { method: 'DELETE' });
+export const importPositions = (accountId, text) =>
+  request(`/portfolio/${accountId}/import`, { method: 'POST', body: { text } });
