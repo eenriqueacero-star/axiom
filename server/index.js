@@ -6,7 +6,17 @@ import { firebaseReady } from './lib/firebase.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+// Allow the deployed client(s) plus local dev. CLIENT_URL may be comma-separated.
+const allowedOrigins = [
+  ...(process.env.CLIENT_URL?.split(',').map(s => s.trim()).filter(Boolean) || []),
+  'http://localhost:5173',
+];
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(null, false);
+  },
+}));
 app.use(express.json({ limit: '2mb' }));
 
 // Routes
