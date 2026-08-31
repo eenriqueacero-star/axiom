@@ -31,3 +31,14 @@ export async function getAgents() {
 
 export const runCouncil = (ticker, force = false) =>
   request('/council/run', { method: 'POST', body: { ticker, force } });
+
+// Unauthenticated readiness flags (firebase / push / groq).
+export async function getHealth() {
+  const res = await fetch(`${BASE}/health`);
+  if (!res.ok) throw new Error('health check failed');
+  return res.json();
+}
+
+// Per-key Groq probe (authenticated). ?force=1 skips the 60s server cache.
+export const getKeyStatus = (force = false) =>
+  request(`/status/groq-keys${force ? '?force=1' : ''}`);
