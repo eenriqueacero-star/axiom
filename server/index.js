@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { initScheduler } from './jobs/scheduler.js';
+import { firebaseReady } from './lib/firebase.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -21,7 +22,21 @@ app.use('/api/news',    newsRoute);
 app.use('/api/push',    pushRoute);
 app.use('/api/rulings', rulingRoute);
 
-app.get('/health', (_, res) => res.json({ ok: true, ts: Date.now() }));
+app.get('/health', (_, res) => res.json({
+  ok: true,
+  ts: Date.now(),
+  firebase: firebaseReady,
+  push: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
+  groq: Boolean(process.env.GROQ_API_KEY),
+}));
+
+// Global error handler — never leak a stack trace, never crash the process.
+app.use((err, _req, res, _next) => {
+  console.error('[error]', err.message);
+  res.status(500).json({ error: 'Internal error' });
+});
+
+process.on('unhandledRejection', err => console.error('[unhandledRejection]', err));
 
 app.listen(PORT, () => {
   console.log(`Axiom server running on :${PORT}`);
