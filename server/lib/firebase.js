@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
@@ -8,19 +9,23 @@ const {
   FIREBASE_PRIVATE_KEY,
 } = process.env;
 
-// Accept either a full service-account JSON blob (FIREBASE_SERVICE_ACCOUNT)
-// or the three fields split out individually.
+// Accept a full service-account JSON blob (FIREBASE_SERVICE_ACCOUNT) — either the
+// JSON inline or a path to a file containing it (e.g. a Render secret file at
+// /etc/secrets/...) — or the three fields split out individually.
 function resolveCredential() {
   if (FIREBASE_SERVICE_ACCOUNT) {
     try {
-      const j = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
+      const raw = FIREBASE_SERVICE_ACCOUNT.trim().startsWith('{')
+        ? FIREBASE_SERVICE_ACCOUNT
+        : readFileSync(FIREBASE_SERVICE_ACCOUNT, 'utf8');
+      const j = JSON.parse(raw);
       return {
         projectId:   j.project_id,
         clientEmail: j.client_email,
         privateKey:  j.private_key?.replace(/\\n/g, '\n'),
       };
-    } catch {
-      console.error('[firebase] FIREBASE_SERVICE_ACCOUNT is not valid JSON');
+    } catch (err) {
+      console.error('[firebase] FIREBASE_SERVICE_ACCOUNT could not be loaded:', err.message);
       return null;
     }
   }
