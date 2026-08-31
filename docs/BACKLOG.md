@@ -98,3 +98,4 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 - Public projects surveyed for reuse (TradingAgents, ai-hedge-fund, congress data) —
   see roadmap memory.
 - Quant service scaffolded; first (biased) backtest run.
+- System status view in the app — health flags + per-Groq-key health (header dot).
