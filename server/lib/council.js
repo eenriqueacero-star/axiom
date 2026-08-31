@@ -3,6 +3,14 @@ import { callAgent, callSynthesis } from './groq.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// Finnhub endpoints not on the free tier 302-redirect to their marketing site,
+// which fetch follows to a 200 HTML page — so never trust res.ok alone.
+async function safeJson(res) {
+  if (!res.ok) return null;
+  if (!res.headers.get('content-type')?.includes('application/json')) return null;
+  try { return await res.json(); } catch { return null; }
+}
+
 export function extractJSON(text) {
   try {
     const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -25,9 +33,10 @@ export async function fetchLiveData(ticker) {
     fetch(`https://finnhub.io/api/v1/stock/earnings-calendar?from=${today}&to=${in90d}&symbol=${ticker}&token=${FINNHUB}`),
   ]);
 
-  const q = qRes.ok ? await qRes.json() : {};
-  const news = nRes.ok ? (await nRes.json()).slice(0, 5) : [];
-  const earnings = eRes.ok ? await eRes.json() : {};
+  const q = (await safeJson(qRes)) || {};
+  const newsRaw = await safeJson(nRes);
+  const news = Array.isArray(newsRaw) ? newsRaw.slice(0, 5) : [];
+  const earnings = (await safeJson(eRes)) || {};
 
   const price = q.c > 0 ? q.c : q.pc;
   const changePct = q.dp ?? null;
