@@ -29,6 +29,7 @@ const { default: rulingRoute }  = await import('./routes/rulings.js');
 const { default: statusRoute }  = await import('./routes/status.js');
 const { default: signalsRoute } = await import('./routes/signals.js');
 const { default: portfolioRoute } = await import('./routes/portfolio.js');
+const { default: scorecardRoute } = await import('./routes/scorecard.js');
 
 app.use('/api/agent',   agentRoute);
 app.use('/api/council', councilRoute);
@@ -39,6 +40,7 @@ app.use('/api/rulings', rulingRoute);
 app.use('/api/status',  statusRoute);
 app.use('/api/signals', signalsRoute);
 app.use('/api/portfolio', portfolioRoute);
+app.use('/api/scorecard', scorecardRoute);
 
 app.get('/health', (_, res) => res.json({
   ok: true,

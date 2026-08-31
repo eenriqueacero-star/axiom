@@ -46,6 +46,8 @@ export const getKeyStatus = (force = false) =>
 export const getMarketNews = () => request('/signals/market');
 export const getTickerNews = (ticker) => request(`/signals/${ticker.toUpperCase()}`);
 
+export const getScorecard = () => request('/scorecard');
+
 export const getPortfolio = () => request('/portfolio');
 export const setHolding = (accountId, ticker, body) =>
   request(`/portfolio/${accountId}/${ticker.toUpperCase()}`, { method: 'PUT', body });

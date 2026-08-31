@@ -3,6 +3,7 @@ import { useAuth } from './AuthProvider';
 import Login from './components/Login';
 import Analyze from './components/Analyze';
 import Portfolio from './components/Portfolio';
+import Scorecard from './components/Scorecard';
 import SystemStatus from './components/SystemStatus';
 
 export default function App() {
@@ -58,15 +59,14 @@ export default function App() {
         <div className="mx-auto max-w-3xl px-4 flex gap-4">
           {tab('portfolio', 'Portfolio')}
           {tab('analyze', 'Analyze')}
+          {tab('scorecard', 'Scorecard')}
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-6">
-        {view === 'portfolio' ? (
-          <Portfolio onAnalyze={goAnalyze} />
-        ) : (
-          <Analyze initialTicker={analyzeTicker} />
-        )}
+        {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
+        {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
+        {view === 'scorecard' && <Scorecard />}
       </main>
 
       <SystemStatus open={statusOpen} onClose={() => setStatusOpen(false)} />

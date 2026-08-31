@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { runDailyScout } from './scoutJob.js';
 import { runPortfolioAlerts } from './alertJob.js';
+import { scoreAllUsers } from '../lib/scorecard.js';
 
 export function initScheduler() {
   // Daily scout scan — 9:05 AM ET (market open + 5 min)
@@ -15,5 +16,13 @@ export function initScheduler() {
     runPortfolioAlerts().catch(err => console.error('[alerts] Error:', err.message));
   }, { timezone: 'America/New_York' });
 
-  console.log('[scheduler] Jobs registered: daily scout (9:05 AM ET), alerts (every 30min market hours)');
+  // Verdict scorecard — score past analyses vs actual price, 4:30 PM ET
+  cron.schedule('30 16 * * 1-5', () => {
+    console.log('[scheduler] Scoring verdicts...');
+    scoreAllUsers()
+      .then(n => console.log(`[scorecard] scored ${n} analyses`))
+      .catch(err => console.error('[scorecard] Error:', err.message));
+  }, { timezone: 'America/New_York' });
+
+  console.log('[scheduler] Jobs registered: scout (9:05 ET), alerts (30min), scorecard (16:30 ET)');
 }
