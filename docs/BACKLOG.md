@@ -6,6 +6,10 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 ## ⭐ Hard requirements (never drop)
 
+- **EVERYTHING MUST BE CONNECTED.** No isolated features. Every piece feeds the others —
+  news → agents; backtest → strategy → agents; scorecard → agent learning; signals →
+  notifications → holdings; agent chat → every view. If a feature doesn't wire into the
+  rest of the system, it isn't done. Build the connections, not just the boxes.
 - **AI agents must be able to interact with and engage the entire app UI.** Not just
   verdict generators — they navigate views, populate/filter screens, surface analyses,
   respond to what the user is looking at, act in-app on the user's behalf. Every UI
@@ -58,8 +62,13 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 ## Features
 
-- [x] **News feed (v1)** — `server/lib/signals.js` marketNews + tickerNews via Finnhub;
-  `/api/signals/*`; NewsPanel under the agent cards. Congress/SEC still TODO.
+- [x] **News feed (v1, UI only)** — `server/lib/signals.js` marketNews + tickerNews via
+  Finnhub; `/api/signals/*`; NewsPanel under the agent cards.
+- [ ] **CONNECT news → agents** ⭐ — the panel is standalone right now = cosmetic. Wire
+  `signals` into the council: pass recent ticker headlines into NOVA (catalyst) + VEGA
+  (bear case) agent context so verdicts cite real events; surface which headlines drove
+  the verdict; push-alert on material news for held tickers. Nothing is "done" until it
+  connects.
 - [ ] **Events service — remaining**: SEC EDGAR 8-K, Fed/econ/FDA calendars, persist to
   Firestore `signals`, feed NOVA agent context, push alerts on holdings hits.
 - [ ] **Congressional trading tracker** — BLOCKED on data source. Free sources dead in
