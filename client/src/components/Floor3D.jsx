@@ -11,13 +11,13 @@ const MODEL = '/models/robot.glb';
 useGLTF.preload(MODEL);
 
 /* ------------------------------------------------------------------ layout */
-const GAP = 6.4;
+const GAP = 5.4;
 const roomPos = (i) => {
   const col = i % 3;
   const row = Math.floor(i / 3);
   return new THREE.Vector3((col - 1) * GAP, 0, (row - 0.5) * GAP);
 };
-const ISO = new THREE.Vector3(1, 1.08, 1).normalize();
+const ISO = new THREE.Vector3(1, 1.05, 1).normalize();
 const damp = (c, t, l, dt) => THREE.MathUtils.lerp(c, t, 1 - Math.exp(-l * dt));
 
 // reaction cue -> clip name in RobotExpressive
@@ -92,7 +92,7 @@ function Robot({ color, focused, reaction = 'idle', busy = false }) {
 
   return (
     <group ref={group} dispose={null}>
-      <primitive object={model} scale={0.32} />
+      <primitive object={model} scale={0.42} />
     </group>
   );
 }
@@ -101,38 +101,43 @@ function Robot({ color, focused, reaction = 'idle', busy = false }) {
 function Plinth({ agent, index, focused, dim, live, onSelect }) {
   const p = roomPos(index);
   const grp = useRef();
-  const ring = useRef();
+  const inlay = useRef();
   const c = useMemo(() => new THREE.Color(agent.color), [agent.color]);
-  const S = 3.4;
+  const S = 3;
 
   useFrame((s, dt) => {
-    if (grp.current) grp.current.position.y = damp(grp.current.position.y, focused ? 0.14 : 0, 8, dt);
-    if (ring.current) {
-      const em = focused ? 2.6 : dim ? 0.12 : 0.7;
-      ring.current.material.emissiveIntensity = damp(ring.current.material.emissiveIntensity, em, 6, dt);
+    if (grp.current) grp.current.position.y = damp(grp.current.position.y, focused ? 0.16 : 0, 8, dt);
+    if (inlay.current) {
+      const em = focused ? 2.4 : dim ? 0.08 : 0.55;
+      inlay.current.material.emissiveIntensity = damp(inlay.current.material.emissiveIntensity, em, 6, dt);
     }
   });
 
   return (
     <group ref={grp} position={p}>
       <mesh
-        position={[0, 1.1, 0]}
+        position={[0, 1, 0]}
         onClick={(e) => { e.stopPropagation(); onSelect(agent.id); }}
         onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { document.body.style.cursor = 'default'; }}
       >
         <boxGeometry args={[S, 3, S]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
       </mesh>
 
-      {/* plinth */}
-      <RoundedBox args={[S, 0.5, S]} radius={0.14} smoothness={4} position={[0, -0.25, 0]} receiveShadow>
-        <meshStandardMaterial color={dim ? '#0c0c0e' : '#141418'} metalness={0.2} roughness={0.75} />
+      {/* plinth block */}
+      <RoundedBox args={[S, 0.6, S]} radius={0.1} smoothness={4} position={[0, -0.3, 0]} receiveShadow castShadow>
+        <meshStandardMaterial color={dim ? '#0b0b0d' : '#131316'} metalness={0.2} roughness={0.7} />
       </RoundedBox>
-      {/* glowing rim */}
-      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
-        <ringGeometry args={[S / 2 - 0.14, S / 2 - 0.04, 4, 1]} />
-        <meshStandardMaterial color={c} emissive={c} emissiveIntensity={0.7} toneMapped={false} />
+      {/* recessed glowing top inlay */}
+      <mesh ref={inlay} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
+        <planeGeometry args={[S - 0.34, S - 0.34]} />
+        <meshStandardMaterial color={c} emissive={c} emissiveIntensity={0.5} roughness={1} toneMapped={false} />
+      </mesh>
+      {/* thin dark bezel over the inlay edge */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
+        <planeGeometry args={[S - 0.5, S - 0.5]} />
+        <meshStandardMaterial color="#0d0d10" roughness={0.9} />
       </mesh>
 
       <Robot
@@ -142,7 +147,7 @@ function Plinth({ agent, index, focused, dim, live, onSelect }) {
         busy={!!live?.busy}
       />
 
-      <pointLight position={[0.8, 2.2, 1]} distance={5.5} intensity={focused ? 2.6 : dim ? 0.25 : 0.7} color={c} />
+      <pointLight position={[0.8, 2.2, 1]} distance={5} intensity={focused ? 2.4 : dim ? 0.2 : 0.6} color={c} />
     </group>
   );
 }
@@ -157,16 +162,16 @@ function Rig({ focusIndex }) {
     const t = s.clock.elapsedTime;
     const focused = focusIndex != null;
     const fp = focused ? roomPos(focusIndex) : new THREE.Vector3(0, 0, 0);
-    aim.current.set(fp.x, focused ? 0.9 : 0.7, fp.z + (focused ? 0.1 : 0));
-    pos.current.copy(aim.current).addScaledVector(ISO, focused ? 13 : 27);
-    pos.current.x += Math.sin(t * 0.15) * (focused ? 0.15 : 0.5);
-    pos.current.y += Math.sin(t * 0.11) * 0.18;
+    aim.current.set(fp.x, focused ? 0.95 : 0.6, fp.z + (focused ? 0.1 : 0));
+    pos.current.copy(aim.current).addScaledVector(ISO, focused ? 12 : 24);
+    pos.current.x += Math.sin(t * 0.15) * (focused ? 0.12 : 0.4);
+    pos.current.y += Math.sin(t * 0.11) * 0.14;
     ['x', 'y', 'z'].forEach((k) => {
       camera.position[k] = damp(camera.position[k], pos.current[k], 3, dt);
       tgt.current[k] = damp(tgt.current[k], aim.current[k], 3.4, dt);
     });
     camera.lookAt(tgt.current);
-    camera.zoom = damp(camera.zoom, focused ? 105 : 46, 3, dt);
+    camera.zoom = damp(camera.zoom, focused ? 118 : 58, 3, dt);
     camera.updateProjectionMatrix();
   });
   return null;
