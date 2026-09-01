@@ -3,6 +3,8 @@ import { callAgent, callSynthesis } from './groq.js';
 import { safeJson } from './fetchJson.js';
 import { tickerNews } from './signals.js';
 import { priceFacts } from './metrics.js';
+import { getPortfolio } from './portfolio.js';
+import { diagnose, sectorOf, sleeveOf, CAPS } from './strategy.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -58,6 +60,46 @@ export async function fetchLiveData(ticker) {
 
 const FALLBACK = { checks: {}, note: 'No response', headline: 'No response', error: true };
 
+/**
+ * Build the "here's what you already own" context for a council run.
+ * Returns null when there's no uid or no portfolio yet.
+ */
+async function buildHoldingsContext(uid, sym) {
+  if (!uid) return null;
+  let portfolio;
+  try { portfolio = await getPortfolio(uid); } catch { return null; }
+  const d = diagnose(portfolio);
+  if (!d.ready) return null;
+
+  const sector = sectorOf(sym);
+  const sleeve = sleeveOf(sym);
+  const heldName = d.names.find(n => n.ticker === sym);
+  const positionPct = heldName ? heldName.pct : 0;
+  const sectorRow = d.sectors.find(s => s.name === sector);
+  const sectorPct = sectorRow ? sectorRow.pct : 0;
+  const nameCap = CAPS.name[sleeve];
+
+  // Would adding a starter-size position push a cap over the line?
+  const breachSector = sectorPct >= CAPS.sector;
+  const breachName = positionPct >= nameCap;
+  const breachIfAdd = breachSector || breachName;
+
+  const lines = [
+    `HOLDINGS CONTEXT (the investor's actual portfolio, $${Math.round(d.total).toLocaleString()}):`,
+    `- ${sym}: currently ${(positionPct * 100).toFixed(1)}% of the portfolio (${sleeve} sleeve; cap ${(nameCap * 100).toFixed(0)}%)`,
+    `- ${sector} sector: currently ${(sectorPct * 100).toFixed(0)}% of the portfolio (cap ${CAPS.sector * 100}%)`,
+    `- Core/Satellite mix: ${(d.sleeve.corePct * 100).toFixed(0)}% / ${(d.sleeve.satellitePct * 100).toFixed(0)}% (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100})`,
+  ];
+  if (d.flags.length) lines.push(`- Rulebook flags: ${d.flags.map(f => f.msg).join(' | ')}`);
+  if (breachIfAdd) {
+    lines.push(breachSector
+      ? `- ADDING ${sym} IS BLOCKED: the ${sector} sector is already at/over its ${CAPS.sector * 100}% cap.`
+      : `- ADDING ${sym} IS BLOCKED: the position is already at/over its ${(nameCap * 100).toFixed(0)}% cap.`);
+  }
+
+  return { block: '\n' + lines.join('\n') + '\n', held: positionPct > 0, positionPct, sectorPct, sector, sleeve, breachIfAdd, breachSector, breachName };
+}
+
 // Positive-signal agents — their yes-checks build the score. VEGA is scored
 // separately (its checks are inverted: true = a problem).
 const POSITIVE_AGENTS = ['quality', 'trend', 'catalyst', 'sector', 'sizing'];
@@ -81,7 +123,7 @@ function agentStance(id, checks) {
  * Compute the council verdict from the agents' binary checks — in code, no LLM.
  * Returns { verdict, conviction, score, broken, entryClear, tally }.
  */
-export function scoreCouncil(agents) {
+export function scoreCouncil(agents, holdings = null) {
   let yes = 0, no = 0;
   for (const id of POSITIVE_AGENTS) {
     for (const v of Object.values(agents[id]?.checks || {})) {
@@ -108,9 +150,22 @@ export function scoreCouncil(agents) {
   else if (score <= 3) { verdict = 'TRIM'; conviction = Math.max(5, 10 - score); }
   else { verdict = 'HOLD'; conviction = 5; }
 
+  // Holdings-aware: a good name you can't fit under the caps is a HOLD, not an ADD.
+  let concentrationBlock = false;
+  if (verdict === 'ADD' && holdings?.breachIfAdd) {
+    verdict = 'HOLD';
+    conviction = 5;
+    concentrationBlock = true;
+  }
+  // Already oversized in this name → lean TRIM even if the business is fine.
+  if (holdings?.breachName && !broken && verdict === 'HOLD') {
+    verdict = 'TRIM';
+    conviction = 6;
+  }
+
   return {
     verdict, conviction, score,
-    broken, downtrend, entryClear,
+    broken, downtrend, entryClear, concentrationBlock,
     tally: { yes, no, answered },
   };
 }
@@ -118,10 +173,13 @@ export function scoreCouncil(agents) {
 // Run all agents against a ticker; the verdict is computed in code, then AXIOM
 // writes the human explanation of that (fixed) verdict.
 // mode: 'scout' = fast cron pass; 'full' = conversational.
-export async function runCouncil(ticker, { mode = 'full' } = {}) {
+export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
   const sym = ticker.toUpperCase().trim();
-  const { liveDataBlock, price, changePct, nextEarnings, news, facts } = await fetchLiveData(sym);
-  const user = `Ticker: ${sym}. Judge it for Axiom's long-term basket (belongs / broken / entry / size).\n${liveDataBlock}\nReturn ONLY the JSON.`;
+  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings] = await Promise.all([
+    fetchLiveData(sym),
+    buildHoldingsContext(uid, sym).catch(() => null),
+  ]);
+  const user = `Ticker: ${sym}. Judge it for Axiom's long-term basket (belongs / broken / entry / size).\n${liveDataBlock}${holdings?.block || ''}\nReturn ONLY the JSON.`;
 
   const agents = {};
   for (let i = 0; i < AGENTS.length; i++) {
@@ -147,7 +205,7 @@ export async function runCouncil(ticker, { mode = 'full' } = {}) {
     if (i < AGENTS.length - 1) await sleep(mode === 'scout' ? 1200 : 600);
   }
 
-  const computed = scoreCouncil(agents);
+  const computed = scoreCouncil(agents, holdings);
 
   const checkLines = AGENTS.map(ag => {
     const r = agents[ag.id] || {};
@@ -165,9 +223,10 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
   try {
     const text = await callSynthesis({
       system: synthSys,
-      user: `${liveDataBlock}\nRULEBOOK VERDICT: ${computed.verdict} (conviction ${computed.conviction}/10). `
+      user: `${liveDataBlock}${holdings?.block || ''}\nRULEBOOK VERDICT: ${computed.verdict} (conviction ${computed.conviction}/10). `
         + `${computed.broken ? 'Thesis flagged BROKEN. ' : ''}${computed.downtrend ? 'Confirmed downtrend. ' : ''}`
-        + `${!computed.entryClear ? 'Entry not clear (trend/extension). ' : ''}\n`
+        + `${!computed.entryClear ? 'Entry not clear (trend/extension). ' : ''}`
+        + `${computed.concentrationBlock ? 'The business is fine but ADD was blocked — the sector/name is already at its cap, so HOLD. ' : ''}\n`
         + `Council checks:\n${checkLines}`,
       maxTokens: 512,
     });
@@ -183,7 +242,15 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
     agents,
     verdict: computed.verdict,
     conviction: computed.conviction,
-    computed: { broken: computed.broken, downtrend: computed.downtrend, entryClear: computed.entryClear, tally: computed.tally },
+    computed: {
+      broken: computed.broken, downtrend: computed.downtrend, entryClear: computed.entryClear,
+      concentrationBlock: computed.concentrationBlock, tally: computed.tally,
+    },
+    holdings: holdings && {
+      held: holdings.held, positionPct: holdings.positionPct,
+      sector: holdings.sector, sectorPct: holdings.sectorPct,
+      sleeve: holdings.sleeve, breachIfAdd: holdings.breachIfAdd,
+    },
     ...synth,
     ts: Date.now(),
   };

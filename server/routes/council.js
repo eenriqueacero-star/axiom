@@ -38,7 +38,7 @@ router.post('/run', async (req, res) => {
   }
 
   try {
-    const result = await runCouncil(ticker);
+    const result = await runCouncil(ticker, { uid: req.uid });
     const ref = await col.add(result);
     res.json({ id: ref.id, ...result });
   } catch (err) {

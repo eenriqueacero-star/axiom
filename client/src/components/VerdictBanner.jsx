@@ -40,7 +40,7 @@ export default function VerdictBanner({ analysis }) {
       {analysis.rationale && (
         <p className="text-sm text-neutral-300 mt-1 leading-relaxed">{analysis.rationale}</p>
       )}
-      {(analysis.computed?.broken || analysis.computed?.downtrend || analysis.computed?.entryClear === false) && (
+      {(analysis.computed?.broken || analysis.computed?.downtrend || analysis.computed?.entryClear === false || analysis.computed?.concentrationBlock) && (
         <div className="flex flex-wrap gap-2 mt-3">
           {analysis.computed.broken && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-500/15 text-red-400">THESIS BROKEN</span>
@@ -51,7 +51,17 @@ export default function VerdictBanner({ analysis }) {
           {analysis.computed.entryClear === false && !analysis.computed.broken && !analysis.computed.downtrend && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400">ENTRY NOT CLEAR</span>
           )}
+          {analysis.computed.concentrationBlock && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400">ALREADY AT CAP</span>
+          )}
         </div>
+      )}
+      {analysis.holdings && (
+        <p className="text-xs text-haze mt-2">
+          You hold {(analysis.holdings.positionPct * 100).toFixed(1)}% in {analysis.ticker}
+          {' · '}{analysis.holdings.sector} sector {(analysis.holdings.sectorPct * 100).toFixed(0)}%
+          {analysis.holdings.breachIfAdd ? ' (at cap)' : ''}
+        </p>
       )}
       {analysis.facts?.available && (
         <p className="text-xs text-haze mt-3">
