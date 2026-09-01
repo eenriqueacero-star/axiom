@@ -3,6 +3,7 @@ import {
   getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount, renameAccount,
 } from '../api';
 import BrokerLink from './BrokerLink';
+import StrategyCheck from './StrategyCheck';
 
 const money = (n) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -112,6 +113,7 @@ export default function Portfolio({ onAnalyze }) {
       </div>
 
       <BrokerLink onSynced={setData} />
+      <StrategyCheck />
 
       {data.accounts.map((acct) => {
         const linked = acct.linked;
