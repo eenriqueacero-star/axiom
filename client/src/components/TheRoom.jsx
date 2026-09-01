@@ -405,20 +405,21 @@ function Shell() {
         <meshBasicMaterial color="#39424f" />
       </mesh>
 
-      {/* walls with a panelled dado */}
+      {/* Walls face inward and are single-sided, so the two nearest the camera
+          cull away and you can see into the room — dollhouse style. */}
       {[[0, -D / 2, 0], [0, D / 2, Math.PI], [-W / 2, 0, Math.PI / 2], [W / 2, 0, -Math.PI / 2]].map(([x, z, ry], i) => (
         <group key={i} position={[x, 0, z]} rotation={[0, ry, 0]}>
           <mesh position={[0, H / 2, 0]} receiveShadow>
-            <boxGeometry args={[W, H, 0.16]} />
-            <meshStandardMaterial color="#191b21" roughness={0.95} side={THREE.DoubleSide} />
+            <planeGeometry args={[W, H]} />
+            <meshStandardMaterial color="#191b21" roughness={0.95} side={THREE.FrontSide} />
           </mesh>
-          <mesh position={[0, 1.05, 0.09]} receiveShadow>
-            <boxGeometry args={[W, 2.1, 0.06]} />
-            <meshStandardMaterial color="#22262e" roughness={0.9} />
+          <mesh position={[0, 1.05, 0.03]} receiveShadow>
+            <planeGeometry args={[W, 2.1]} />
+            <meshStandardMaterial color="#22262e" roughness={0.9} side={THREE.FrontSide} />
           </mesh>
-          <mesh position={[0, 2.12, 0.13]}>
-            <boxGeometry args={[W, 0.07, 0.05]} />
-            <meshStandardMaterial color="#333947" roughness={0.7} />
+          <mesh position={[0, 2.12, 0.06]}>
+            <planeGeometry args={[W, 0.07]} />
+            <meshBasicMaterial color="#3b4253" side={THREE.FrontSide} />
           </mesh>
         </group>
       ))}
@@ -510,11 +511,14 @@ function Shell() {
         ))}
       </group>
 
-      {/* ceiling */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, H, 0]}>
-        <planeGeometry args={[W, D]} />
-        <meshStandardMaterial color="#141419" roughness={1} />
-      </mesh>
+      {/* No ceiling — the camera looks in from above. A cornice line reads as
+          the top of the room without blocking the view. */}
+      {[[0, -D / 2, 0], [0, D / 2, Math.PI], [-W / 2, 0, Math.PI / 2], [W / 2, 0, -Math.PI / 2]].map(([x, z, ry], i) => (
+        <mesh key={i} position={[x, H - 0.12, z]} rotation={[0, ry, 0]}>
+          <planeGeometry args={[W, 0.12]} />
+          <meshBasicMaterial color="#2c313d" side={THREE.FrontSide} />
+        </mesh>
+      ))}
     </group>
   );
 }
