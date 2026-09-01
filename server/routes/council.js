@@ -10,7 +10,7 @@ import { tickerNews } from '../lib/signals.js';
 import { getPortfolio } from '../lib/portfolio.js';
 import { diagnose } from '../lib/strategy.js';
 import { buildFloorLive } from '../lib/floorLive.js';
-import { relevantMemos, memoBlock } from '../lib/memos.js';
+import { relevantMemos, memoBlock, saveMemo } from '../lib/memos.js';
 import { markUserActivity } from '../lib/budget.js';
 
 const COMMON_WORDS = new Set(['I', 'A', 'THE', 'MY', 'IS', 'IT', 'DO', 'OK', 'ADD', 'HOLD', 'TRIM', 'EXIT', 'AI', 'US', 'CEO', 'ETF', 'YOU', 'AND', 'OR', 'FOR', 'ARE', 'NOT', 'BUY', 'SELL', 'WHY', 'HOW']);
@@ -24,6 +24,54 @@ const SCHEDULE = [
   { job: 'Portfolio alerts', cadence: 'Every 30 min, market hours', does: 'Checks each holding vs your cost basis, pushes on big moves.' },
   { job: 'Verdict scorecard', cadence: 'Weekdays 4:30 PM ET', does: 'Scores past verdicts against what the stock actually did.' },
 ];
+
+const MAX_CONSULTS = 2;
+
+const ROSTER = (selfId) => AGENTS
+  .map(a => `- ${a.name} (id "${a.id}")${a.id === selfId ? ' — you' : ''}: ${a.role}`)
+  .join('\n');
+
+const CONSULT_PROTOCOL = (selfId) => `
+REACHING A COLLEAGUE — you have a real, working channel to them. If answering properly needs
+another analyst's judgment, reply with ONLY this JSON object and nothing else:
+{"ask":"<id>","question":"<one specific question>"}
+${ROSTER(selfId)}
+That message genuinely reaches them and they genuinely answer; you will be given their reply and
+can then respond to the investor.
+
+Hard rules:
+- NEVER write that you have pinged, nudged, looped in, or messaged a colleague. Either emit the
+  JSON (which actually reaches them) or answer from your own remit.
+- NEVER say you are waiting on, or will follow up for, a colleague's reply. Replies are immediate.
+- NEVER write dialogue for another agent or invent what they said.
+- Use this only when you genuinely need their judgment — not for greetings or small talk.`;
+
+function buildAgentSystem(agent, { context = '', allowConsult = false } = {}) {
+  const checks = Object.values(agent.checks || {}).map(v => `- ${v}`).join('\n');
+  return `${agent.conversationalPrompt}
+You are ${agent.name} on Axiom's council. Your job on the council: ${agent.role}
+You judge these things:
+${checks}
+
+THE COUNCIL — your colleagues. Never invent other agents or misstate what they do:
+${ROSTER(agent.id)}
+AXIOM is the synthesiser; it explains the verdict the council's checks compute, it doesn't overrule them.
+${allowConsult ? CONSULT_PROTOCOL(agent.id) : ''}
+You're talking 1-on-1 with the investor who runs Axiom. Stay in character, be concise (2-4 sentences), plain-spoken, no corporate filler. Use ONLY the data provided — never invent a price, date, or event. If you don't know, say so.${context}`;
+}
+
+// Returns { id, question } when the model asked to consult someone real.
+function parseConsult(text, selfId) {
+  const m = String(text || '').match(/\{[^{}]*"ask"\s*:\s*"[^"]+"[^{}]*\}/);
+  if (!m) return null;
+  let obj;
+  try { obj = JSON.parse(m[0]); } catch { return null; }
+  const id = String(obj.ask || '').toLowerCase();
+  const target = AGENTS.find(a => a.id === id || a.name.toLowerCase() === id);
+  const question = String(obj.question || '').trim();
+  if (!target || target.id === selfId || !question) return null;
+  return { id: target.id, question: question.slice(0, 400) };
+}
 
 const router = Router();
 
@@ -139,29 +187,66 @@ router.post('/agent/:id/chat', async (req, res) => {
     }
     context += memoBlock(memos, { agentId: agent.id });
 
-    const checks = Object.entries(agent.checks || {}).map(([k, v]) => `- ${v}`).join('\n');
-    const roster = AGENTS
-      .map(a => `- ${a.name}${a.id === agent.id ? ' (you)' : ''}: ${a.role}`)
-      .join('\n');
-    const system = `${agent.conversationalPrompt}
-You are ${agent.name} on Axiom's council. Your job on the council: ${agent.role}
-You judge these things:
-${checks}
+    const system = buildAgentSystem(agent, { context, allowConsult: true });
 
-THE COUNCIL — these are your colleagues. Never invent other agents or misstate what they do:
-${roster}
-AXIOM is the synthesiser; it explains the verdict the council's checks compute, it doesn't overrule them.
+    // The consult bridge: the agent can actually reach a colleague mid-answer.
+    const consulted = [];
+    let reply = await callAgentChat({ system, messages });
 
-YOU CAN TALK TO THEM. The council has a desk: two analysts sit down, work through a
-disagreement, and the conversation is distilled into a DESK NOTE that every agent — including
-you — reads back later. That's how you share what you know; it does not have to go through the
-investor. If a question really belongs to a colleague, say which one and why, and that you'd
-take it to the desk. Never claim you have no way to reach the others.
+    for (let hop = 0; hop < MAX_CONSULTS; hop++) {
+      const ask = parseConsult(reply, agent.id);
+      if (!ask) break;
 
-You're talking 1-on-1 with the investor who runs Axiom. Stay in character, be concise (2-4 sentences), plain-spoken, no corporate filler. Use ONLY the data provided — never invent a price, date, or event. If you don't know, say so.${context}`;
+      const colleague = AGENTS.find(a => a.id === ask.id);
+      const colleagueSystem = buildAgentSystem(colleague, { context, allowConsult: false });
+      const answer = (await callAgentChat({
+        system: colleagueSystem,
+        messages: [{
+          role: 'user',
+          content: `${agent.name} (${agent.role}) is asking you directly at the council desk: `
+            + `"${ask.question}"\nAnswer ${agent.name} in 1-3 sentences, from your own remit. `
+            + `This is colleague-to-colleague, not a note to the investor.`,
+        }],
+        maxTokens: 240,
+      })).trim();
 
-    const reply = await callAgentChat({ system, messages });
-    res.json({ reply: reply || "…couldn't get a response, try again." });
+      consulted.push({
+        from: agent.id, fromName: agent.name,
+        to: colleague.id, toName: colleague.name,
+        question: ask.question, answer,
+      });
+
+      // Hand the real answer back and let the original agent continue.
+      reply = await callAgentChat({
+        system,
+        messages: [
+          ...messages,
+          { role: 'assistant', content: `[asked ${colleague.name}: ${ask.question}]` },
+          {
+            role: 'user',
+            content: `${colleague.name} replied: "${answer}"\n\nNow answer the investor. `
+              + `Say what ${colleague.name} told you and what you make of it. Do not emit JSON.`,
+          },
+        ],
+      });
+    }
+
+    // A colleague-to-colleague exchange is real shared knowledge — keep it.
+    for (const c of consulted) {
+      saveMemo(req.uid, {
+        participants: [c.from, c.to],
+        topic: c.question,
+        ticker: t || null,
+        keyPoints: [],
+        conclusion: `${c.toName} to ${c.fromName}: ${c.answer}`.slice(0, 300),
+        confidence: 0.5,
+        actionable: false,
+        tags: t ? [t, 'consult'] : ['consult'],
+        source: 'consult',
+      }).catch(() => {});
+    }
+
+    res.json({ reply: reply || "…couldn't get a response, try again.", consulted });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

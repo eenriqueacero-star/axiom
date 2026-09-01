@@ -84,8 +84,8 @@ export function AgentChat({ agent }) {
     setDraft('');
     setBusy(true);
     try {
-      const { reply } = await chatAgent(agent.id, next);
-      setMsgs([...next, { role: 'assistant', content: reply }]);
+      const { reply, consulted } = await chatAgent(agent.id, next);
+      setMsgs([...next, { role: 'assistant', content: reply, consulted }]);
     } catch (e) {
       setMsgs([...next, { role: 'assistant', content: `(${e.message})` }]);
     } finally {
@@ -99,10 +99,23 @@ export function AgentChat({ agent }) {
       {msgs.length > 0 && (
         <div className="space-y-1.5 mb-2 max-h-48 overflow-y-auto pr-1">
           {msgs.map((m, i) => (
-            <p key={i} className={`text-[11px] ${m.role === 'user' ? 'text-neutral-300' : 'text-neutral-400'}`}>
-              <span className="text-ink-600">{m.role === 'user' ? 'you' : agent.name}: </span>
-              {m.content}
-            </p>
+            <div key={i}>
+              {/* real colleague-to-colleague exchanges that happened to answer this */}
+              {m.consulted?.map((c, j) => (
+                <div key={j} className="my-1.5 pl-2 border-l border-ink-700 space-y-0.5">
+                  <p className="text-[10px] text-ink-500">
+                    {c.fromName} → {c.toName}: <span className="text-haze">{c.question}</span>
+                  </p>
+                  <p className="text-[10px] text-neutral-400">
+                    <span className="text-ink-500">{c.toName}: </span>{c.answer}
+                  </p>
+                </div>
+              ))}
+              <p className={`text-[11px] ${m.role === 'user' ? 'text-neutral-300' : 'text-neutral-400'}`}>
+                <span className="text-ink-600">{m.role === 'user' ? 'you' : agent.name}: </span>
+                {m.content}
+              </p>
+            </div>
           ))}
           {busy && <p className="text-[11px] text-haze animate-pulse">{agent.name} is thinking…</p>}
           <div ref={endRef} />
