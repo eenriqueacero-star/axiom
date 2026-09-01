@@ -45,6 +45,9 @@ Real lever = stock SELECTION + holding + low turnover. So:
 - [ ] **Per-position council stance** on the portfolio view (keep / trim / add / exit).
 - [ ] **Candidate ranking** — for the weekly DCA, rank which names best deserve new money.
 - [x] **Paste-import positions** — tolerant parser for broker copy-paste / CSV.
+- [x] **Portfolio polish** — cash-fund rows (SPAXX etc → cash), linked accounts
+  read-only, rename accounts (nickname persists across sync), two-step delete
+  confirm (works on linked + manual), stopped auto-seeding template accounts.
 - [~] **Broker auto-sync (SnapTrade Personal)** — integration rewritten for Personal
   API-key mode (no user registration, no portal; user links brokers in SnapTrade's own
   dashboard, we just read via `getAllAccountPositions`). SNAPTRADE_CLIENT_ID set in
