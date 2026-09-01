@@ -116,7 +116,7 @@ export async function callAgent({ system, user, useSearch = false, maxTokens = 7
 
 // Multi-turn chat with an agent persona. A little warmth (temp 0.4), no seed —
 // this is conversation, not a verdict.
-export async function callAgentChat({ system, messages, maxTokens = 600 }) {
+export async function callAgentChat({ system, messages, maxTokens = 600, effort = 'medium' }) {
   const keys = getKeys();
   if (!keys.length) throw new Error('No GROQ keys configured');
   const order = shuffled(keys);
@@ -128,8 +128,8 @@ export async function callAgentChat({ system, messages, maxTokens = 600 }) {
         body: JSON.stringify({
           model: MODEL_BASE,
           messages: [{ role: 'system', content: system }, ...messages],
-          max_tokens: maxTokens, reasoning_effort: 'low',
-          temperature: 0.4, top_p: 1,
+          max_tokens: maxTokens, reasoning_effort: effort,
+          temperature: 0.6, top_p: 1,
         }),
       });
       if (!res.ok) {

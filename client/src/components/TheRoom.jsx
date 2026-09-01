@@ -11,7 +11,7 @@ const MODEL = '/models/robot.glb';
 useGLTF.preload(MODEL);
 
 /* ------------------------------------------------------------------ layout */
-const STATION_R = 7.6;   // ring of workstations
+const STATION_R = 6.8;   // ring of workstations
 const TABLE_R = 2.5;
 const SEAT_R = 3.4;
 
@@ -167,7 +167,7 @@ function Station({ agent, index, focused, unread, onSelect }) {
   useFrame((s, dt) => {
     if (!screen.current) return;
     // screen brightness = how many of this agent's calls you haven't opened
-    const want = focused ? 2.2 : 0.35 + Math.min(unread, 6) * 0.22;
+    const want = focused ? 1.5 : 0.3 + Math.min(unread, 6) * 0.14;
     screen.current.material.emissiveIntensity = damp(screen.current.material.emissiveIntensity, want, 4, dt);
   });
 
@@ -185,17 +185,17 @@ function Station({ agent, index, focused, unread, onSelect }) {
           <meshStandardMaterial color="#141418" metalness={0.4} roughness={0.5} />
         </mesh>
       ))}
-      {/* monitor */}
-      <mesh position={[0, 1.32, -1.1]} rotation={[-0.12, 0, 0]}>
-        <boxGeometry args={[1.5, 0.9, 0.06]} />
+      {/* monitor — a screen, not a slab of colour */}
+      <mesh position={[0, 1.22, -1.1]} rotation={[-0.12, 0, 0]}>
+        <boxGeometry args={[1.06, 0.64, 0.05]} />
         <meshStandardMaterial color="#0a0a0c" metalness={0.4} roughness={0.4} />
       </mesh>
-      <mesh ref={screen} position={[0, 1.32, -1.06]} rotation={[-0.12, 0, 0]}>
-        <planeGeometry args={[1.38, 0.78]} />
-        <meshStandardMaterial color="#07070a" emissive={c} emissiveIntensity={0.4} toneMapped={false} />
+      <mesh ref={screen} position={[0, 1.22, -1.07]} rotation={[-0.12, 0, 0]}>
+        <planeGeometry args={[0.96, 0.55]} />
+        <meshStandardMaterial color="#0a0a0e" emissive={c} emissiveIntensity={0.35} toneMapped={false} />
       </mesh>
-      <mesh position={[0, 0.95, -1.1]}>
-        <boxGeometry args={[0.12, 0.45, 0.12]} />
+      <mesh position={[0, 0.92, -1.1]}>
+        <boxGeometry args={[0.1, 0.36, 0.1]} />
         <meshStandardMaterial color="#141418" metalness={0.4} />
       </mesh>
       {/* name strip on the desk edge */}
@@ -268,7 +268,7 @@ function Table({ notes, active, onSelect }) {
 
 /* ------------------------------------------------------------------ room */
 function Shell() {
-  const W = 24, D = 24, H = 5;
+  const W = 20, D = 20, H = 4.6;
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
@@ -286,11 +286,22 @@ function Shell() {
           <meshStandardMaterial color="#0b0b0f" roughness={0.95} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      {/* ceiling light rig over the table */}
-      <mesh position={[0, 4.2, 0]}>
-        <cylinderGeometry args={[2.2, 2.2, 0.08, 32]} />
-        <meshStandardMaterial color="#0e0e12" emissive="#cfd6ff" emissiveIntensity={0.5} toneMapped={false} />
-      </mesh>
+      {/* ceiling rig over the table — a thin ring fixture, not a slab of light */}
+      <group position={[0, 4.3, 0]}>
+        <mesh>
+          <torusGeometry args={[1.9, 0.05, 8, 48]} />
+          <meshStandardMaterial color="#cfd6ff" emissive="#cfd6ff" emissiveIntensity={0.9} toneMapped={false} />
+        </mesh>
+        {[0, 1, 2].map((i) => {
+          const a = (i / 3) * Math.PI * 2;
+          return (
+            <mesh key={i} position={[Math.cos(a) * 1.9, 0.35, Math.sin(a) * 1.9]}>
+              <cylinderGeometry args={[0.012, 0.012, 0.7, 6]} />
+              <meshStandardMaterial color="#2a2a32" />
+            </mesh>
+          );
+        })}
+      </group>
     </group>
   );
 }
@@ -304,7 +315,7 @@ function Rig({ mode, focusIndex }) {
 
   useFrame((s, dt) => {
     const t = s.clock.elapsedTime;
-    let dist = 30, zoom = 42;
+    let dist = 26, zoom = 54;
     if (mode === 'table') { aim.current.set(0, 1.1, 0); dist = 16; zoom = 76; }
     else if (mode === 'station' && focusIndex != null) {
       const p = stationPos(focusIndex);
