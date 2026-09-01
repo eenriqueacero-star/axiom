@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { verifyToken } from '../lib/auth.js';
-import { getPortfolio, setHolding, addTicker, removeTicker, importPositions } from '../lib/portfolio.js';
+import { getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount } from '../lib/portfolio.js';
 
 const router = Router();
 router.use(verifyToken);
@@ -23,6 +23,15 @@ router.put('/:accountId/:ticker', async (req, res) => {
       shares: req.body?.shares,
       costBasis: req.body?.costBasis,
     });
+    res.json(await getPortfolio(req.uid));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/:accountId', async (req, res) => {
+  try {
+    await deleteAccount(req.uid, req.params.accountId);
     res.json(await getPortfolio(req.uid));
   } catch (err) {
     res.status(400).json({ error: err.message });

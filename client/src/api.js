@@ -57,6 +57,8 @@ export const removeTicker = (accountId, ticker) =>
   request(`/portfolio/${accountId}/${ticker.toUpperCase()}`, { method: 'DELETE' });
 export const importPositions = (accountId, text) =>
   request(`/portfolio/${accountId}/import`, { method: 'POST', body: { text } });
+export const deleteAccount = (accountId) =>
+  request(`/portfolio/${accountId}`, { method: 'DELETE' });
 
 export const getBrokerStatus = () => request('/broker/status');
 export const syncBroker = () => request('/broker/sync', { method: 'POST' });

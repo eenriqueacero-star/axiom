@@ -7,17 +7,29 @@ import { db } from './firebase.js';
 import { ACCOUNTS } from '../agents/definitions.js';
 import { getQuotes } from './quotes.js';
 
+// Fidelity/Schwab/Vanguard core cash sweeps — treat as cash, not a stock.
+const CASH_FUNDS = new Set([
+  'SPAXX', 'FDRXX', 'FZFXX', 'FZDXX', 'SPRXX', 'FDLXX', 'FGXX',
+  'VMFXX', 'VMRXX', 'VUSXX', 'SWVXX', 'SNVXX', 'SNSXX', 'CASH', 'USD',
+]);
+
 async function ensureSeeded(uid) {
+  // No auto-seed — new portfolios start empty; user links a broker or pastes positions.
+  // (Old seeded Edwin/Dad/Bro accounts stay until the user deletes them.)
   const col = db.collection(`users/${uid}/accounts`);
-  const snap = await col.get();
-  if (!snap.empty) return;
-  await Promise.all(Object.entries(ACCOUNTS).map(([id, a]) =>
-    col.doc(id).set({
-      label: a.label, sub: a.sub, dca: a.dca, dcaNote: a.dcaNote,
-      holdings: Object.fromEntries(a.holdings.map(t => [t, { shares: 0, costBasis: 0 }])),
-      order: Object.keys(ACCOUNTS).indexOf(id),
-    }),
-  ));
+  const seeded = await db.doc(`users/${uid}`).get().then(d => d.data()?.portfolioSeeded);
+  if (seeded) return;
+  const snap = await col.limit(1).get();
+  if (snap.empty) {
+    await Promise.all(Object.entries(ACCOUNTS).map(([id, a]) =>
+      col.doc(id).set({
+        label: a.label, sub: a.sub, dca: a.dca, dcaNote: a.dcaNote,
+        holdings: Object.fromEntries(a.holdings.map(t => [t, { shares: 0, costBasis: 0 }])),
+        order: Object.keys(ACCOUNTS).indexOf(id),
+      }),
+    ));
+  }
+  await db.doc(`users/${uid}`).set({ portfolioSeeded: true }, { merge: true });
 }
 
 export async function getPortfolio(uid) {
@@ -32,21 +44,32 @@ export async function getPortfolio(uid) {
 
   let totalValue = 0, totalCost = 0, dayChange = 0;
   const out = accounts.map(a => {
-    const positions = Object.entries(a.holdings || {}).map(([ticker, h]) => {
+    let cash = 0;
+    const positions = Object.entries(a.holdings || {}).flatMap(([ticker, h]) => {
+      const shares = h.shares || 0;
+      if (CASH_FUNDS.has(ticker)) {          // money-market sweep → cash, $1 NAV
+        cash += shares;
+        totalValue += shares;
+        return [];
+      }
       const q = quotes[ticker] || {};
-      const value = (h.shares || 0) * (q.price || 0);
-      const cost = (h.shares || 0) * (h.costBasis || 0);
+      const value = shares * (q.price || 0);
+      const cost = shares * (h.costBasis || 0);
       totalValue += value; totalCost += cost;
-      dayChange += (h.shares || 0) * (q.change || 0);
-      return {
-        ticker, shares: h.shares || 0, costBasis: h.costBasis || 0,
+      dayChange += shares * (q.change || 0);
+      return [{
+        ticker, shares, costBasis: h.costBasis || 0,
         price: q.price ?? null, changePct: q.changePct ?? null,
         value, gain: cost ? value - cost : null,
         gainPct: cost ? (value - cost) / cost : null,
-      };
+      }];
     }).sort((x, y) => y.value - x.value);
-    const acctValue = positions.reduce((s, p) => s + p.value, 0);
-    return { id: a.id, label: a.label, sub: a.sub, dca: a.dca, dcaNote: a.dcaNote, value: acctValue, positions };
+    const acctValue = positions.reduce((s, p) => s + p.value, 0) + cash;
+    return {
+      id: a.id, label: a.label, sub: a.sub, dca: a.dca, dcaNote: a.dcaNote,
+      linked: a.linked || false, syncedAt: a.syncedAt || null,
+      cash, value: acctValue, positions,
+    };
   });
 
   return {
@@ -149,4 +172,8 @@ export async function removeTicker(uid, accountId, ticker) {
   const holdings = doc.data().holdings || {};
   delete holdings[ticker.toUpperCase()];
   await ref.update({ holdings });
+}
+
+export async function deleteAccount(uid, accountId) {
+  await db.doc(`users/${uid}/accounts/${accountId}`).delete();
 }
