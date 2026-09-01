@@ -1848,6 +1848,14 @@ const Visitors = memo(() => (
 
 // ─── Main Scene ───────────────────────────────────────────────────────────────
 function OfficeScene({ isPlaying }: { isPlaying: boolean }) {
+  // PATCH (Axiom): upstream referenced a bare `AGENTS` here that is never
+  // declared, so the scene threw ReferenceError on first render and — because
+  // CanvasErrorBoundary is defined but never mounted — took the whole host app
+  // down with it. Build the roster from context, which is where the configured
+  // agents actually live.
+  const { agents: agentConfigs } = useContext(WorkspaceContext);
+  const AGENTS = useMemo(() => buildAgentList(agentConfigs), [agentConfigs]);
+
   const ambientRef = useRef<THREE.AmbientLight>(null!);
   const sunRef = useRef<THREE.DirectionalLight>(null!);
 
