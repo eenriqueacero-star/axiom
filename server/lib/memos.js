@@ -73,3 +73,7 @@ export function memoBlock(memos, { agentId = null } = {}) {
   });
   return `\nDESK NOTES (conclusions the council already reached at the table — treat these as your own memory, don't contradict them without saying why):\n${lines.join('\n')}`;
 }
+
+export async function deleteMemo(uid, id) {
+  await col(uid).doc(String(id)).delete();
+}

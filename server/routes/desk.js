@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { verifyToken } from '../lib/auth.js';
 import { convene, deskState, pickPairing } from '../lib/dialogue.js';
-import { listMemos } from '../lib/memos.js';
+import { listMemos, deleteMemo } from '../lib/memos.js';
 import { budgetStatus } from '../lib/budget.js';
 
 const router = Router();
@@ -47,5 +47,15 @@ router.post('/convene', async (req, res) => {
 
 // How much Groq budget the autonomous desk has left today.
 router.get('/budget', (_req, res) => res.json(budgetStatus()));
+
+// Drop a note the council shouldn't be carrying around any more.
+router.delete('/notes/:id', async (req, res) => {
+  try {
+    await deleteMemo(req.uid, req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
 
 export default router;
