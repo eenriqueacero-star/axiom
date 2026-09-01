@@ -35,8 +35,11 @@ function releaseAfterHold() {
   clearTimeout(holdTimer);
   if (!active) return;
   active.finishedAt = Date.now();
-  const elapsed = active.finishedAt - active.startedAt;
-  holdTimer = setTimeout(() => { active = null; }, Math.max(0, HOLD_MS - elapsed));
+  // The client plays this back: ~3s walking over, then ~4.2s per turn, then a
+  // beat to walk back. Hold for at least that long, measured from NOW rather
+  // than from the start — a slow exchange still gets fully watched.
+  const playback = 3000 + (active.turns?.length || 0) * 4200 + 4000;
+  holdTimer = setTimeout(() => { active = null; }, Math.max(HOLD_MS, playback));
 }
 
 /* ------------------------------------------------------------- pairing */
@@ -191,6 +194,7 @@ export async function runDialogue(uid, pairing) {
         system: persona(speaker, listener),
         messages: [...history, { role: 'user', content: opening }],
         maxTokens: 220,
+        effort: 'low',
       });
       const clean = String(text || '').trim().slice(0, 500);
       if (!clean) break;
