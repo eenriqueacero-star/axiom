@@ -1,4 +1,5 @@
 import Groq from 'groq-sdk';
+import { recordCall, keyCount } from './budget.js';
 
 const MODEL_BASE  = 'openai/gpt-oss-120b';
 const MODEL_SYNTH = 'openai/gpt-oss-120b';
@@ -11,13 +12,19 @@ const COMPOUND_CAP = 600;
 const DETERMINISM = { temperature: 0, seed: 42, top_p: 1 };
 
 function getKeys() {
-  return [
+  return trackKeys([
     process.env.GROQ_API_KEY,
     process.env.GROQ_API_KEY_2,
     process.env.GROQ_API_KEY_3,
     process.env.GROQ_API_KEY_4,
     process.env.GROQ_API_KEY_5,
-  ].filter(Boolean);
+  ]);
+}
+
+function trackKeys(list) {
+  const keys = list.filter(Boolean);
+  keyCount(keys.length);
+  return keys;
 }
 
 function shuffled(arr) {
@@ -44,6 +51,7 @@ function trimForCompound(system, user) {
 }
 
 async function callBase(apiKey, system, user, maxTokens, effort = 'low') {
+  recordCall({ autonomous: !!callBase.autonomous });
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -60,6 +68,7 @@ async function callBase(apiKey, system, user, maxTokens, effort = 'low') {
 }
 
 async function callCompound(apiKey, system, user, maxTokens) {
+  recordCall({ autonomous: !!callBase.autonomous });
   const client = new Groq({ apiKey });
   const c = await client.chat.completions.create({
     model: MODEL_SEARCH, max_tokens: maxTokens,
@@ -197,3 +206,7 @@ export async function callSynthesis({ system, user, maxTokens = 2000 }) {
     }
   }
 }
+
+// The desk loop flags its own calls so budget.js can meter autonomous spend
+// separately from anything the user is waiting on.
+export function setAutonomous(v) { callBase.autonomous = !!v; }

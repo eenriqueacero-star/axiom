@@ -11,6 +11,7 @@ import { getPortfolio } from '../lib/portfolio.js';
 import { diagnose } from '../lib/strategy.js';
 import { buildFloorLive } from '../lib/floorLive.js';
 import { relevantMemos, memoBlock } from '../lib/memos.js';
+import { markUserActivity } from '../lib/budget.js';
 
 const COMMON_WORDS = new Set(['I', 'A', 'THE', 'MY', 'IS', 'IT', 'DO', 'OK', 'ADD', 'HOLD', 'TRIM', 'EXIT', 'AI', 'US', 'CEO', 'ETF', 'YOU', 'AND', 'OR', 'FOR', 'ARE', 'NOT', 'BUY', 'SELL', 'WHY', 'HOW']);
 const findTicker = (text) => {
@@ -107,6 +108,7 @@ router.post('/agent/:id/chat', async (req, res) => {
     return res.status(400).json({ error: 'Need a user message' });
   }
 
+  markUserActivity();
   try {
     const lastUser = messages[messages.length - 1].content;
     const t = (String(req.body?.ticker || '').toUpperCase().match(/^[A-Z.\-]{1,10}$/)?.[0]) || findTicker(lastUser);
@@ -166,6 +168,7 @@ You're talking 1-on-1 with the investor who runs Axiom. Stay in character, be co
 });
 
 router.post('/run', async (req, res) => {
+  markUserActivity();
   const ticker = String(req.body?.ticker || '').toUpperCase().trim();
   if (!TICKER_RE.test(ticker)) return res.status(400).json({ error: 'Invalid ticker' });
 

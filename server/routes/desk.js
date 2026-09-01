@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { verifyToken } from '../lib/auth.js';
 import { convene, deskState, pickPairing } from '../lib/dialogue.js';
 import { listMemos } from '../lib/memos.js';
+import { budgetStatus } from '../lib/budget.js';
 
 const router = Router();
 router.use(verifyToken);
@@ -43,5 +44,8 @@ router.post('/convene', async (req, res) => {
     res.status(502).json({ error: err.message });
   }
 });
+
+// How much Groq budget the autonomous desk has left today.
+router.get('/budget', (_req, res) => res.json(budgetStatus()));
 
 export default router;
