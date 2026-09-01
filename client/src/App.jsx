@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { useAuth } from './AuthProvider';
 import Login from './components/Login';
 import Analyze from './components/Analyze';
@@ -7,11 +7,20 @@ import Scorecard from './components/Scorecard';
 import TheFloor from './components/TheFloor';
 import SystemStatus from './components/SystemStatus';
 
+const Floor3D = lazy(() => import('./components/Floor3D'));
+
 export default function App() {
   const { user, signOut } = useAuth();
   const [statusOpen, setStatusOpen] = useState(false);
   const [view, setView] = useState('portfolio'); // 'portfolio' | 'analyze'
   const [analyzeTicker, setAnalyzeTicker] = useState('');
+  const [floor3d, setFloor3d] = useState(() => {
+    try { return localStorage.getItem('axiom.floor3d') !== '0'; } catch { return true; }
+  });
+  const setFloorMode = (on) => {
+    setFloor3d(on);
+    try { localStorage.setItem('axiom.floor3d', on ? '1' : '0'); } catch { /* ignore */ }
+  };
 
   if (user === undefined) {
     return (
@@ -68,7 +77,23 @@ export default function App() {
       <main className="mx-auto max-w-3xl px-4 py-6">
         {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
         {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
-        {view === 'floor' && <TheFloor onAnalyze={goAnalyze} />}
+        {view === 'floor' && (
+          floor3d ? (
+            <Suspense fallback={<p className="text-xs text-haze animate-pulse">Loading the floor…</p>}>
+              <Floor3D onAnalyze={goAnalyze} onExit={() => setFloorMode(false)} />
+            </Suspense>
+          ) : (
+            <div className="space-y-3">
+              <button
+                onClick={() => setFloorMode(true)}
+                className="text-[11px] text-haze hover:text-neutral-300"
+              >
+                ← 3D view
+              </button>
+              <TheFloor onAnalyze={goAnalyze} />
+            </div>
+          )
+        )}
         {view === 'scorecard' && <Scorecard />}
       </main>
 

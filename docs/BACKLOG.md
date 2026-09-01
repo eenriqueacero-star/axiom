@@ -88,6 +88,17 @@ repos are in the `project-axiom-floor-3d` memory. Sequencing: chat first (DONE),
 then the R3F 3D shell. This is the biggest single feature — days of work, mobile
 perf care needed. Current card-based Floor stays as the fast fallback / the
 content shown inside each 3D room.
+  - [x] **3D shell v1** — `client/src/components/Floor3D.jsx` (lazy-loaded, ~224KB
+    gzip chunk). Isometric fixed ortho camera, 6 dollhouse rooms in a 3×2 grid,
+    tinted low-poly robots (primitive geometry — NOT GLB yet) with idle bob + wave
+    on focus, per-agent themed props (REX monitors, NOVA rocket, ATLAS globe, VEGA
+    bear, SAGE bookshelves, ZEN balance scale). Side nav of names + tap-a-room →
+    camera lerps in → DOM overlay panel reuses AgentPanel + AgentChat (extracted to
+    `components/floor/shared.jsx`). Toggle to card view persists in localStorage
+    (`axiom.floor3d`). Default = 3D. Builds clean; NOT yet eyeballed live.
+  - [ ] **3D polish** — swap primitive robots for Quaternius Animated Robot GLB
+    (per memory), real furniture GLBs, camera easing, "working now" states, mobile
+    perf pass.
 - [ ] **Re-point the agents (original note)** — from "should I trade this week" to: (1) Still belongs?
   (2) Right size? (3) Broken? AND switch from freeform 0-10 scores to **binary yes/no
   sub-questions scored in code** (LLM holistic scoring is provably inconsistent — see
