@@ -126,19 +126,16 @@ function Plinth({ agent, index, focused, dim, live, onSelect }) {
       </mesh>
 
       {/* plinth block */}
-      <RoundedBox args={[S, 0.6, S]} radius={0.1} smoothness={4} position={[0, -0.3, 0]} receiveShadow castShadow>
-        <meshStandardMaterial color={dim ? '#0b0b0d' : '#131316'} metalness={0.2} roughness={0.7} />
+      <RoundedBox args={[S, 0.7, S]} radius={0.08} smoothness={4} position={[0, -0.35, 0]} receiveShadow castShadow>
+        <meshStandardMaterial color={dim ? '#101013' : '#1a1a20'} metalness={0.25} roughness={0.6} />
       </RoundedBox>
-      {/* recessed glowing top inlay */}
-      <mesh ref={inlay} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
-        <planeGeometry args={[S - 0.34, S - 0.34]} />
-        <meshStandardMaterial color={c} emissive={c} emissiveIntensity={0.5} roughness={1} toneMapped={false} />
-      </mesh>
-      {/* thin dark bezel over the inlay edge */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
-        <planeGeometry args={[S - 0.5, S - 0.5]} />
-        <meshStandardMaterial color="#0d0d10" roughness={0.9} />
-      </mesh>
+      {/* thin accent frame inset on the top edge */}
+      {[[0, (S - 0.28) / 2], [0, -(S - 0.28) / 2], [(S - 0.28) / 2, 0], [-(S - 0.28) / 2, 0]].map(([x, z], i) => (
+        <mesh key={i} ref={i === 0 ? inlay : undefined} position={[x, 0.01, z]}>
+          <boxGeometry args={i < 2 ? [S - 0.18, 0.02, 0.05] : [0.05, 0.02, S - 0.18]} />
+          <meshStandardMaterial color={c} emissive={c} emissiveIntensity={0.55} toneMapped={false} />
+        </mesh>
+      ))}
 
       <Robot
         color={agent.color}

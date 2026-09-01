@@ -101,7 +101,55 @@ content shown inside each 3D room.
     3D characters + a workstation vignette per agent, (b) the scene bound to
     live system data / reactive effects, (c) chat & panels IN the scene.
 
-  ### v2 "The Workshop" — execution plan (approved 2026-09-01)
+  ### v3 "The Desk" — ONE ROOM (user redirect, 2026-09-01) ← CURRENT
+  Supersedes the six-separate-plinths layout. User's words: one big room, a
+  discussion table in the middle, agents share ideas on their own; when two
+  agents want to talk they LEAVE their workstations, walk to the table, and
+  when the conversation ends it's summarised — **not for the user, as data the
+  agents themselves reuse** when answering later, together or independently.
+  Room must take over the ENTIRE page, not a small embedded canvas.
+
+  **A. Backend — agent-to-agent dialogue + desk notes (the substance)**
+  - [ ] `lib/dialogue.js`
+    - `pickPairing(uid)` — choose 2 agents + topic from real state, e.g.
+      VEGA×SAGE (a held name is both flagged and passes quality), ATLAS×ZEN
+      (sector over cap AND sleeve off target — true today: semis 73%, core 0%),
+      REX×NOVA (holding in downtrend but fresh news); fallback = the two agents
+      whose recent stances on one ticker diverge most.
+    - `runDialogue(uid, pairing)` — 3–4 alternating turns, each `callBase` with
+      that agent's persona + shared grounding (diagnose + priceFacts + recent
+      analyses + existing memos).
+    - `distill(dialogue)` — one more call → strict JSON memo:
+      `{ id, ts, participants[2], topic, ticker|null, keyPoints[≤4], conclusion,
+        confidence, actionable, tags[] }` → `users/{uid}/deskNotes` (cap ~50).
+  - [ ] `lib/memos.js` `relevantMemos(uid,{ticker,agentId,limit})` → injected as
+    a `DESK NOTES (prior conclusions from the table — treat as your own
+    memory)` block into `runCouncil` agent prompts, the AXIOM synthesis, and
+    `callAgentChat`. **This closes the loop** — a past table conversation
+    actually changes future answers.
+  - [ ] Routes: `POST /api/desk/convene`, `GET /api/desk/notes`,
+    `GET /api/desk/state` (`{ activeDialogue|null, notes }` for the scene).
+    Nightly cron convenes 1–2 dialogues.
+
+  **B. Client — the room**
+  - [ ] Full-bleed: The Floor escapes `max-w-3xl`, fills the viewport.
+  - [ ] One large room — floor, walls, ceiling light rig. Six workstations
+    around the perimeter (desk + screen + chair, agent-coloured accent).
+    Central round table, six seats, holo display above it.
+  - [ ] Choreography from `/api/desk/state`: the two robots play Walking along
+    waypoints station→table, face each other, gesture while turns stream, then
+    walk back; a memo card materialises on the table.
+  - [ ] Table click → Desk Notes browser (filter by agent/ticker). Agent click
+    → their station + panel + chat, chat citing memos.
+  - [ ] Camera: wide room by default, dollies to the table during a dialogue,
+    to a station on select.
+
+  Decisions taken (change if wrong): memos are per-user in `users/{uid}/
+  deskNotes`; dialogues run nightly + on-demand "Convene" (reactive-on-verdict
+  later); one dialogue ≈ 5 Groq calls so nightly is cheap; card view stays as
+  the fallback.
+
+  ### v2 "The Workshop" — SUPERSEDED by v3 (kept for the asset/character work)
   Direction: recognizable "little Claude" robots (one animated model, 6 tints),
   each in a themed WORKSTATION (not a square room), every visual bound to real
   portfolio data.

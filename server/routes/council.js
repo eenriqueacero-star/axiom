@@ -10,6 +10,7 @@ import { tickerNews } from '../lib/signals.js';
 import { getPortfolio } from '../lib/portfolio.js';
 import { diagnose } from '../lib/strategy.js';
 import { buildFloorLive } from '../lib/floorLive.js';
+import { relevantMemos, memoBlock } from '../lib/memos.js';
 
 const COMMON_WORDS = new Set(['I', 'A', 'THE', 'MY', 'IS', 'IT', 'DO', 'OK', 'ADD', 'HOLD', 'TRIM', 'EXIT', 'AI', 'US', 'CEO', 'ETF', 'YOU', 'AND', 'OR', 'FOR', 'ARE', 'NOT', 'BUY', 'SELL', 'WHY', 'HOW']);
 const findTicker = (text) => {
@@ -111,10 +112,11 @@ router.post('/agent/:id/chat', async (req, res) => {
     const t = (String(req.body?.ticker || '').toUpperCase().match(/^[A-Z.\-]{1,10}$/)?.[0]) || findTicker(lastUser);
 
     // Every agent chat is grounded in the user's real portfolio + any ticker mentioned.
-    const [portfolio, priced, news] = await Promise.all([
+    const [portfolio, priced, news, memos] = await Promise.all([
       getPortfolio(req.uid).catch(() => null),
       t ? priceFacts(t).catch(() => ({ block: '' })) : Promise.resolve({ block: '' }),
       t ? tickerNews(t, { days: 7, limit: 4 }).catch(() => []) : Promise.resolve([]),
+      relevantMemos(req.uid, { ticker: t, agentId: agent.id }).catch(() => []),
     ]);
 
     let context = '';
@@ -133,6 +135,7 @@ router.post('/agent/:id/chat', async (req, res) => {
       const headlines = news.map(n => `- ${n.headline} (${n.source})`).join('\n');
       context += `\n\nLIVE DATA — ${t}:\n${priced.block}\n${headlines ? 'Recent news:\n' + headlines : ''}`;
     }
+    context += memoBlock(memos, { agentId: agent.id });
 
     const checks = Object.entries(agent.checks || {}).map(([k, v]) => `- ${v}`).join('\n');
     const system = `${agent.conversationalPrompt}

@@ -5,6 +5,7 @@ import { tickerNews } from './signals.js';
 import { priceFacts } from './metrics.js';
 import { getPortfolio } from './portfolio.js';
 import { diagnose, sectorOf, sleeveOf, CAPS } from './strategy.js';
+import { relevantMemos, memoBlock } from './memos.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -175,11 +176,13 @@ export function scoreCouncil(agents, holdings = null) {
 // mode: 'scout' = fast cron pass; 'full' = conversational.
 export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
   const sym = ticker.toUpperCase().trim();
-  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings] = await Promise.all([
+  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings, memos] = await Promise.all([
     fetchLiveData(sym),
     buildHoldingsContext(uid, sym).catch(() => null),
+    uid ? relevantMemos(uid, { ticker: sym }).catch(() => []) : Promise.resolve([]),
   ]);
-  const user = `Ticker: ${sym}. Judge it for Axiom's long-term basket (belongs / broken / entry / size).\n${liveDataBlock}${holdings?.block || ''}\nReturn ONLY the JSON.`;
+  const desk = memoBlock(memos);
+  const user = `Ticker: ${sym}. Judge it for Axiom's long-term basket (belongs / broken / entry / size).\n${liveDataBlock}${holdings?.block || ''}${desk}\nReturn ONLY the JSON.`;
 
   const agents = {};
   for (let i = 0; i < AGENTS.length; i++) {

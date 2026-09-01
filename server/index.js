@@ -32,6 +32,7 @@ const { default: portfolioRoute } = await import('./routes/portfolio.js');
 const { default: scorecardRoute } = await import('./routes/scorecard.js');
 const { default: brokerRoute }    = await import('./routes/broker.js');
 const { default: strategyRoute }  = await import('./routes/strategy.js');
+const { default: deskRoute }      = await import('./routes/desk.js');
 
 app.use('/api/agent',   agentRoute);
 app.use('/api/council', councilRoute);
@@ -41,6 +42,7 @@ app.use('/api/push',    pushRoute);
 app.use('/api/rulings', rulingRoute);
 app.use('/api/status',  statusRoute);
 app.use('/api/signals', signalsRoute);
+app.use('/api/desk',    deskRoute);
 app.use('/api/portfolio', portfolioRoute);
 app.use('/api/scorecard', scorecardRoute);
 app.use('/api/broker',    brokerRoute);
