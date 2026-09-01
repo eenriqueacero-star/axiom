@@ -89,11 +89,19 @@ function statusFor(id, live, act, shownTurns) {
 
 function Bubble({ status, color }) {
   if (!status) return null;
+  // NOTE: no distanceFactor — that scales by camera distance and assumes a
+  // perspective camera. This scene is orthographic, where it blows the label up
+  // to fill the screen. Screen-space size is what we want for a status label.
   return (
-    <Html center distanceFactor={11} position={[0, 2.35, 0]} zIndexRange={[10, 0]}>
+    <Html
+      center
+      position={[0, 2.35, 0]}
+      zIndexRange={[20, 0]}
+      style={{ pointerEvents: 'none' }}
+    >
       <div
-        className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1
-                   bg-ink-950/90 border text-[11px] text-neutral-300 select-none"
+        className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5
+                   bg-ink-950/85 border text-[10px] text-neutral-300 select-none backdrop-blur-sm"
         style={{ borderColor: color + '55' }}
       >
         <span>{status.icon}</span>
