@@ -37,6 +37,16 @@ Real lever = stock SELECTION + holding + low turnover. So:
 
 - [~] **Portfolio view** — holdings are the home screen. Live quotes, editable shares,
   tap a ticker → council. DONE (deploying).
+- [~] **Strategy rulebook** — `docs/STRATEGY.md`. Core/Satellite 50/50
+  (council-adjustable), 35% sector cap, 10/8% name caps, QQQ buffer, entry =
+  above-200DMA + not >25% over 50DMA, exit = thesis broken OR multi-wk downtrend,
+  DCA → most-underweight eligible name. 12-name Core list proposed & approved.
+  - [x] Config as data (`server/lib/strategy.js`) + `/api/strategy` +
+    `/strategy/diagnostics` (pure math) + StrategyCheck panel on Portfolio.
+  - [ ] DCA suggestion engine ("this week's $X → NAME") + conviction tiers per holding.
+  - [ ] Backtest the rulebook vs QQQ/VOO on the quant service.
+  - [ ] Wire the diagnostics into the council (agents see the flags).
+
 - [~] **Re-point the agents** — IN PROGRESS.
   - [x] Slice 1: code-computed price facts (`server/lib/metrics.js`) — trend vs
     50/200-day, % off 52wk high, 3/6/12mo momentum, industry — via Tiingo EOD,
