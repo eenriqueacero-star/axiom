@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { RoundedBox, ContactShadows, useGLTF, useAnimations } from '@react-three/drei';
+import { RoundedBox, ContactShadows, useGLTF, useAnimations, Html } from '@react-three/drei';
 import { EffectComposer, Bloom, Vignette, SMAA } from '@react-three/postprocessing';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import * as THREE from 'three';
@@ -38,6 +38,75 @@ const CLIP = {
 const ONESHOT = new Set(['Wave', 'Yes', 'No', 'ThumbsUp', 'Punch']);
 // gestures an agent makes while it's the one speaking at the table
 const SPEAK_GESTURES = ['Yes', 'No', 'ThumbsUp', 'Wave'];
+
+// How long each spoken turn is held on screen, so a 5-second model exchange
+// plays out at a watchable pace.
+const TURN_MS = 4200;
+const WALK_MS = 3000;
+
+/**
+ * What an agent is actually doing right now. Every branch is sourced from real
+ * state — a cron job running, a live dialogue turn, or its own check on the
+ * user's book. Nothing here is decorative.
+ */
+function statusFor(id, live, act, shownTurns) {
+  if (act && (act.a === id || act.b === id)) {
+    const other = act.a === id ? act.bName : act.aName;
+    if (act.phase === 'writing') return { icon: '✍️', text: 'writing the note up' };
+    const last = shownTurns > 0 ? act.turns?.[shownTurns - 1] : null;
+    if (last && last.agent === id) return { icon: '🗣️', text: `making the case to ${other}` };
+    return { icon: '👂', text: `hearing ${other} out` };
+  }
+
+  const a = live?.agents?.[id];
+  if (a?.busy) return { icon: '📊', text: 'running its checks' };
+
+  const m = a?.metric || {};
+  switch (id) {
+    case 'trend':
+      if (m.trendScore > 0.3) return { icon: '📈', text: 'holdings above their 200-day' };
+      if (m.trendScore < -0.3) return { icon: '📉', text: `${m.downtrending?.length || 0} names in a downtrend` };
+      return { icon: '📐', text: 'trend is mixed' };
+    case 'bear':
+      if (m.high) return { icon: '🚨', text: `${m.high} serious flag${m.high > 1 ? 's' : ''}` };
+      if (m.flags) return { icon: '⚠️', text: `${m.flags} rulebook flag${m.flags > 1 ? 's' : ''}` };
+      return { icon: '🔍', text: 'nothing broken today' };
+    case 'catalyst':
+      if (m.freshNews) return { icon: '📰', text: `fresh news on ${m.tickers?.slice(0, 2).join(', ') || `${m.freshNews} names`}` };
+      return { icon: '📭', text: 'no new catalysts' };
+    case 'sector':
+      if (m.hottest?.overCap) return { icon: '🌡️', text: `${m.hottest.name} ${Math.round(m.hottest.pct * 100)}% — over cap` };
+      return { icon: '🌐', text: 'sectors within cap' };
+    case 'sizing': {
+      const t = m.tilt;
+      if (t != null && Math.abs(t) > 0.5) {
+        return { icon: '⚖️', text: `Core ${Math.round((m.corePct || 0) * 100)}% vs 50% target` };
+      }
+      return { icon: '⚖️', text: 'sleeves near target' };
+    }
+    case 'quality':
+      if (m.coreBroken?.length) return { icon: '🛡️', text: `watching ${m.coreBroken.join(', ')}` };
+      return { icon: '🛡️', text: `${m.coreHeld || 0} Core names held` };
+    default:
+      return { icon: '💤', text: 'at the desk' };
+  }
+}
+
+function Bubble({ status, color }) {
+  if (!status) return null;
+  return (
+    <Html center distanceFactor={11} position={[0, 2.35, 0]} zIndexRange={[10, 0]}>
+      <div
+        className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1
+                   bg-ink-950/90 border text-[11px] text-neutral-300 select-none"
+        style={{ borderColor: color + '55' }}
+      >
+        <span>{status.icon}</span>
+        <span>{status.text}</span>
+      </div>
+    </Html>
+  );
+}
 
 /* ------------------------------------------------------------------- robot */
 function Robot({ color, clipBase, reaction, speakTick }) {
@@ -106,7 +175,7 @@ function Robot({ color, clipBase, reaction, speakTick }) {
 }
 
 /* ------------------------------------------------- an agent + its movement */
-function Agent({ agent, index, live, phase, facing, speakTick, focused, onSelect }) {
+function Agent({ agent, index, live, phase, facing, speakTick, focused, status, onSelect }) {
   const grp = useRef();
   const home = useMemo(() => stationPos(index), [index]);
   const seat = useMemo(() => seatPos(index), [index]);
@@ -152,6 +221,7 @@ function Agent({ agent, index, live, phase, facing, speakTick, focused, onSelect
         <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
       </mesh>
       <Robot color={agent.color} clipBase={clipBase} reaction={reaction} speakTick={speakTick} />
+      <Bubble status={status} color={agent.color} />
       <pointLight position={[0, 2.2, 0.6]} distance={4.5} intensity={focused ? 2.2 : 0.5} color={agent.color} />
     </group>
   );
@@ -338,11 +408,10 @@ function Rig({ mode, focusIndex }) {
 }
 
 /* ----------------------------------------------------------------- scene */
-function Scene({ agents, live, desk, notes, sel, setSel }) {
+function Scene({ agents, live, desk, notes, sel, setSel, shownTurns, phaseOf }) {
   const act = desk?.activeDialogue || null;
   const talking = act ? [act.a, act.b] : [];
-  const turnCount = act?.turns?.length || 0;
-  const lastSpeaker = turnCount ? act.turns[turnCount - 1].agent : null;
+  const lastSpeaker = shownTurns > 0 ? act?.turns?.[shownTurns - 1]?.agent : null;
 
   const idx = Object.fromEntries(agents.map((a, i) => [a.id, i]));
   const selIndex = sel && sel !== 'table' ? idx[sel] : null;
@@ -381,10 +450,11 @@ function Scene({ agents, live, desk, notes, sel, setSel }) {
               <Agent
                 agent={a} index={i}
                 live={live?.agents?.[a.id]}
-                phase={atTable ? 'table' : 'station'}
+                phase={atTable ? phaseOf : 'station'}
                 facing={other != null && idx[other] != null ? seatPos(idx[other]) : new THREE.Vector3(0, 0, 0)}
-                speakTick={lastSpeaker === a.id ? turnCount : 0}
+                speakTick={lastSpeaker === a.id ? shownTurns : 0}
                 focused={sel === a.id}
+                status={statusFor(a.id, live, act, shownTurns)}
                 onSelect={setSel}
               />
             </group>
@@ -411,14 +481,36 @@ export default function TheRoom({ onAnalyze, onExit }) {
   const [sel, setSel] = useState(null);
   const [convening, setConvening] = useState(false);
 
+  const [now, setNow] = useState(Date.now());
+  const act = desk?.activeDialogue || null;
+
   useEffect(() => {
     let alive = true;
     getFloor().then((f) => alive && setFloor(f)).catch((e) => alive && setErr(e.message));
     const tick = () => getDeskState().then((d) => alive && setDesk(d)).catch(() => {});
     tick();
-    const id = setInterval(tick, 5000);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
+    // poll hard while something is happening at the table, gently otherwise
+    let id = setInterval(tick, 5000);
+    const retune = setInterval(() => {
+      clearInterval(id);
+      id = setInterval(tick, act ? 1200 : 5000);
+    }, 3000);
+    return () => { alive = false; clearInterval(id); clearInterval(retune); };
+  }, [!!act]);
+
+  // clock so the scene can pace the dialogue out over real seconds
+  useEffect(() => {
+    if (!act) return;
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [!!act]);
+
+  // The model answers in ~5s; play it back at a watchable pace instead.
+  const elapsed = act ? now - act.startedAt : 0;
+  const phaseOf = elapsed < WALK_MS ? 'toTable' : 'table';
+  const shownTurns = act
+    ? Math.max(0, Math.min(act.turns?.length || 0, Math.floor((elapsed - WALK_MS) / TURN_MS) + 1))
+    : 0;
 
   const startConvene = async () => {
     setConvening(true);
@@ -434,7 +526,6 @@ export default function TheRoom({ onAnalyze, onExit }) {
 
   const agents = floor.agents;
   const notes = desk?.notes || [];
-  const act = desk?.activeDialogue || null;
   const selAgent = sel && sel !== 'table' ? agents.find((a) => a.id === sel) : null;
 
   return (
@@ -448,7 +539,8 @@ export default function TheRoom({ onAnalyze, onExit }) {
         onPointerMissed={() => setSel(null)}
       >
         <Suspense fallback={null}>
-          <Scene agents={agents} live={floor.live} desk={desk} notes={notes} sel={sel} setSel={setSel} />
+          <Scene agents={agents} live={floor.live} desk={desk} notes={notes} sel={sel} setSel={setSel}
+            shownTurns={shownTurns} phaseOf={phaseOf} />
         </Suspense>
       </Canvas>
 
@@ -496,7 +588,7 @@ export default function TheRoom({ onAnalyze, onExit }) {
             {act.aName} × {act.bName} — at the table
           </p>
           <p className="text-[11px] text-neutral-300 mb-2">{act.topic}</p>
-          {act.turns?.map((t, i) => (
+          {act.turns?.slice(0, shownTurns).map((t, i) => (
             <p key={i} className="text-[11px] text-neutral-400 mb-1">
               <span className="text-ink-500">{t.name}: </span>{t.text}
             </p>

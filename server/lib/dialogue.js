@@ -18,13 +18,26 @@ const nameOf = (id) => byId[id]?.name || id;
 const TURNS = 4;
 
 // In-memory: what's happening at the table right now (drives the 3D scene).
+// The model answers in ~5s, which is far too fast to watch. We hold the
+// finished dialogue on screen long enough for the room to actually play it out:
+// walk to the table, one gesture per turn, walk back.
+const HOLD_MS = 26_000;
 let active = null;
+let holdTimer = null;
 const recent = [];
 
 export const deskState = () => ({
   activeDialogue: active,
   lastFinished: recent[0] || null,
 });
+
+function releaseAfterHold() {
+  clearTimeout(holdTimer);
+  if (!active) return;
+  active.finishedAt = Date.now();
+  const elapsed = active.finishedAt - active.startedAt;
+  holdTimer = setTimeout(() => { active = null; }, Math.max(0, HOLD_MS - elapsed));
+}
 
 /* ------------------------------------------------------------- pairing */
 // Pick two agents who actually have something to argue about, from real state.
@@ -150,7 +163,7 @@ export async function runDialogue(uid, pairing) {
 
   active = {
     a, b, aName: A.name, bName: B.name, topic, ticker,
-    startedAt: Date.now(), turns,
+    startedAt: Date.now(), turns, phase: 'talking',
   };
 
   const persona = (agent, other) =>
@@ -234,13 +247,16 @@ export async function convene(uid, override = null) {
   try {
     const dialogue = await runDialogue(uid, pairing);
     if (!dialogue.turns.length) throw new Error('no turns produced');
+    if (active) active.phase = 'writing';   // they're writing the note up
     const memo = await distill(uid, dialogue);
     const finished = { ...dialogue, memo, finishedAt: Date.now() };
     recent.unshift(finished);
     recent.length = Math.min(recent.length, 5);
+    if (active) active.memo = memo;
     return { ok: true, dialogue: finished, memo };
   } finally {
-    active = null;
+    // keep it on screen so the room can play the scene out
+    releaseAfterHold();
   }
 }
 
