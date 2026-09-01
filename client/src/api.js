@@ -63,6 +63,8 @@ export const renameAccount = (accountId, nickname) =>
   request(`/portfolio/${accountId}`, { method: 'PATCH', body: { nickname } });
 
 export const getFloor = () => request('/council/floor');
+export const chatAgent = (id, messages, ticker) =>
+  request(`/council/agent/${id}/chat`, { method: 'POST', body: { messages, ticker } });
 export const getDca = () => request('/strategy/dca');
 
 export const getStrategyDiagnostics = () => request('/strategy/diagnostics');

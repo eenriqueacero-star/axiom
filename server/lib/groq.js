@@ -105,6 +105,38 @@ export async function callAgent({ system, user, useSearch = false, maxTokens = 7
   return { text: '', grounded: false, warning: 'All keys exhausted' };
 }
 
+// Multi-turn chat with an agent persona. A little warmth (temp 0.4), no seed —
+// this is conversation, not a verdict.
+export async function callAgentChat({ system, messages, maxTokens = 600 }) {
+  const keys = getKeys();
+  if (!keys.length) throw new Error('No GROQ keys configured');
+  const order = shuffled(keys);
+  for (let k = 0; k < order.length; k++) {
+    try {
+      const res = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${order[k]}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: MODEL_BASE,
+          messages: [{ role: 'system', content: system }, ...messages],
+          max_tokens: maxTokens, reasoning_effort: 'low',
+          temperature: 0.4, top_p: 1,
+        }),
+      });
+      if (!res.ok) {
+        if (res.status === 429 && k < order.length - 1) continue;
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error?.message || `Groq ${res.status}`);
+      }
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || '';
+    } catch (err) {
+      if (k === order.length - 1) throw err;
+    }
+  }
+  return '';
+}
+
 // --- Key health --------------------------------------------------------------
 
 let _keyCache = { ts: 0, data: null };

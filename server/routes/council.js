@@ -4,6 +4,9 @@ import { db } from '../lib/firebase.js';
 import { AGENTS } from '../agents/definitions.js';
 import { runCouncil } from '../lib/council.js';
 import { aggregate } from '../lib/scorecard.js';
+import { callAgentChat } from '../lib/groq.js';
+import { priceFacts } from '../lib/metrics.js';
+import { tickerNews } from '../lib/signals.js';
 
 const SCHEDULE = [
   { job: 'Daily scout scan', cadence: 'Weekdays 9:05 AM ET', does: 'Runs the full council on every holding + the discovery pool; pushes ADD/EXIT alerts.' },
@@ -64,6 +67,44 @@ router.get('/floor', async (req, res) => {
       })),
       scored: stats.total,
     });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// 1-on-1 chat with a single agent, in character, grounded in live data.
+router.post('/agent/:id/chat', async (req, res) => {
+  const agent = AGENTS.find(a => a.id === req.params.id);
+  if (!agent) return res.status(404).json({ error: 'No such agent' });
+
+  const messages = (req.body?.messages || [])
+    .filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .slice(-10);
+  if (!messages.length || messages[messages.length - 1].role !== 'user') {
+    return res.status(400).json({ error: 'Need a user message' });
+  }
+
+  try {
+    let context = '';
+    const t = String(req.body?.ticker || '').toUpperCase();
+    if (/^[A-Z.\-]{1,10}$/.test(t)) {
+      const [{ block }, news] = await Promise.all([
+        priceFacts(t).catch(() => ({ block: '' })),
+        tickerNews(t, { days: 7, limit: 5 }).catch(() => []),
+      ]);
+      const headlines = news.map(n => `- ${n.headline} (${n.source})`).join('\n');
+      context = `\n\nLIVE CONTEXT — ${t}:\n${block || 'no price data'}\n${headlines ? 'Recent news:\n' + headlines : ''}`;
+    }
+
+    const checks = Object.entries(agent.checks || {}).map(([k, v]) => `- ${v}`).join('\n');
+    const system = `${agent.conversationalPrompt}
+You are ${agent.name} on Axiom's council. Your job on the council: ${agent.role}
+You judge these things:
+${checks}
+You're talking 1-on-1 with the investor who runs Axiom. Stay in character, be concise (2-4 sentences), plain-spoken, no corporate filler. Use ONLY the data provided — never invent a price, date, or event. If you don't know, say so.${context}`;
+
+    const reply = await callAgentChat({ system, messages });
+    res.json({ reply: reply || "…couldn't get a response, try again." });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
