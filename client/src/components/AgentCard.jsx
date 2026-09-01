@@ -46,7 +46,9 @@ export default function AgentCard({ agent, result, loading }) {
           <ul className="space-y-1 mb-2">
             {checkKeys.map((k) => {
               const v = result.checks?.[k];
-              const m = MARK[String(v)] || MARK.null;
+              // VEGA's checks are inverted: true = a concern, false = all clear.
+              const shown = agent.id === 'bear' && typeof v === 'boolean' ? !v : v;
+              const m = MARK[String(shown)] || MARK.null;
               return (
                 <li key={k} className="text-xs flex gap-1.5">
                   <span className={`${m.c} w-3`}>{m.s}</span>
