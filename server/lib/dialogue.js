@@ -8,7 +8,7 @@
 import { AGENTS } from '../agents/definitions.js';
 import { db } from './firebase.js';
 import { getPortfolio } from './portfolio.js';
-import { diagnose, sectorOf, CAPS, SPLIT } from './strategy.js';
+import { diagnose, sectorOf, CAPS, SPLIT, CORE_LIST, BUFFER_ETF } from './strategy.js';
 import { priceFacts } from './metrics.js';
 import { callAgentChat, callAgent } from './groq.js';
 import { saveMemo, listMemos, memoBlock } from './memos.js';
@@ -88,18 +88,42 @@ export async function pickPairing(uid) {
 }
 
 /* ------------------------------------------------------- grounding block */
+const usd = (n) => `$${Math.round(n).toLocaleString('en-US')}`;
+
 async function grounding(uid, ticker) {
   const portfolio = await getPortfolio(uid).catch(() => null);
   const d = diagnose(portfolio || {});
   const lines = [];
   if (d.ready) {
     lines.push(
-      `PORTFOLIO: $${Math.round(d.total).toLocaleString()} total. `
+      'SCALE — READ CAREFULLY: every dollar figure below is an EXACT amount in US dollars. '
+      + 'This is a small personal brokerage account, not a fund. Never rescale a number into '
+      + 'thousands, millions or billions, and never write "B" or "M". '
+      + `The whole portfolio is ${usd(d.total)}.`,
+    );
+    lines.push(
+      `PORTFOLIO: ${usd(d.total)} total (${usd(d.invested)} invested, ${usd(d.cash)} cash). `
       + `Core ${(d.sleeve.corePct * 100).toFixed(0)}% / Satellite ${(d.sleeve.satellitePct * 100).toFixed(0)}% `
       + `(target ${SPLIT.core * 100}/${SPLIT.satellite * 100}).`,
     );
     lines.push(`SECTORS: ${(d.sectors || []).slice(0, 4).map((s) => `${s.name} ${(s.pct * 100).toFixed(0)}%`).join(', ')}`);
-    lines.push(`TOP NAMES: ${(d.names || []).slice(0, 6).map((n) => `${n.ticker} ${(n.pct * 100).toFixed(0)}%`).join(', ')}`);
+    lines.push(
+      'HOLDINGS: '
+      + (d.names || []).slice(0, 8)
+        .map((n) => `${n.ticker} ${usd(n.value)} (${(n.pct * 100).toFixed(0)}%, ${n.sleeve})`)
+        .join('; '),
+    );
+    lines.push(
+      `CORE LIST (the only names that count as Core — everything else is Satellite): ${CORE_LIST.join(', ')}. `
+      + `Buffer ETF when nothing is eligible: ${BUFFER_ETF}.`,
+    );
+    lines.push(
+      'RULEBOOK: sector cap ' + `${CAPS.sector * 100}%` + ', name cap '
+      + `${CAPS.name.core * 100}% core / ${CAPS.name.satellite * 100}% satellite. `
+      + `Only SELL a name if it is past ${CAPS.sellTrigger}x its cap; otherwise the fix is to `
+      + 'steer NEW CONTRIBUTIONS, never a forced sale. Weekly contributions are small — '
+      + 'proposals must be affordable at this account size.',
+    );
     if (d.flags?.length) lines.push(`RULEBOOK FLAGS: ${d.flags.slice(0, 4).map((f) => f.msg).join(' | ')}`);
   }
   if (ticker) {
@@ -133,7 +157,8 @@ export async function runDialogue(uid, pairing) {
     `${agent.conversationalPrompt}\n`
     + `You are at the council's desk, talking directly with ${other.name} (${other.role}). `
     + `This is a working conversation between colleagues, not a report to the user. `
-    + `Be concrete and short — 2-3 sentences, max 50 words. Push back where you genuinely disagree, `
+    + `Be concrete and short — 2-3 sentences, max 50 words. Quote dollar amounts exactly as given `
+    + `(this account is a few thousand dollars, not a fund — never write B or M). Push back where you genuinely disagree, `
     + `concede where ${other.name} is right, and work toward something you can both act on.\n`
     + `GROUND TRUTH (do not invent numbers outside this):\n${facts}`;
 

@@ -175,7 +175,8 @@ router.post('/agent/:id/chat', async (req, res) => {
       if (d.ready) {
         const topSectors = d.sectors.slice(0, 3).map(s => `${s.name} ${Math.round(s.pct * 100)}%`).join(', ');
         const held = t && d.names.find(n => n.ticker === t);
-        context += `\n\nTHE INVESTOR'S PORTFOLIO ($${Math.round(d.total).toLocaleString()}): Core/Satellite ${Math.round(d.sleeve.corePct * 100)}/${Math.round(d.sleeve.satellitePct * 100)} (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100}). Sectors: ${topSectors}.`;
+        context += `\n\nSCALE: dollar figures below are EXACT US dollars. This is a small personal brokerage account, not a fund — never rescale into thousands, millions or billions, and never write "B" or "M".`;
+        context += `\n\nTHE INVESTOR'S PORTFOLIO ($${Math.round(d.total).toLocaleString('en-US')} in total): Core/Satellite ${Math.round(d.sleeve.corePct * 100)}/${Math.round(d.sleeve.satellitePct * 100)} (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100}). Sectors: ${topSectors}.`;
         if (held) context += ` They currently hold ${(held.pct * 100).toFixed(1)}% in ${t}.`;
         else if (t) context += ` They do NOT currently hold ${t}.`;
         if (d.flags.length) context += ` Rulebook flags: ${d.flags.map(f => f.msg).join(' | ')}`;
