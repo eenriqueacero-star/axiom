@@ -62,6 +62,9 @@ export const deleteAccount = (accountId) =>
 export const renameAccount = (accountId, nickname) =>
   request(`/portfolio/${accountId}`, { method: 'PATCH', body: { nickname } });
 
+export const getFloor = () => request('/council/floor');
+export const getDca = () => request('/strategy/dca');
+
 export const getStrategyDiagnostics = () => request('/strategy/diagnostics');
 export const getStrategyConfig = () => request('/strategy');
 

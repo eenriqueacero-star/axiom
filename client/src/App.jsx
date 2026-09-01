@@ -4,6 +4,7 @@ import Login from './components/Login';
 import Analyze from './components/Analyze';
 import Portfolio from './components/Portfolio';
 import Scorecard from './components/Scorecard';
+import TheFloor from './components/TheFloor';
 import SystemStatus from './components/SystemStatus';
 
 export default function App() {
@@ -59,6 +60,7 @@ export default function App() {
         <div className="mx-auto max-w-3xl px-4 flex gap-4">
           {tab('portfolio', 'Portfolio')}
           {tab('analyze', 'Analyze')}
+          {tab('floor', 'The Floor')}
           {tab('scorecard', 'Scorecard')}
         </div>
       </header>
@@ -66,6 +68,7 @@ export default function App() {
       <main className="mx-auto max-w-3xl px-4 py-6">
         {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
         {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
+        {view === 'floor' && <TheFloor onAnalyze={goAnalyze} />}
         {view === 'scorecard' && <Scorecard />}
       </main>
 
