@@ -63,6 +63,14 @@ export const renameAccount = (accountId, nickname) =>
   request(`/portfolio/${accountId}`, { method: 'PATCH', body: { nickname } });
 
 export const getFloor = () => request('/council/floor');
+export const getFloorLive = () => request('/council/floor/live');
+
+// The desk — agent-to-agent conversations and the notes they leave behind.
+export const getDeskState = () => request('/desk/state');
+export const getDeskNotes = () => request('/desk/notes');
+export const getDeskNext = () => request('/desk/next');
+export const getDeskBudget = () => request('/desk/budget');
+export const convene = () => request('/desk/convene', { method: 'POST', body: {} });
 export const chatAgent = (id, messages, ticker) =>
   request(`/council/agent/${id}/chat`, { method: 'POST', body: { messages, ticker } });
 export const getDca = () => request('/strategy/dca');

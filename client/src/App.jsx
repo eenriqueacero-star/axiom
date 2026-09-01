@@ -7,7 +7,7 @@ import Scorecard from './components/Scorecard';
 import TheFloor from './components/TheFloor';
 import SystemStatus from './components/SystemStatus';
 
-const Floor3D = lazy(() => import('./components/Floor3D'));
+const TheRoom = lazy(() => import('./components/TheRoom'));
 
 export default function App() {
   const { user, signOut } = useAuth();
@@ -74,28 +74,31 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-6">
-        {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
-        {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
-        {view === 'floor' && (
-          floor3d ? (
-            <Suspense fallback={<p className="text-xs text-haze animate-pulse">Loading the floor…</p>}>
-              <Floor3D onAnalyze={goAnalyze} onExit={() => setFloorMode(false)} />
-            </Suspense>
-          ) : (
+      {/* The room is full-bleed — it escapes the centred column entirely. */}
+      {view === 'floor' && floor3d && (
+        <Suspense fallback={<p className="p-4 text-xs text-haze animate-pulse">Opening the room…</p>}>
+          <TheRoom onAnalyze={goAnalyze} onExit={() => setFloorMode(false)} />
+        </Suspense>
+      )}
+
+      {!(view === 'floor' && floor3d) && (
+        <main className="mx-auto max-w-3xl px-4 py-6">
+          {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
+          {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
+          {view === 'floor' && (
             <div className="space-y-3">
               <button
                 onClick={() => setFloorMode(true)}
                 className="text-[11px] text-haze hover:text-neutral-300"
               >
-                ← 3D view
+                ← the room
               </button>
               <TheFloor onAnalyze={goAnalyze} />
             </div>
-          )
-        )}
-        {view === 'scorecard' && <Scorecard />}
-      </main>
+          )}
+          {view === 'scorecard' && <Scorecard />}
+        </main>
+      )}
 
       <SystemStatus open={statusOpen} onClose={() => setStatusOpen(false)} />
     </div>
