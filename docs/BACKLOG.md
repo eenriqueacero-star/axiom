@@ -66,8 +66,15 @@ Real lever = stock SELECTION + holding + low turnover. So:
     and HOLD→TRIM when already oversized. Verified: NVDA went ADD 10/10 → TRIM
     6/10 ("Semiconductors sector 73%, at cap"). VerdictBanner shows ALREADY AT
     CAP + the holdings line.
-  - [ ] Slice 5: DCA suggestion engine, conviction tiers per holding, backtest
-    the rulebook vs QQQ, autonomous nightly agent debate.
+  - [x] Slice 5a: **DCA engine** (`server/lib/dca.js`, `GET /api/strategy/dca`) —
+    ranks Core names by underweight vs equal-share target, runs the entry-rule
+    check on each, picks the contribution target (or QQQ buffer). Verified: picked
+    MSFT ("most underweight Core, uptrend, not extended").
+  - [x] Slice 5b: **The Floor tab** — agent rooms (blurb, checks owned, track
+    record, recent calls), scheduled-work list, council activity feed, DCA card.
+    `GET /api/council/floor`. Live.
+  - [ ] Slice 5c: conviction tiers per holding; backtest the rulebook vs QQQ;
+    autonomous nightly agent debate → idea cards; per-agent chat.
 - [ ] **Re-point the agents (original note)** — from "should I trade this week" to: (1) Still belongs?
   (2) Right size? (3) Broken? AND switch from freeform 0-10 scores to **binary yes/no
   sub-questions scored in code** (LLM holistic scoring is provably inconsistent — see
