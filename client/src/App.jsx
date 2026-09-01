@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState } from 'react';
 import { useAuth } from './AuthProvider';
 import Login from './components/Login';
 import Analyze from './components/Analyze';
@@ -7,22 +7,12 @@ import Scorecard from './components/Scorecard';
 import TheFloor from './components/TheFloor';
 import SystemStatus from './components/SystemStatus';
 
-// The 3D view is opt-in until it's actually good. TheRoom renders; TheOffice
-// (vendored agent-workspace) does not — its render loop never starts.
-const TheRoom = lazy(() => import('./components/TheRoom'));
 
 export default function App() {
   const { user, signOut } = useAuth();
   const [statusOpen, setStatusOpen] = useState(false);
   const [view, setView] = useState('portfolio'); // 'portfolio' | 'analyze'
   const [analyzeTicker, setAnalyzeTicker] = useState('');
-  const [floor3d, setFloor3d] = useState(() => {
-    try { return localStorage.getItem('axiom.floor3d') === '1'; } catch { return false; }
-  });
-  const setFloorMode = (on) => {
-    setFloor3d(on);
-    try { localStorage.setItem('axiom.floor3d', on ? '1' : '0'); } catch { /* ignore */ }
-  };
 
   if (user === undefined) {
     return (
@@ -75,32 +65,12 @@ export default function App() {
           {tab('scorecard', 'Scorecard')}
         </div>
       </header>
-
-      {/* The room is full-bleed — it escapes the centred column entirely. */}
-      {view === 'floor' && floor3d && (
-        <Suspense fallback={<p className="p-4 text-xs text-haze animate-pulse">Opening the office…</p>}>
-          <TheRoom onAnalyze={goAnalyze} onExit={() => setFloorMode(false)} />
-        </Suspense>
-      )}
-
-      {!(view === 'floor' && floor3d) && (
-        <main className="mx-auto max-w-3xl px-4 py-6">
-          {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
-          {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
-          {view === 'floor' && (
-            <div className="space-y-3">
-              <button
-                onClick={() => setFloorMode(true)}
-                className="text-[11px] text-haze hover:text-neutral-300"
-              >
-                try the 3D room
-              </button>
-              <TheFloor onAnalyze={goAnalyze} />
-            </div>
-          )}
-          {view === 'scorecard' && <Scorecard />}
-        </main>
-      )}
+      <main className="mx-auto max-w-3xl px-4 py-6">
+        {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
+        {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
+        {view === 'floor' && <TheFloor onAnalyze={goAnalyze} />}
+        {view === 'scorecard' && <Scorecard />}
+      </main>
 
       <SystemStatus open={statusOpen} onClose={() => setStatusOpen(false)} />
     </div>
