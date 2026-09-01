@@ -188,7 +188,7 @@ function Prop({ id, color }) {
 }
 
 /* -------------------------------------------------------------- room shell */
-function RoomCell({ agent, index, focused, dim, hovered, onSelect, onHover }) {
+function RoomCell({ agent, index, focused, dim, onSelect }) {
   const p = roomPos(index);
   const grp = useRef();
   const trim = useRef();
@@ -197,8 +197,7 @@ function RoomCell({ agent, index, focused, dim, hovered, onSelect, onHover }) {
 
   useFrame((s, dt) => {
     if (grp.current) {
-      const lift = focused ? 0.16 : hovered ? 0.07 : 0;
-      grp.current.position.y = damp(grp.current.position.y, lift, 8, dt);
+      grp.current.position.y = damp(grp.current.position.y, focused ? 0.16 : 0, 8, dt);
     }
     const em = focused ? 2.4 : dim ? 0.15 : 0.7;
     if (trim.current) trim.current.material.emissiveIntensity = damp(trim.current.material.emissiveIntensity, em, 6, dt);
@@ -207,13 +206,17 @@ function RoomCell({ agent, index, focused, dim, hovered, onSelect, onHover }) {
 
   const S = 4.6;
   return (
-    <group
-      ref={grp}
-      position={p}
-      onClick={(e) => { e.stopPropagation(); onSelect(agent.id); }}
-      onPointerOver={(e) => { e.stopPropagation(); onHover(agent.id); document.body.style.cursor = 'pointer'; }}
-      onPointerOut={() => { onHover(null); document.body.style.cursor = 'default'; }}
-    >
+    <group ref={grp} position={p}>
+      {/* single invisible collider handles all pointer input — no child-to-child jitter */}
+      <mesh
+        position={[0, 1.2, 0]}
+        onClick={(e) => { e.stopPropagation(); onSelect(agent.id); }}
+        onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
+        onPointerOut={() => { document.body.style.cursor = 'default'; }}
+      >
+        <boxGeometry args={[S, 2.8, S]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
       {/* floor slab — near black */}
       <RoundedBox args={[S, 0.3, S]} radius={0.1} smoothness={4} position={[0, -0.15, 0]} receiveShadow>
         <meshStandardMaterial color={dim ? '#0b0b0d' : '#141417'} metalness={0.15} roughness={0.8} />
