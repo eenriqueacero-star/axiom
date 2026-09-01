@@ -45,10 +45,15 @@ Real lever = stock SELECTION + holding + low turnover. So:
 - [ ] **Per-position council stance** on the portfolio view (keep / trim / add / exit).
 - [ ] **Candidate ranking** — for the weekly DCA, rank which names best deserve new money.
 - [x] **Paste-import positions** — tolerant parser for broker copy-paste / CSV.
-- [~] **Broker auto-sync (SnapTrade)** — full integration built (register / portal /
-  sync holdings + cost basis into linked accounts). INERT until SNAPTRADE_CLIENT_ID +
-  SNAPTRADE_CONSUMER_KEY are set in Render. NOTE: SnapTrade prod access may need a
-  signup form / sales contact and may not be free — verify before relying on it.
+- [~] **Broker auto-sync (SnapTrade Personal)** — integration rewritten for Personal
+  API-key mode (no user registration, no portal; user links brokers in SnapTrade's own
+  dashboard, we just read via `getAllAccountPositions`). SNAPTRADE_CLIENT_ID set in
+  Render (`PERS-EUNL8MVD5NKLZGAAJXDF`); CONSUMER_KEY pending user paste.
+  **User connected 1 of 3 brokerages so far — still needs to connect the other 2
+  (2× Fidelity + Robinhood; one done). Do this in SnapTrade dashboard → Home →
+  Connect a brokerage, then hit Sync in Axiom.**
+  Verify the position field mapping (symbol / units / cost basis paths in `broker.js`
+  are defensive guesses) once the first real sync runs.
 - [ ] Cost-basis entry UI for manual accounts (field + parser exist; no dedicated input).
 
 ## Quant service (Python, `quant/`)
