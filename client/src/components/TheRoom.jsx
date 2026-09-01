@@ -10,10 +10,39 @@ import { AgentPanel, AgentChat } from './floor/shared';
 const MODEL = '/models/human.glb';
 useGLTF.preload(MODEL);
 
+/* CC0 furniture from Poly Haven, fetched by scripts/fetch-room-assets.mjs.
+   Real-world metre scale, Y-up, origin on the floor — so they drop straight in
+   at scale 1 next to a 1.83 m person. Draco-compressed; decoder is self-hosted
+   in /draco so there's no CDN dependency at runtime. */
+const F = {
+  desk:      '/models/room/WoodenTable_03.glb',
+  chair:     '/models/room/ArmChair_01.glb',
+  shelf:     '/models/room/wooden_bookshelf_worn.glb',
+  books:     '/models/room/book_encyclopedia_set_01.glb',
+  sofa:      '/models/room/Sofa_01.glb',
+  coffee:    '/models/room/CoffeeTable_01.glb',
+  plant:     '/models/room/calathea_orbifolia_01.glb',
+  laptop:    '/models/room/classic_laptop.glb',
+  clock:     '/models/room/vintage_grandfather_clock_01.glb',
+};
+Object.values(F).forEach((u) => useGLTF.preload(u, '/draco/'));
+
+/** One piece of furniture. Cloned so the same GLB can appear many times. */
+function Prop({ url, position = [0, 0, 0], rotation = [0, 0, 0], scale = 1 }) {
+  const { scene } = useGLTF(url, '/draco/');
+  const obj = useMemo(() => {
+    const c = scene.clone(true);
+    c.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    return c;
+  }, [scene]);
+  return <primitive object={obj} position={position} rotation={rotation} scale={scale} />;
+}
+
 /* ------------------------------------------------------------------ layout */
-const STATION_R = 6.8;   // ring of workstations
-const TABLE_R = 2.5;
-const SEAT_R = 3.4;
+// Metres. A 13 m room reads as a real council chamber; 20 m was a warehouse.
+const STATION_R = 4.6;   // ring of desks
+const TABLE_R = 1.6;
+const SEAT_R = 2.35;
 
 // station i sits on a ring, facing the table
 const stationPos = (i) => {
@@ -95,7 +124,7 @@ function Bubble({ status, color }) {
   return (
     <Html
       center
-      position={[0, 2.35, 0]}
+      position={[0, 2.15, 0]}
       zIndexRange={[20, 0]}
       style={{ pointerEvents: 'none' }}
     >
@@ -223,7 +252,7 @@ function Agent({ agent, index, live, phase, facing, speakTick, focused, status, 
         onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { document.body.style.cursor = 'default'; }}
       >
-        <boxGeometry args={[1.4, 2.2, 1.4]} />
+        <boxGeometry args={[0.9, 2.0, 0.9]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
       </mesh>
       <Human color={agent.color} clipBase={clipBase} reaction={reaction} speakTick={speakTick} />
@@ -237,58 +266,28 @@ function Agent({ agent, index, live, phase, facing, speakTick, focused, status, 
 function Station({ agent, index, focused, unread, onSelect }) {
   const p = useMemo(() => stationPos(index), [index]);
   const a = useMemo(() => stationAngle(index), [index]);
-  const screen = useRef();
+  const lamp = useRef();
   const c = useMemo(() => new THREE.Color(agent.color), [agent.color]);
 
-  useFrame((s, dt) => {
-    if (!screen.current) return;
-    // screen brightness = how many of this agent's calls you haven't opened
-    const want = focused ? 1.5 : 0.3 + Math.min(unread, 6) * 0.14;
-    screen.current.material.emissiveIntensity = damp(screen.current.material.emissiveIntensity, want, 4, dt);
+  useFrame((s2, dt) => {
+    if (!lamp.current) return;
+    // desk lamp brightness = this agent's unread calls
+    const want = focused ? 3.2 : 0.5 + Math.min(unread, 6) * 0.35;
+    lamp.current.intensity = damp(lamp.current.intensity, want, 4, dt);
   });
 
   return (
     <group position={[p.x, 0, p.z]} rotation={[0, -a + Math.PI / 2, 0]}
       onClick={(e) => { e.stopPropagation(); onSelect(agent.id); }}
     >
-      {/* desk */}
-      <RoundedBox args={[2.6, 0.12, 1.1]} radius={0.05} smoothness={3} position={[0, 0.78, -0.75]} castShadow receiveShadow>
-        <meshStandardMaterial color="#1c1c21" metalness={0.3} roughness={0.6} />
-      </RoundedBox>
-      {[[-1.1, -1.15], [1.1, -1.15], [-1.1, -0.35], [1.1, -0.35]].map(([x, z], i) => (
-        <mesh key={i} position={[x, 0.39, z]}>
-          <cylinderGeometry args={[0.05, 0.05, 0.78, 8]} />
-          <meshStandardMaterial color="#141418" metalness={0.4} roughness={0.5} />
-        </mesh>
-      ))}
-      {/* monitor — a screen, not a slab of colour */}
-      <mesh position={[0, 1.22, -1.1]} rotation={[-0.12, 0, 0]}>
-        <boxGeometry args={[1.06, 0.64, 0.05]} />
-        <meshStandardMaterial color="#0a0a0c" metalness={0.4} roughness={0.4} />
+      <Prop url={F.desk} position={[0, 0, -0.6]} rotation={[0, Math.PI, 0]} />
+      <Prop url={F.laptop} position={[0, 0.83, -0.62]} rotation={[0, Math.PI, 0]} scale={0.9} />
+      {/* a small colour plate on the desk edge is the only non-physical cue */}
+      <mesh position={[0, 0.845, -0.3]}>
+        <boxGeometry args={[0.5, 0.012, 0.04]} />
+        <meshStandardMaterial color={c} emissive={c} emissiveIntensity={focused ? 2.4 : 0.7} toneMapped={false} />
       </mesh>
-      <mesh ref={screen} position={[0, 1.22, -1.07]} rotation={[-0.12, 0, 0]}>
-        <planeGeometry args={[0.96, 0.55]} />
-        <meshStandardMaterial color="#0a0a0e" emissive={c} emissiveIntensity={0.35} toneMapped={false} />
-      </mesh>
-      <mesh position={[0, 0.92, -1.1]}>
-        <boxGeometry args={[0.1, 0.36, 0.1]} />
-        <meshStandardMaterial color="#141418" metalness={0.4} />
-      </mesh>
-      {/* name strip on the desk edge */}
-      <mesh position={[0, 0.73, -0.22]}>
-        <boxGeometry args={[2.3, 0.02, 0.05]} />
-        <meshStandardMaterial color={c} emissive={c} emissiveIntensity={focused ? 2 : 0.6} toneMapped={false} />
-      </mesh>
-      {/* chair */}
-      <group position={[0, 0, 0.35]}>
-        <RoundedBox args={[0.7, 0.1, 0.7]} radius={0.05} smoothness={3} position={[0, 0.5, 0]} castShadow>
-          <meshStandardMaterial color="#17171c" roughness={0.8} />
-        </RoundedBox>
-        <RoundedBox args={[0.7, 0.7, 0.1]} radius={0.05} smoothness={3} position={[0, 0.85, 0.32]} castShadow>
-          <meshStandardMaterial color="#17171c" roughness={0.8} />
-        </RoundedBox>
-        <mesh position={[0, 0.25, 0]}><cylinderGeometry args={[0.06, 0.06, 0.5, 8]} /><meshStandardMaterial color="#101014" metalness={0.5} /></mesh>
-      </group>
+      <pointLight ref={lamp} position={[0.45, 1.25, -0.5]} distance={3} intensity={0.6} color="#ffd9a8" />
     </group>
   );
 }
@@ -309,26 +308,26 @@ function Table({ notes, active, onSelect }) {
       onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'pointer'; }}
       onPointerOut={() => { document.body.style.cursor = 'default'; }}
     >
-      <mesh position={[0, 0.72, 0]} castShadow receiveShadow>
-        <cylinderGeometry args={[TABLE_R, TABLE_R, 0.12, 48]} />
-        <meshStandardMaterial color="#1b1b21" metalness={0.35} roughness={0.5} />
+      <mesh position={[0, 0.74, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[TABLE_R, TABLE_R, 0.08, 48]} />
+        <meshStandardMaterial color="#4a3524" metalness={0.1} roughness={0.55} />
       </mesh>
-      <mesh ref={glow} position={[0, 0.786, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[TABLE_R - 0.22, TABLE_R - 0.08, 48]} />
+      <mesh ref={glow} position={[0, 0.783, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[TABLE_R - 0.16, TABLE_R - 0.06, 48]} />
         <meshStandardMaterial color="#8ea2ff" emissive="#8ea2ff" emissiveIntensity={0.2} toneMapped={false} />
       </mesh>
       <mesh position={[0, 0.35, 0]}>
-        <cylinderGeometry args={[0.4, 0.6, 0.7, 16]} />
+        <cylinderGeometry args={[0.26, 0.42, 0.72, 16]} />
         <meshStandardMaterial color="#131317" metalness={0.4} roughness={0.5} />
       </mesh>
 
       {/* one card per desk note the council has produced */}
       {notes.slice(0, 9).map((n, i) => {
         const a = (i / 9) * Math.PI * 2;
-        const r = TABLE_R - 0.85;
+        const r = TABLE_R - 0.6;
         return (
-          <mesh key={n.id || i} position={[Math.cos(a) * r, 0.8 + i * 0.004, Math.sin(a) * r]} rotation={[-Math.PI / 2, 0, -a]}>
-            <planeGeometry args={[0.62, 0.42]} />
+          <mesh key={n.id || i} position={[Math.cos(a) * r, 0.79 + i * 0.003, Math.sin(a) * r]} rotation={[-Math.PI / 2, 0, -a]}>
+            <planeGeometry args={[0.3, 0.21]} />
             <meshStandardMaterial
               color="#0e0e12"
               emissive={n.actionable ? '#facc15' : '#5b6784'}
@@ -343,188 +342,124 @@ function Table({ notes, active, onSelect }) {
 }
 
 /* ------------------------------------------------------------------ room */
-const W = 20, D = 20, H = 4.8;
-
-function Plant({ position, scale = 1 }) {
-  return (
-    <group position={position} scale={scale}>
-      <mesh position={[0, 0.22, 0]} castShadow>
-        <cylinderGeometry args={[0.24, 0.3, 0.44, 12]} />
-        <meshStandardMaterial color="#6b5544" roughness={0.85} />
-      </mesh>
-      {[[0.1, 0.75, 0, 0.34], [-0.14, 0.66, 0.1, 0.28], [0.05, 0.6, -0.15, 0.24]].map(([x, y, z, r], i) => (
-        <mesh key={i} position={[x, y, z]} rotation={[i * 0.5, i, i * 0.3]} castShadow>
-          <icosahedronGeometry args={[r, 0]} />
-          <meshStandardMaterial color={i % 2 ? '#2f6b42' : '#3a7d4e'} flatShading roughness={0.8} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
-function Shelf({ position, rotation = [0, 0, 0] }) {
-  return (
-    <group position={position} rotation={rotation}>
-      <mesh position={[0, 1.1, 0]} castShadow receiveShadow>
-        <boxGeometry args={[2.4, 2.2, 0.34]} />
-        <meshStandardMaterial color="#3a2e26" roughness={0.85} />
-      </mesh>
-      {[0.45, 1.05, 1.65].map((y) => (
-        <group key={y}>
-          <mesh position={[0, y, 0.02]}>
-            <boxGeometry args={[2.24, 0.05, 0.32]} />
-            <meshStandardMaterial color="#4a3a2e" roughness={0.8} />
-          </mesh>
-          {Array.from({ length: 9 }).map((_, i) => (
-            <mesh key={i} position={[-0.98 + i * 0.24, y + 0.19, 0.04]} castShadow>
-              <boxGeometry args={[0.14, 0.32 + ((i * 7) % 5) * 0.02, 0.24]} />
-              <meshStandardMaterial
-                color={new THREE.Color().setHSL(((i * 11) % 100) / 260 + 0.03, 0.3, 0.34)}
-                roughness={0.8}
-              />
-            </mesh>
-          ))}
-        </group>
-      ))}
-    </group>
-  );
-}
+const W = 13, D = 13, H = 3.6;
 
 function Shell() {
   return (
     <group>
-      {/* floor — warm boards, with a rug under the table */}
+      {/* boards */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[W, D]} />
-        <meshStandardMaterial color="#2a221c" roughness={0.9} metalness={0.05} />
+        <meshStandardMaterial color="#3a2c22" roughness={0.85} metalness={0.03} />
       </mesh>
-      {Array.from({ length: 14 }).map((_, i) => (
-        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, -D / 2 + i * 1.45]}>
-          <planeGeometry args={[W, 0.02]} />
-          <meshBasicMaterial color="#221b16" />
+      {Array.from({ length: 18 }).map((_, i) => (
+        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, -D / 2 + i * 0.75]}>
+          <planeGeometry args={[W, 0.015]} />
+          <meshBasicMaterial color="#2c211a" />
         </mesh>
       ))}
+      {/* rug under the table */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} receiveShadow>
-        <circleGeometry args={[SEAT_R + 1.5, 48]} />
-        <meshStandardMaterial color="#232a33" roughness={1} />
+        <circleGeometry args={[3.1, 56]} />
+        <meshStandardMaterial color="#2b3440" roughness={1} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.007, 0]}>
-        <ringGeometry args={[SEAT_R + 1.28, SEAT_R + 1.4, 48]} />
-        <meshBasicMaterial color="#39424f" />
+        <ringGeometry args={[2.9, 3.0, 56]} />
+        <meshBasicMaterial color="#41505f" />
       </mesh>
 
-      {/* Walls face inward and are single-sided, so the two nearest the camera
-          cull away and you can see into the room — dollhouse style. */}
+      {/* walls face inward and are single-sided, so the near ones cull away */}
       {[[0, -D / 2, 0], [0, D / 2, Math.PI], [-W / 2, 0, Math.PI / 2], [W / 2, 0, -Math.PI / 2]].map(([x, z, ry], i) => (
         <group key={i} position={[x, 0, z]} rotation={[0, ry, 0]}>
           <mesh position={[0, H / 2, 0]} receiveShadow>
             <planeGeometry args={[W, H]} />
-            <meshStandardMaterial color="#191b21" roughness={0.95} side={THREE.FrontSide} />
+            <meshStandardMaterial color="#232028" roughness={0.95} side={THREE.FrontSide} />
           </mesh>
-          <mesh position={[0, 1.05, 0.03]} receiveShadow>
-            <planeGeometry args={[W, 2.1]} />
-            <meshStandardMaterial color="#22262e" roughness={0.9} side={THREE.FrontSide} />
+          <mesh position={[0, 0.85, 0.02]} receiveShadow>
+            <planeGeometry args={[W, 1.7]} />
+            <meshStandardMaterial color="#33291f" roughness={0.9} side={THREE.FrontSide} />
           </mesh>
-          <mesh position={[0, 2.12, 0.06]}>
-            <planeGeometry args={[W, 0.07]} />
-            <meshBasicMaterial color="#3b4253" side={THREE.FrontSide} />
+          <mesh position={[0, 1.72, 0.04]}>
+            <planeGeometry args={[W, 0.06]} />
+            <meshBasicMaterial color="#4d3f2e" side={THREE.FrontSide} />
           </mesh>
-        </group>
-      ))}
-
-      {/* a window wall — city at night, the only warm light from outside */}
-      <group position={[0, 0, -D / 2 + 0.14]}>
-        <mesh position={[0, 2.7, 0]}>
-          <planeGeometry args={[8.4, 2.6]} />
-          <meshStandardMaterial color="#0a1018" emissive="#16233a" emissiveIntensity={1.1} toneMapped={false} />
-        </mesh>
-        {Array.from({ length: 70 }).map((_, i) => {
-          const x = ((i * 37) % 80) / 10 - 4;
-          const y = 1.7 + ((i * 53) % 22) / 10;
-          return (
-            <mesh key={i} position={[x, y, 0.01]}>
-              <planeGeometry args={[0.07, 0.05]} />
-              <meshBasicMaterial color={i % 4 ? '#ffd9a0' : '#9fc6ff'} />
-            </mesh>
-          );
-        })}
-        {[-2.8, 0, 2.8].map((x) => (
-          <mesh key={x} position={[x, 2.7, 0.03]}>
-            <boxGeometry args={[0.08, 2.6, 0.06]} />
-            <meshStandardMaterial color="#0f1116" roughness={0.7} />
-          </mesh>
-        ))}
-      </group>
-
-      {/* framed pieces on the other walls */}
-      {[[-W / 2 + 0.2, 2.7, -4, Math.PI / 2], [-W / 2 + 0.2, 2.7, 2, Math.PI / 2],
-        [W / 2 - 0.2, 2.7, -2, -Math.PI / 2], [0, 2.9, D / 2 - 0.2, Math.PI]].map(([x, y, z, ry], i) => (
-        <group key={i} position={[x, y, z]} rotation={[0, ry, 0]}>
-          <mesh castShadow>
-            <boxGeometry args={[1.5, 1.05, 0.06]} />
-            <meshStandardMaterial color="#4a3f33" roughness={0.7} />
-          </mesh>
-          <mesh position={[0, 0, 0.04]}>
-            <planeGeometry args={[1.32, 0.88]} />
-            <meshStandardMaterial
-              color={['#26303f', '#2f2a3a', '#243328', '#3a2f2a'][i]}
-              emissive={['#26303f', '#2f2a3a', '#243328', '#3a2f2a'][i]}
-              emissiveIntensity={0.25}
-              roughness={0.9}
-            />
+          <mesh position={[0, H - 0.08, 0.04]}>
+            <planeGeometry args={[W, 0.08]} />
+            <meshBasicMaterial color="#4d3f2e" side={THREE.FrontSide} />
           </mesh>
         </group>
       ))}
 
-      {/* credenza + coffee station on the back wall */}
-      <group position={[6.2, 0, D / 2 - 1]}>
-        <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
-          <boxGeometry args={[3.2, 0.9, 0.7]} />
-          <meshStandardMaterial color="#3a2e26" roughness={0.85} />
+      {/* window onto the city — the only cool light in the room */}
+      <group position={[0, 0, -D / 2 + 0.06]}>
+        <mesh position={[0, 2.1, 0]}>
+          <planeGeometry args={[5.4, 1.9]} />
+          <meshStandardMaterial color="#0a1018" emissive="#16233a" emissiveIntensity={1.3} toneMapped={false} />
         </mesh>
-        <mesh position={[-0.9, 1.02, 0]} castShadow>
-          <boxGeometry args={[0.4, 0.34, 0.3]} />
-          <meshStandardMaterial color="#1a1a1f" roughness={0.6} metalness={0.3} />
-        </mesh>
-        {[-0.2, 0.1, 0.4].map((x) => (
-          <mesh key={x} position={[x, 0.98, 0.1]} castShadow>
-            <cylinderGeometry args={[0.07, 0.06, 0.16, 12]} />
-            <meshStandardMaterial color="#d8d8dc" roughness={0.5} />
+        {Array.from({ length: 60 }).map((_, i) => (
+          <mesh key={i} position={[((i * 37) % 52) / 10 - 2.6, 1.35 + ((i * 53) % 16) / 10, 0.01]}>
+            <planeGeometry args={[0.05, 0.035]} />
+            <meshBasicMaterial color={i % 4 ? '#ffd9a0' : '#9fc6ff'} />
+          </mesh>
+        ))}
+        {[-1.8, 0, 1.8].map((x) => (
+          <mesh key={x} position={[x, 2.1, 0.02]}>
+            <boxGeometry args={[0.06, 1.9, 0.05]} />
+            <meshStandardMaterial color="#161318" roughness={0.7} />
           </mesh>
         ))}
       </group>
 
-      <Shelf position={[-7.4, 0, D / 2 - 0.9]} rotation={[0, Math.PI, 0]} />
-      <Plant position={[-8.6, 0, -6.4]} scale={1.25} />
-      <Plant position={[8.6, 0, 6.6]} scale={1.1} />
-      <Plant position={[8.7, 0, -7]} scale={0.95} />
+      {/* the furniture — all CC0 Poly Haven, real metre scale */}
+      <Prop url={F.shelf} position={[-4.6, 0, -D / 2 + 0.35]} />
+      <Prop url={F.shelf} position={[-3.1, 0, -D / 2 + 0.35]} />
+      <Prop url={F.books} position={[-4.9, 1.02, -D / 2 + 0.3]} rotation={[0, 0.2, 0]} />
+      <Prop url={F.books} position={[-3.4, 1.46, -D / 2 + 0.3]} rotation={[0, -0.1, 0]} />
+      <Prop url={F.clock} position={[W / 2 - 0.5, 0, -D / 2 + 0.6]} rotation={[0, -Math.PI / 4, 0]} />
+
+      {/* lounge corner */}
+      <Prop url={F.sofa} position={[-4.4, 0, 4.5]} rotation={[0, Math.PI / 2 + 0.35, 0]} />
+      <Prop url={F.coffee} position={[-3.0, 0, 4.9]} rotation={[0, 0.3, 0]} />
+
+      <Prop url={F.plant} position={[4.7, 0, 4.6]} rotation={[0, 0.6, 0]} scale={0.75} />
+      <Prop url={F.plant} position={[-5.4, 0, -1.2]} rotation={[0, -1.1, 0]} scale={0.6} />
+
+      {/* six armchairs around the table, one per analyst */}
+      {Array.from({ length: 6 }).map((_, i) => {
+        const a = stationAngle(i);
+        return (
+          <Prop
+            key={i}
+            url={F.chair}
+            position={[Math.cos(a) * (TABLE_R + 0.85), 0, Math.sin(a) * (TABLE_R + 0.85)]}
+            rotation={[0, -a + Math.PI / 2, 0]}
+          />
+        );
+      })}
 
       {/* pendant lamps over the table */}
-      <group position={[0, 0, 0]}>
-        {[[-1.5, 0], [1.5, 0], [0, 1.5], [0, -1.5]].map(([x, z], i) => (
-          <group key={i} position={[x, 0, z]}>
-            <mesh position={[0, 3.55, 0]}>
-              <cylinderGeometry args={[0.01, 0.01, 1.5, 6]} />
-              <meshStandardMaterial color="#2a2a32" />
-            </mesh>
-            <mesh position={[0, 2.75, 0]} castShadow>
-              <coneGeometry args={[0.3, 0.34, 16, 1, true]} />
-              <meshStandardMaterial color="#20242c" roughness={0.6} metalness={0.4} side={THREE.DoubleSide} />
-            </mesh>
-            <mesh position={[0, 2.63, 0]}>
-              <sphereGeometry args={[0.09, 12, 12]} />
-              <meshStandardMaterial color="#ffe6bd" emissive="#ffdca8" emissiveIntensity={2.4} toneMapped={false} />
-            </mesh>
-          </group>
-        ))}
-      </group>
+      {[[-0.95, 0], [0.95, 0], [0, 0.95], [0, -0.95]].map(([x, z], i) => (
+        <group key={i} position={[x, 0, z]}>
+          <mesh position={[0, 2.95, 0]}>
+            <cylinderGeometry args={[0.008, 0.008, 1.3, 6]} />
+            <meshStandardMaterial color="#2a2a32" />
+          </mesh>
+          <mesh position={[0, 2.28, 0]} castShadow>
+            <coneGeometry args={[0.2, 0.24, 16, 1, true]} />
+            <meshStandardMaterial color="#2b2118" roughness={0.5} metalness={0.5} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh position={[0, 2.2, 0]}>
+            <sphereGeometry args={[0.065, 12, 12]} />
+            <meshStandardMaterial color="#ffe6bd" emissive="#ffdca8" emissiveIntensity={2.6} toneMapped={false} />
+          </mesh>
+        </group>
+      ))}
 
-      {/* No ceiling — the camera looks in from above. A cornice line reads as
-          the top of the room without blocking the view. */}
+      {/* cornice, in place of a ceiling that would block the camera */}
       {[[0, -D / 2, 0], [0, D / 2, Math.PI], [-W / 2, 0, Math.PI / 2], [W / 2, 0, -Math.PI / 2]].map(([x, z, ry], i) => (
-        <mesh key={i} position={[x, H - 0.12, z]} rotation={[0, ry, 0]}>
-          <planeGeometry args={[W, 0.12]} />
-          <meshBasicMaterial color="#2c313d" side={THREE.FrontSide} />
+        <mesh key={i} position={[x, H - 0.02, z]} rotation={[0, ry, 0]}>
+          <planeGeometry args={[W, 0.1]} />
+          <meshBasicMaterial color="#3a3040" side={THREE.FrontSide} />
         </mesh>
       ))}
     </group>
@@ -540,11 +475,11 @@ function Rig({ mode, focusIndex }) {
 
   useFrame((s, dt) => {
     const t = s.clock.elapsedTime;
-    let dist = 24, zoom = 62;
-    if (mode === 'table') { aim.current.set(0, 1.1, 0); dist = 16; zoom = 76; }
+    let dist = 18, zoom = 88;
+    if (mode === 'table') { aim.current.set(0, 1.0, 0); dist = 12; zoom = 118; }
     else if (mode === 'station' && focusIndex != null) {
       const p = stationPos(focusIndex);
-      aim.current.set(p.x * 0.82, 1.1, p.z * 0.82); dist = 13; zoom = 92;
+      aim.current.set(p.x * 0.8, 1.0, p.z * 0.8); dist = 10; zoom = 150;
     } else { aim.current.set(0, 1, 0); }
 
     pos.current.copy(aim.current).addScaledVector(ISO, dist);
@@ -575,10 +510,10 @@ function Scene({ agents, live, desk, notes, sel, setSel, shownTurns, phaseOf }) 
   return (
     <>
       <color attach="background" args={['#050507']} />
-      <fog attach="fog" args={['#050507', 26, 62]} />
+      <fog attach="fog" args={['#050507', 20, 45]} />
       <ambientLight intensity={0.6} color="#b9c2d8" />
       <directionalLight
-        position={[9, 15, 7]} intensity={1.5} castShadow
+        position={[6, 10, 5]} intensity={0.9} castShadow
         shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004}
         shadow-camera-left={-18} shadow-camera-right={18}
         shadow-camera-top={18} shadow-camera-bottom={-18}
@@ -586,9 +521,9 @@ function Scene({ agents, live, desk, notes, sel, setSel, shownTurns, phaseOf }) 
       {/* the rig over the table is the room's key practical light */}
       {/* the four pendants are the room's key light */}
       {[[-1.5,0],[1.5,0],[0,1.5],[0,-1.5]].map(([x,z],i)=>(
-        <pointLight key={i} position={[x,2.6,z]} distance={11} intensity={act ? 16 : 11} color="#ffdcae" />
+        <pointLight key={i} position={[x,2.2,z]} distance={7} intensity={act ? 9 : 6} color="#ffdcae" />
       ))}
-      <pointLight position={[0,2.9,-9]} distance={16} intensity={4} color="#7ea6ff" />
+      <pointLight position={[0,2.2,-6]} distance={9} intensity={2.6} color="#7ea6ff" />
       <directionalLight position={[-10, 6, -8]} intensity={0.25} color="#7c88ff" />
 
       <Shell />
@@ -621,7 +556,7 @@ function Scene({ agents, live, desk, notes, sel, setSel, shownTurns, phaseOf }) 
         })}
       </Suspense>
 
-      <ContactShadows position={[0, 0.01, 0]} opacity={0.45} scale={30} blur={2.4} far={6} />
+      <ContactShadows position={[0, 0.012, 0]} opacity={0.5} scale={16} blur={2} far={4} />
       <Rig mode={mode} focusIndex={selIndex} />
       <EffectComposer disableNormalPass multisampling={0}>
         <Bloom mipmapBlur luminanceThreshold={0.72} luminanceSmoothing={0.25} intensity={0.45} radius={0.5} />
