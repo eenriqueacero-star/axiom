@@ -7,7 +7,7 @@ import Scorecard from './components/Scorecard';
 import TheFloor from './components/TheFloor';
 import SystemStatus from './components/SystemStatus';
 
-const TheRoom = lazy(() => import('./components/TheRoom'));
+const TheOffice = lazy(() => import('./components/TheOffice'));
 
 export default function App() {
   const { user, signOut } = useAuth();
@@ -76,8 +76,8 @@ export default function App() {
 
       {/* The room is full-bleed — it escapes the centred column entirely. */}
       {view === 'floor' && floor3d && (
-        <Suspense fallback={<p className="p-4 text-xs text-haze animate-pulse">Opening the room…</p>}>
-          <TheRoom onAnalyze={goAnalyze} onExit={() => setFloorMode(false)} />
+        <Suspense fallback={<p className="p-4 text-xs text-haze animate-pulse">Opening the office…</p>}>
+          <TheOffice onAnalyze={goAnalyze} onExit={() => setFloorMode(false)} />
         </Suspense>
       )}
 
