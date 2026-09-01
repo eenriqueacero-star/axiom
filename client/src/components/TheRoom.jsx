@@ -12,8 +12,9 @@ useGLTF.preload(MODEL);
 
 /* CC0 furniture from Poly Haven, fetched by scripts/fetch-room-assets.mjs.
    Real-world metre scale, Y-up, origin on the floor — so they drop straight in
-   at scale 1 next to a 1.83 m person. Draco-compressed; decoder is self-hosted
-   in /draco so there's no CDN dependency at runtime. */
+   at scale 1 next to a 1.83 m person. Mesh-quantized rather than Draco-
+   compressed: KHR_mesh_quantization is decoded natively by three, so there is
+   no decoder to load and nothing to go wrong at runtime. */
 const F = {
   desk:      '/models/room/WoodenTable_03.glb',
   chair:     '/models/room/ArmChair_01.glb',
@@ -25,11 +26,11 @@ const F = {
   laptop:    '/models/room/classic_laptop.glb',
   clock:     '/models/room/vintage_grandfather_clock_01.glb',
 };
-Object.values(F).forEach((u) => useGLTF.preload(u, '/draco/'));
+Object.values(F).forEach((u) => useGLTF.preload(u));
 
 /** One piece of furniture. Cloned so the same GLB can appear many times. */
 function Prop({ url, position = [0, 0, 0], rotation = [0, 0, 0], scale = 1 }) {
-  const { scene } = useGLTF(url, '/draco/');
+  const { scene } = useGLTF(url);
   const obj = useMemo(() => {
     const c = scene.clone(true);
     c.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
