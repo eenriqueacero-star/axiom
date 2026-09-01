@@ -1,14 +1,12 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState } from 'react';
 import { useAuth } from './AuthProvider';
 import Login from './components/Login';
 import Analyze from './components/Analyze';
 import Portfolio from './components/Portfolio';
 import Scorecard from './components/Scorecard';
 import TheFloor from './components/TheFloor';
+import TheOffice from './components/TheOffice';
 import SystemStatus from './components/SystemStatus';
-
-// Full-bleed 3D room. Lazy — it pulls in three/r3f/drei.
-const TheRoom = lazy(() => import('./components/TheRoom'));
 
 
 export default function App() {
@@ -75,27 +73,23 @@ export default function App() {
           {tab('scorecard', 'Scorecard')}
         </div>
       </header>
-      {view === 'floor' && roomView && (
-        <Suspense fallback={<p className="p-4 text-xs text-haze animate-pulse">Opening the room…</p>}>
-          <TheRoom onAnalyze={goAnalyze} onExit={() => setRoom(false)} />
-        </Suspense>
-      )}
-
-      {!(view === 'floor' && roomView) && (
-        <main className="mx-auto max-w-3xl px-4 py-6">
-          {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
-          {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
-          {view === 'floor' && (
-            <div className="space-y-3">
-              <button onClick={() => setRoom(true)} className="text-[11px] text-haze hover:text-neutral-300">
-                open the room
-              </button>
-              <TheFloor onAnalyze={goAnalyze} />
-            </div>
-          )}
-          {view === 'scorecard' && <Scorecard />}
-        </main>
-      )}
+      <main className="mx-auto max-w-3xl px-4 py-6">
+        {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
+        {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
+        {view === 'floor' && (
+          roomView
+            ? <TheOffice onAnalyze={goAnalyze} onExit={() => setRoom(false)} />
+            : (
+              <div className="space-y-3">
+                <button onClick={() => setRoom(true)} className="text-[11px] text-haze hover:text-neutral-300">
+                  floor view
+                </button>
+                <TheFloor onAnalyze={goAnalyze} />
+              </div>
+            )
+        )}
+        {view === 'scorecard' && <Scorecard />}
+      </main>
 
       <SystemStatus open={statusOpen} onClose={() => setStatusOpen(false)} />
     </div>
