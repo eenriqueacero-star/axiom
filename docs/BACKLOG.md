@@ -47,14 +47,21 @@ Real lever = stock SELECTION + holding + low turnover. So:
   - [ ] Backtest the rulebook vs QQQ/VOO on the quant service.
   - [ ] Wire the diagnostics into the council (agents see the flags).
 
-- [~] **Re-point the agents** — IN PROGRESS.
+- [x] **Re-point the agents** — DONE (2026-09-01).
   - [x] Slice 1: code-computed price facts (`server/lib/metrics.js`) — trend vs
-    50/200-day, % off 52wk high, 3/6/12mo momentum, industry — via Tiingo EOD,
-    fed into every council run's LIVE DATA block + returned on the result.
-    TIINGO_TOKEN added to Render backend env.
-  - [ ] Slice 2: change the council question to belongs / size / broken; binary
-    yes/no sub-questions; score computed in code; drop dead agents.
-  - [ ] Slice 3: surface the facts + per-question checks in the client verdict UI.
+    50/200-day, % off 52wk high, 3/6/12mo momentum via Tiingo EOD.
+  - [x] Slice 2: council now answers belongs / entry / broken / sector / size.
+    Each agent returns BINARY checks (true/false/null). Verdict
+    **ADD / HOLD / TRIM / EXIT** + conviction computed in code (`scoreCouncil`)
+    from the checks + the strategy rulebook (broken→EXIT, downtrend→EXIT,
+    score≥7 & entry clear→ADD, ≤3→TRIM). AXIOM explains the verdict, can't
+    change it. ATLAS re-scoped macro→sector health.
+  - [x] Slice 3: AgentCard renders ✓/✗ checks + note; VerdictBanner shows
+    THESIS BROKEN / DOWNTREND / ENTRY NOT CLEAR flags + the facts line.
+    scoutJob now reuses runCouncil; scorecard isHit + buckets updated.
+  - [ ] Slice 4: **holdings-aware council** — feed the user's real positions so
+    ZEN/verdict know "you're already 100% semis, this adds concentration".
+    Needs the council run to carry uid. THE obvious next step.
 - [ ] **Re-point the agents (original note)** — from "should I trade this week" to: (1) Still belongs?
   (2) Right size? (3) Broken? AND switch from freeform 0-10 scores to **binary yes/no
   sub-questions scored in code** (LLM holistic scoring is provably inconsistent — see
