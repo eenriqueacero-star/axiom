@@ -59,9 +59,15 @@ Real lever = stock SELECTION + holding + low turnover. So:
   - [x] Slice 3: AgentCard renders ✓/✗ checks + note; VerdictBanner shows
     THESIS BROKEN / DOWNTREND / ENTRY NOT CLEAR flags + the facts line.
     scoutJob now reuses runCouncil; scorecard isHit + buckets updated.
-  - [ ] Slice 4: **holdings-aware council** — feed the user's real positions so
-    ZEN/verdict know "you're already 100% semis, this adds concentration".
-    Needs the council run to carry uid. THE obvious next step.
+  - [x] Slice 4: **holdings-aware council** — `runCouncil` takes `uid`,
+    `buildHoldingsContext` feeds the real portfolio (position %, sector %, mix,
+    rulebook flags) into every agent prompt + the synth. `scoreCouncil` now
+    downgrades ADD→HOLD when a sector/name is at its cap (`concentrationBlock`),
+    and HOLD→TRIM when already oversized. Verified: NVDA went ADD 10/10 → TRIM
+    6/10 ("Semiconductors sector 73%, at cap"). VerdictBanner shows ALREADY AT
+    CAP + the holdings line.
+  - [ ] Slice 5: DCA suggestion engine, conviction tiers per holding, backtest
+    the rulebook vs QQQ, autonomous nightly agent debate.
 - [ ] **Re-point the agents (original note)** — from "should I trade this week" to: (1) Still belongs?
   (2) Right size? (3) Broken? AND switch from freeform 0-10 scores to **binary yes/no
   sub-questions scored in code** (LLM holistic scoring is provably inconsistent — see
