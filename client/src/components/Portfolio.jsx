@@ -32,6 +32,8 @@ export default function Portfolio({ onAnalyze }) {
   const [importBusy, setImportBusy] = useState(false);
   const [renaming, setRenaming] = useState(null); // accountId
   const [nameDraft, setNameDraft] = useState('');
+  const [confirmDel, setConfirmDel] = useState(null); // accountId awaiting confirm
+  const [delBusy, setDelBusy] = useState(false);
 
   const load = () => getPortfolio().then(setData).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
@@ -54,8 +56,18 @@ export default function Portfolio({ onAnalyze }) {
     try { setData(await removeTicker(acct, ticker)); } catch (e) { setErr(e.message); }
   };
 
-  const doDeleteAccount = async (acct) => {
-    try { setData(await deleteAccount(acct)); } catch (e) { setErr(e.message); }
+  const doDeleteAccount = async (acctId) => {
+    setDelBusy(true);
+    setErr('');
+    try {
+      const next = await deleteAccount(acctId);
+      setConfirmDel(null);
+      setData(next);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setDelBusy(false);
+    }
   };
 
   const saveName = async (acct) => {
@@ -273,14 +285,37 @@ export default function Portfolio({ onAnalyze }) {
               )}
             </ul>
 
-            {!linked && (
-              <button
-                onClick={() => doDeleteAccount(acct.id)}
-                className="mt-1 text-[11px] text-ink-600 hover:text-red-400"
-              >
-                delete this account
-              </button>
-            )}
+            <div className="mt-2">
+              {confirmDel === acct.id ? (
+                <div className="flex items-center gap-3 text-[11px]">
+                  <span className="text-haze">
+                    {linked
+                      ? 'Remove this account? A future sync will bring it back unless you also disconnect it in SnapTrade.'
+                      : 'Delete this account and all its holdings?'}
+                  </span>
+                  <button
+                    onClick={() => doDeleteAccount(acct.id)}
+                    disabled={delBusy}
+                    className="px-2 py-1 rounded bg-red-500/90 text-white disabled:opacity-50"
+                  >
+                    {delBusy ? 'Deleting…' : 'Delete'}
+                  </button>
+                  <button
+                    onClick={() => setConfirmDel(null)}
+                    className="px-2 py-1 rounded bg-ink-800 text-haze"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmDel(acct.id)}
+                  className="text-[11px] text-haze hover:text-red-400"
+                >
+                  {linked ? 'remove account' : 'delete account'}
+                </button>
+              )}
+            </div>
           </section>
         );
       })}
