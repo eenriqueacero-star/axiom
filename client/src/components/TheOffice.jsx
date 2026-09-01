@@ -1,7 +1,36 @@
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Component, Suspense, useEffect, useMemo, useState } from 'react';
 import { AgentWorkspace } from '../vendor/agent-workspace';
 import { getFloor, getDeskState, convene } from '../api';
 import { AgentPanel, AgentChat } from './floor/shared';
+
+/**
+ * The vendored workspace defines an error boundary but never mounts one, so a
+ * throw inside its scene unmounts the whole app. Catch it here: keep Axiom
+ * alive and show what actually went wrong.
+ */
+class SceneBoundary extends Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err, info) { console.error('[office] scene crashed', err, info); }
+  render() {
+    if (this.state.err) {
+      return (
+        <div className="absolute inset-0 grid place-items-center p-6">
+          <pre className="max-w-2xl max-h-full overflow-auto text-[11px] text-red-400 whitespace-pre-wrap">
+            The 3D office failed to start.{'
+
+'}
+            {String(this.state.err?.message || this.state.err)}
+            {'
+
+'}{String(this.state.err?.stack || '').slice(0, 1200)}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Which accessory suits each analyst's job.
 const ACCESSORY = {
@@ -69,7 +98,8 @@ export default function TheOffice({ onAnalyze, onExit }) {
 
   return (
     <div className="fixed inset-0 top-[92px] bg-[#0a0a12]">
-      <Suspense fallback={null}>
+      <SceneBoundary>
+       <Suspense fallback={null}>
         <AgentWorkspace
           agents={agents}
           rooms={['office', 'boardroom', 'breakroom', 'serverroom', 'rooftop', 'gym']}
@@ -80,7 +110,8 @@ export default function TheOffice({ onAnalyze, onExit }) {
           onAgentClick={(a) => setSel(a.id || floor.agents.find((x) => x.name === a.name)?.id)}
           className="h-full w-full"
         />
-      </Suspense>
+       </Suspense>
+      </SceneBoundary>
 
       <div className="absolute top-3 right-3 flex items-center gap-2">
         <button
