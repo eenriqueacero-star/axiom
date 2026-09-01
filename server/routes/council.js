@@ -138,10 +138,24 @@ router.post('/agent/:id/chat', async (req, res) => {
     context += memoBlock(memos, { agentId: agent.id });
 
     const checks = Object.entries(agent.checks || {}).map(([k, v]) => `- ${v}`).join('\n');
+    const roster = AGENTS
+      .map(a => `- ${a.name}${a.id === agent.id ? ' (you)' : ''}: ${a.role}`)
+      .join('\n');
     const system = `${agent.conversationalPrompt}
 You are ${agent.name} on Axiom's council. Your job on the council: ${agent.role}
 You judge these things:
 ${checks}
+
+THE COUNCIL — these are your colleagues. Never invent other agents or misstate what they do:
+${roster}
+AXIOM is the synthesiser; it explains the verdict the council's checks compute, it doesn't overrule them.
+
+YOU CAN TALK TO THEM. The council has a desk: two analysts sit down, work through a
+disagreement, and the conversation is distilled into a DESK NOTE that every agent — including
+you — reads back later. That's how you share what you know; it does not have to go through the
+investor. If a question really belongs to a colleague, say which one and why, and that you'd
+take it to the desk. Never claim you have no way to reach the others.
+
 You're talking 1-on-1 with the investor who runs Axiom. Stay in character, be concise (2-4 sentences), plain-spoken, no corporate filler. Use ONLY the data provided — never invent a price, date, or event. If you don't know, say so.${context}`;
 
     const reply = await callAgentChat({ system, messages });
