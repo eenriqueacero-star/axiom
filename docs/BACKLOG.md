@@ -37,7 +37,15 @@ Real lever = stock SELECTION + holding + low turnover. So:
 
 - [~] **Portfolio view** — holdings are the home screen. Live quotes, editable shares,
   tap a ticker → council. DONE (deploying).
-- [ ] **Re-point the agents** — from "should I trade this week" to: (1) Still belongs?
+- [~] **Re-point the agents** — IN PROGRESS.
+  - [x] Slice 1: code-computed price facts (`server/lib/metrics.js`) — trend vs
+    50/200-day, % off 52wk high, 3/6/12mo momentum, industry — via Tiingo EOD,
+    fed into every council run's LIVE DATA block + returned on the result.
+    TIINGO_TOKEN added to Render backend env.
+  - [ ] Slice 2: change the council question to belongs / size / broken; binary
+    yes/no sub-questions; score computed in code; drop dead agents.
+  - [ ] Slice 3: surface the facts + per-question checks in the client verdict UI.
+- [ ] **Re-point the agents (original note)** — from "should I trade this week" to: (1) Still belongs?
   (2) Right size? (3) Broken? AND switch from freeform 0-10 scores to **binary yes/no
   sub-questions scored in code** (LLM holistic scoring is provably inconsistent — see
   the AMD 5/5/4/5/3/5/5 evidence; BINEVAL / rubric research). Feed real computed
