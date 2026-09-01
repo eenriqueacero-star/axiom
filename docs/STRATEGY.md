@@ -25,9 +25,15 @@ Honest framing from the backtest work:
 
 | Sleeve | Target | What goes here | Turnover |
 |---|---|---|---|
-| **Core** | 65–75% | 12–18 quality compounders, spread across **≥5 sectors** | Very low — buy and hold |
-| **Satellite** | 25–35% | High-conviction growth / thematic (AI infra, semis, etc.) | Moderate — trim/rotate allowed |
+| **Core** | ~50% | 12–18 quality compounders, spread across **≥5 sectors** | Very low — buy and hold |
+| **Satellite** | ~50% | High-conviction growth / thematic (AI infra, semis, etc.) | Moderate — trim/rotate allowed |
 | **Cash/ETF buffer** | 0–10% | Where a contribution parks if nothing eligible | — |
+
+**The 50/50 split is a parameter, not a law.** It starts at 50/50. The council
+reviews it quarterly (or on a bad drawdown) and can recommend shifting toward Core
+(defensive) or Satellite (offensive) — surfaced to the user for approval, never
+changed silently. Stored in strategy config so the DCA engine reads the current
+target.
 
 The **current holdings (NVDA, NBIS, MU, AMD, SNDK, CRDO, APLD, ALAB) are all
 Satellite.** They're ~100% of the portfolio today. That's the thing this rulebook
@@ -158,10 +164,27 @@ months. If we're not beating QQQ, we simplify.
 
 ---
 
-## Open questions for approval
+## Decisions locked (2026-09-01)
 
-1. Core/Satellite split — 70/30 about right, or more aggressive (60/40)?
-2. Sector cap at 30% — or looser (35–40%) given you want a growth tilt?
-3. Starter Core list — want me to propose ~12 quality names across sectors to
-   build the Core toward, or pick them yourself?
-4. ETF buffer — QQQ or VOO as the default park?
+1. **Core/Satellite split: 50/50 to start**, council-adjustable with user approval.
+2. **Sector cap: 35%** of total portfolio in any one GICS sector.
+3. **ETF buffer: QQQ.**
+4. **Starter Core list (proposed — pending user approval):**
+
+   | Name | Ticker | Area |
+   |---|---|---|
+   | Microsoft | MSFT | Software / cloud |
+   | Alphabet | GOOGL | Software / ads |
+   | Meta | META | Software / ads |
+   | Amazon | AMZN | Consumer / cloud |
+   | Costco | COST | Consumer staples retail |
+   | Visa | V | Payments |
+   | Mastercard | MA | Payments |
+   | Eli Lilly | LLY | Pharma |
+   | UnitedHealth | UNH | Healthcare / insurance |
+   | Intuitive Surgical | ISRG | Medical devices |
+   | JPMorgan | JPM | Banking |
+   | Berkshire Hathaway | BRK.B | Diversified holding co. |
+
+   Build the Core toward this over time via contributions — not all at once,
+   not by selling Satellite names. Swap suggestions welcome.
