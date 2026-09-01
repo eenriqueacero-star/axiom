@@ -7,7 +7,9 @@ import Scorecard from './components/Scorecard';
 import TheFloor from './components/TheFloor';
 import SystemStatus from './components/SystemStatus';
 
-const TheOffice = lazy(() => import('./components/TheOffice'));
+// The 3D view is opt-in until it's actually good. TheRoom renders; TheOffice
+// (vendored agent-workspace) does not — its render loop never starts.
+const TheRoom = lazy(() => import('./components/TheRoom'));
 
 export default function App() {
   const { user, signOut } = useAuth();
@@ -15,7 +17,7 @@ export default function App() {
   const [view, setView] = useState('portfolio'); // 'portfolio' | 'analyze'
   const [analyzeTicker, setAnalyzeTicker] = useState('');
   const [floor3d, setFloor3d] = useState(() => {
-    try { return localStorage.getItem('axiom.floor3d') !== '0'; } catch { return true; }
+    try { return localStorage.getItem('axiom.floor3d') === '1'; } catch { return false; }
   });
   const setFloorMode = (on) => {
     setFloor3d(on);
@@ -77,7 +79,7 @@ export default function App() {
       {/* The room is full-bleed — it escapes the centred column entirely. */}
       {view === 'floor' && floor3d && (
         <Suspense fallback={<p className="p-4 text-xs text-haze animate-pulse">Opening the office…</p>}>
-          <TheOffice onAnalyze={goAnalyze} onExit={() => setFloorMode(false)} />
+          <TheRoom onAnalyze={goAnalyze} onExit={() => setFloorMode(false)} />
         </Suspense>
       )}
 
@@ -91,7 +93,7 @@ export default function App() {
                 onClick={() => setFloorMode(true)}
                 className="text-[11px] text-haze hover:text-neutral-300"
               >
-                ← the room
+                try the 3D room
               </button>
               <TheFloor onAnalyze={goAnalyze} />
             </div>
