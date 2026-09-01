@@ -96,9 +96,53 @@ content shown inside each 3D room.
     camera lerps in → DOM overlay panel reuses AgentPanel + AgentChat (extracted to
     `components/floor/shared.jsx`). Toggle to card view persists in localStorage
     (`axiom.floor3d`). Default = 3D. Builds clean; NOT yet eyeballed live.
-  - [ ] **3D polish** — swap primitive robots for Quaternius Animated Robot GLB
-    (per memory), real furniture GLBs, camera easing, "working now" states, mobile
-    perf pass.
+  - [~] v1.1 primitive pass — dark restrained rooms, hover-jitter fixed. User
+    verdict (2026-09-01): "squares with little dolls… AI slop." Wants (a) real
+    3D characters + a workstation vignette per agent, (b) the scene bound to
+    live system data / reactive effects, (c) chat & panels IN the scene.
+
+  ### v2 "The Workshop" — execution plan (approved 2026-09-01)
+  Direction: recognizable "little Claude" robots (one animated model, 6 tints),
+  each in a themed WORKSTATION (not a square room), every visual bound to real
+  portfolio data.
+
+  Assets: `client/public/models/robot.glb` = three.js RobotExpressive (CC0,
+  Tomás Laulhé / mod. Don McCurdy, 464 KB). Materials: Main (tint per agent),
+  Grey, Black. Anims: Idle, Wave, Yes, No, ThumbsUp, Dance, Walking, Punch,
+  Sitting, Running, Jump, Death. Served same-origin from /public (no CDN risk).
+
+  1. [x] **Server** — `lib/floorLive.js` `buildFloorLive(uid)`: per-agent
+     `{ reaction, busy, metric }` from `diagnose()` + `priceFacts` trend +
+     `tickerNews`. Folded into `GET /api/council/floor` as `live`; lean
+     `GET /api/council/floor/live` for polling. ZEN tilt, ATLAS sector heat,
+     VEGA flag count, REX trendScore, NOVA fresh-news count, SAGE core-intact.
+  2. [ ] **Character system** — `useGLTF('/models/robot.glb')` once →
+     `SkeletonUtils.clone()` ×6 → tint Main material → `useAnimations` per clone.
+     `<AgentRobot reaction=… busy=…>` crossfades anim, returns to Idle. Keep
+     damped iso camera + side nav. Plinths only. Deploy → screenshot → tune.
+  3. [ ] **Vignettes** (2 commits) — REX curved monitor desk (screens = live
+     sparkline CanvasTexture), NOVA mission console + headline crawl + rocket,
+     SAGE study (bookshelf, practical desk lamp, plant), VEGA dim bunker
+     (hanging lamp, red-string board, bear bust), ATLAS observatory
+     (globe/orrery + sector bars), ZEN balance room (scale tilts to sleeve mix,
+     stones). Per-vignette key + practical lights.
+  4. [ ] **Reactive layer** — bind `live` → robot reaction anims + prop state
+     (ZEN tilt, ATLAS hot ring, VEGA embers, REX needle/screens, NOVA ticker
+     speed, SAGE calm/agitated). Firestore `onSnapshot(users/{uid}/analyses)`
+     → AXIOM-core pulse + sequential agent reactions on a new verdict. 30 s poll
+     of `/floor/live` for busy/stance.
+  5. [ ] **In-scene panel + chat** — selected agent → drei `<Html>` glass
+     console anchored to the vignette (AgentPanel + AgentChat); robot gestures
+     while replying; recent-call tokens orbit robot → click → onAnalyze.
+  6. [ ] **AXIOM core** — central slow-rotating light, threads to each vignette
+     (brightness = conviction), pulse on new verdict, DCA pick → beam to the
+     backing agent.
+  7. [ ] **Polish** — bloom/contrast/shadow tuning, loading skeleton, mobile
+     perf (dpr cap, MeshReflector off small screens, effects toggle), keyboard
+     nav on the side list. Card Floor stays as fallback.
+
+  Iterate by deploying to Render + screenshotting each step (localhost sign-in
+  popup is uncontrollable from automation — Render only).
 - [ ] **Re-point the agents (original note)** — from "should I trade this week" to: (1) Still belongs?
   (2) Right size? (3) Broken? AND switch from freeform 0-10 scores to **binary yes/no
   sub-questions scored in code** (LLM holistic scoring is provably inconsistent — see

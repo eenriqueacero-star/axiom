@@ -9,6 +9,7 @@ import { priceFacts } from '../lib/metrics.js';
 import { tickerNews } from '../lib/signals.js';
 import { getPortfolio } from '../lib/portfolio.js';
 import { diagnose } from '../lib/strategy.js';
+import { buildFloorLive } from '../lib/floorLive.js';
 
 const COMMON_WORDS = new Set(['I', 'A', 'THE', 'MY', 'IS', 'IT', 'DO', 'OK', 'ADD', 'HOLD', 'TRIM', 'EXIT', 'AI', 'US', 'CEO', 'ETF', 'YOU', 'AND', 'OR', 'FOR', 'ARE', 'NOT', 'BUY', 'SELL', 'WHY', 'HOW']);
 const findTicker = (text) => {
@@ -44,6 +45,9 @@ router.get('/floor', async (req, res) => {
     let stats = { byAgent: {}, byVerdict: {}, total: 0 };
     try { stats = await aggregate(req.uid); } catch { /* empty */ }
 
+    let live = { ready: false };
+    try { live = await buildFloorLive(req.uid); } catch { /* non-fatal */ }
+
     const perAgent = {};
     for (const ag of AGENTS) {
       const recent = [];
@@ -74,7 +78,17 @@ router.get('/floor', async (req, res) => {
         conviction: r.conviction, headline: r.headline || '',
       })),
       scored: stats.total,
+      live,
     });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Lean live-state poll for the 3D scene (no analyses/scorecard payload).
+router.get('/floor/live', async (req, res) => {
+  try {
+    res.json(await buildFloorLive(req.uid));
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
