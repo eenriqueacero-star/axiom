@@ -1,12 +1,14 @@
 /**
- * Brokerage linking via SnapTrade (Fidelity, Robinhood, etc.).
- * Needs SNAPTRADE_CLIENT_ID + SNAPTRADE_CONSUMER_KEY in the env.
+ * Brokerage sync via SnapTrade — PERSONAL API key mode.
  *
- * Per Axiom user we store { snaptrade: { userId, userSecret } } on users/{uid}.
- * Synced brokerage accounts land in users/{uid}/accounts/{snaptradeAccountId}
- * with linked:true so the portfolio view shows them alongside manual accounts.
+ * Personal keys don't register SnapTrade users and don't pass userId/userSecret.
+ * The user links their brokers in SnapTrade's own dashboard; we just read.
+ * Needs SNAPTRADE_CLIENT_ID + SNAPTRADE_CONSUMER_KEY in the env (Render).
+ *
+ * Synced accounts land in users/{uid}/accounts/{snaptradeAccountId} with
+ * linked:true so the Portfolio tab shows them next to manual accounts.
  */
-import { Snaptrade } from 'snaptrade-typescript-sdk';
+import { Snaptrade, SnaptradeAuth } from 'snaptrade-typescript-sdk';
 import { db } from './firebase.js';
 
 export const brokerReady = Boolean(
@@ -18,59 +20,60 @@ function client() {
   if (!brokerReady) throw new Error('Broker linking not configured');
   if (!_client) {
     _client = new Snaptrade({
-      clientId: process.env.SNAPTRADE_CLIENT_ID,
-      consumerKey: process.env.SNAPTRADE_CONSUMER_KEY,
+      auth: SnaptradeAuth.personalApiKey({
+        clientId: process.env.SNAPTRADE_CLIENT_ID,
+        consumerKey: process.env.SNAPTRADE_CONSUMER_KEY,
+      }),
     });
   }
   return _client;
 }
 
-async function creds(uid) {
-  const ref = db.doc(`users/${uid}`);
-  const snap = await ref.get();
-  let st = snap.data()?.snaptrade;
-  if (!st?.userSecret) {
-    const { data } = await client().authentication.registerSnapTradeUser({ userId: uid });
-    st = { userId: data.userId, userSecret: data.userSecret };
-    await ref.set({ snaptrade: st }, { merge: true });
-  }
-  return st;
-}
+const sym = (p) =>
+  p?.symbol?.symbol?.symbol ||
+  p?.symbol?.symbol?.raw_symbol ||
+  p?.instrument?.symbol ||
+  p?.instrument?.raw_symbol ||
+  p?.symbol?.raw_symbol ||
+  (typeof p?.symbol === 'string' ? p.symbol : null);
 
-/** URL to SnapTrade's drop-in connection portal (handles creds + MFA). */
-export async function connectionLink(uid, redirect) {
-  const st = await creds(uid);
-  const { data } = await client().authentication.loginSnapTradeUser({
-    userId: st.userId,
-    userSecret: st.userSecret,
-    ...(redirect ? { customRedirect: redirect } : {}),
-  });
-  return data.redirectURI || data.redirectUri || data;
-}
+const costBasis = (p) =>
+  Number(
+    p?.average_purchase_price ??
+    p?.price ??
+    p?.tax_lots?.[0]?.price ??
+    0,
+  ) || 0;
 
 /** Pull holdings for every linked brokerage account into Firestore. */
 export async function syncHoldings(uid) {
-  const st = await creds(uid);
   const c = client();
-  const { data: accounts } = await c.accountInformation.listUserAccounts({
-    userId: st.userId, userSecret: st.userSecret,
-  });
+  const { data: accounts } = await c.accountInformation.listUserAccounts();
 
   let synced = 0;
   for (const acct of accounts || []) {
-    const { data: h } = await c.accountInformation.getUserHoldings({
-      userId: st.userId, userSecret: st.userSecret, accountId: acct.id,
-    });
-    const positions = h?.positions || [];
+    let positions = [];
+    try {
+      const { data } = await c.accountInformation.getAllAccountPositions({ accountId: acct.id });
+      positions = data?.results || data?.positions || (Array.isArray(data) ? data : []);
+    } catch {
+      // fall back to legacy holdings endpoint if positions isn't available
+      try {
+        const { data } = await c.accountInformation.getUserHoldings({ accountId: acct.id });
+        positions = data?.positions || [];
+      } catch { /* leave empty */ }
+    }
+
     const holdings = {};
     for (const p of positions) {
-      const sym = p.symbol?.symbol?.symbol || p.symbol?.symbol || p.symbol?.raw_symbol;
-      if (!sym) continue;
-      holdings[String(sym).toUpperCase()] = {
-        shares: Number(p.units || p.fractional_units || 0),
-        costBasis: Number(p.average_purchase_price || 0),
+      const s = sym(p);
+      if (!s) continue;
+      holdings[String(s).toUpperCase()] = {
+        shares: Number(p.units ?? p.fractional_units ?? p.quantity ?? 0),
+        costBasis: costBasis(p),
       };
     }
+
     await db.doc(`users/${uid}/accounts/${acct.id}`).set({
       label: acct.name || acct.institution_name || 'Brokerage',
       sub: acct.institution_name || 'Linked',
@@ -86,13 +89,16 @@ export async function syncHoldings(uid) {
 }
 
 export async function brokerStatus(uid) {
-  const snap = await db.doc(`users/${uid}`).get();
+  const out = { configured: brokerReady, connections: 0, linkedAccounts: [] };
+  if (!brokerReady) return out;
+  try {
+    const c = client();
+    const { data: auths } = await c.connections.listBrokerageAuthorizations();
+    out.connections = (auths || []).length;
+  } catch { /* ignore */ }
   const linked = await db.collection(`users/${uid}/accounts`).where('linked', '==', true).get();
-  return {
-    configured: brokerReady,
-    registered: Boolean(snap.data()?.snaptrade?.userSecret),
-    linkedAccounts: linked.docs.map(d => ({
-      id: d.id, label: d.data().label, sub: d.data().sub, syncedAt: d.data().syncedAt,
-    })),
-  };
+  out.linkedAccounts = linked.docs.map(d => ({
+    id: d.id, label: d.data().label, sub: d.data().sub, syncedAt: d.data().syncedAt,
+  }));
+  return out;
 }
