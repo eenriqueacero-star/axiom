@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { getFloor, getDeskState, convene } from '../api';
 import { AgentPanel, AgentChat } from './floor/shared';
 
-const MODEL = '/models/robot.glb';
+const MODEL = '/models/human.glb';
 useGLTF.preload(MODEL);
 
 /* ------------------------------------------------------------------ layout */
@@ -30,14 +30,9 @@ const seatPos = (i) => {
 const ISO = new THREE.Vector3(1, 1.02, 1).normalize();
 const damp = (c, t, l, dt) => THREE.MathUtils.lerp(c, t, 1 - Math.exp(-l * dt));
 
-// reaction cue -> RobotExpressive clip
-const CLIP = {
-  idle: 'Idle', wave: 'Wave', yes: 'Yes', no: 'No',
-  thumbsup: 'ThumbsUp', dance: 'Dance', punch: 'Punch', walking: 'Walking',
-};
-const ONESHOT = new Set(['Wave', 'Yes', 'No', 'ThumbsUp', 'Punch']);
-// gestures an agent makes while it's the one speaking at the table
-const SPEAK_GESTURES = ['Yes', 'No', 'ThumbsUp', 'Wave'];
+// The human model ships Idle / Walk / Run. Agreement, disagreement and emphasis
+// are driven procedurally on the head + spine, so no extra clips are needed.
+const GESTURE = { yes: 'nod', thumbsup: 'nod', no: 'shake', punch: 'shake', dance: 'nod', wave: 'nod' };
 
 // How long each spoken turn is held on screen, so a 5-second model exchange
 // plays out at a watchable pace.
@@ -108,68 +103,71 @@ function Bubble({ status, color }) {
   );
 }
 
-/* ------------------------------------------------------------------- robot */
-function Robot({ color, clipBase, reaction, speakTick }) {
+/* ------------------------------------------------------------------- human */
+function Human({ color, clipBase, reaction, speakTick }) {
   const group = useRef();
   const { scene, animations } = useGLTF(MODEL);
-  const model = useMemo(() => {
+
+  const { model, head } = useMemo(() => {
     const c = cloneSkeleton(scene);
     const tint = new THREE.Color(color);
     c.traverse((o) => {
-      if (!o.isMesh) return;
-      o.castShadow = true;
-      if (o.material?.name === 'Main') {
-        o.material = o.material.clone();
-        o.material.color.copy(tint);
-        o.material.emissive = tint.clone().multiplyScalar(0.1);
-        o.material.metalness = 0.25;
-        o.material.roughness = 0.5;
+      if (o.isMesh || o.isSkinnedMesh) {
+        o.castShadow = true;
+        o.frustumCulled = false;
+        // the outfit carries the agent's colour; the visor stays dark
+        if (o.material?.name === 'VanguardBodyMat') {
+          o.material = o.material.clone();
+          o.material.color.copy(tint).multiplyScalar(0.85);
+          o.material.metalness = 0.15;
+          o.material.roughness = 0.75;
+        } else if (o.material?.name === 'Vanguard_VisorMat') {
+          o.material = o.material.clone();
+          o.material.color.set('#15151a');
+          o.material.emissive = tint.clone().multiplyScalar(0.35);
+        }
       }
     });
-    return c;
+    return { model: c, head: c.getObjectByName('mixamorig:Head') };
   }, [scene, color]);
 
-  const { actions, mixer } = useAnimations(animations, group);
+  const { actions } = useAnimations(animations, group);
 
-  // base loop — Idle at the desk, Walking while crossing the room
   useEffect(() => {
     const base = actions[clipBase];
     if (!base) return;
-    base.reset().fadeIn(0.3).play();
-    return () => base.fadeOut(0.3);
+    base.reset().fadeIn(0.35).play();
+    return () => base.fadeOut(0.35);
   }, [actions, clipBase]);
 
-  // one-shot over the base: either a live state cue, or a gesture per spoken turn
-  const play = (clip) => {
-    const a = actions[clip];
-    if (!a) return () => {};
-    const oneShot = ONESHOT.has(clip);
-    a.reset();
-    a.setLoop(oneShot ? THREE.LoopOnce : THREE.LoopRepeat, Infinity);
-    a.clampWhenFinished = true;
-    a.setEffectiveWeight(1).fadeIn(0.2).play();
-    let timer;
-    const onFinish = (e) => { if (e.action === a) a.fadeOut(0.4); };
-    if (oneShot) mixer.addEventListener('finished', onFinish);
-    else timer = setTimeout(() => a.fadeOut(0.5), 3000);
-    return () => { mixer.removeEventListener('finished', onFinish); clearTimeout(timer); a.fadeOut(0.2); };
-  };
-
+  // a gesture is a short burst on the head — nod for agreement, shake for
+  // disagreement — layered on top of whatever clip is playing
+  const gesture = useRef({ kind: null, t: 0 });
   useEffect(() => {
-    const clip = CLIP[reaction];
-    if (!clip || clip === 'Idle' || clip === 'Walking') return;
-    return play(clip);
-  }, [actions, mixer, reaction]);
-
-  // each spoken turn at the table = one gesture
+    const kind = GESTURE[reaction];
+    if (kind) gesture.current = { kind, t: 0 };
+  }, [reaction]);
   useEffect(() => {
     if (!speakTick) return;
-    return play(SPEAK_GESTURES[speakTick % SPEAK_GESTURES.length]);
-  }, [actions, mixer, speakTick]);
+    gesture.current = { kind: speakTick % 3 === 1 ? 'shake' : 'nod', t: 0 };
+  }, [speakTick]);
+
+  useFrame((s, dt) => {
+    if (!head) return;
+    const g = gesture.current;
+    if (!g.kind) return;
+    g.t += dt;
+    const k = Math.min(1, g.t / 1.4);
+    const decay = 1 - k;
+    const w = Math.sin(g.t * 11) * 0.28 * decay;
+    if (g.kind === 'nod') head.rotation.x += (w - head.rotation.x) * 0.5;
+    else head.rotation.y += (w - head.rotation.y) * 0.5;
+    if (k >= 1) { head.rotation.x = 0; head.rotation.y = 0; g.kind = null; }
+  });
 
   return (
     <group ref={group} dispose={null}>
-      <primitive object={model} scale={0.42} />
+      <primitive object={model} scale={0.62} />
     </group>
   );
 }
@@ -220,7 +218,7 @@ function Agent({ agent, index, live, phase, facing, speakTick, focused, status, 
         <boxGeometry args={[1.4, 2.2, 1.4]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} />
       </mesh>
-      <Robot color={agent.color} clipBase={clipBase} reaction={reaction} speakTick={speakTick} />
+      <Human color={agent.color} clipBase={clipBase} reaction={reaction} speakTick={speakTick} />
       <Bubble status={status} color={agent.color} />
       <pointLight position={[0, 2.2, 0.6]} distance={4.5} intensity={focused ? 2.2 : 0.5} color={agent.color} />
     </group>
@@ -337,41 +335,186 @@ function Table({ notes, active, onSelect }) {
 }
 
 /* ------------------------------------------------------------------ room */
-function Shell() {
-  const W = 20, D = 20, H = 4.6;
+const W = 20, D = 20, H = 4.8;
+
+function Plant({ position, scale = 1 }) {
   return (
-    <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[W, D]} />
-        <meshStandardMaterial color="#101014" metalness={0.15} roughness={0.85} />
+    <group position={position} scale={scale}>
+      <mesh position={[0, 0.22, 0]} castShadow>
+        <cylinderGeometry args={[0.24, 0.3, 0.44, 12]} />
+        <meshStandardMaterial color="#6b5544" roughness={0.85} />
       </mesh>
-      {/* subtle floor ring marking the walk between desks and the table */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]}>
-        <ringGeometry args={[SEAT_R + 0.6, SEAT_R + 0.68, 64]} />
-        <meshBasicMaterial color="#2a2a34" />
-      </mesh>
-      {[[0, -D / 2], [0, D / 2], [-W / 2, 0], [W / 2, 0]].map(([x, z], i) => (
-        <mesh key={i} position={[x, H / 2, z]} rotation={[0, i < 2 ? 0 : Math.PI / 2, 0]} receiveShadow>
-          <boxGeometry args={[i < 2 ? W : D, H, 0.15]} />
-          <meshStandardMaterial color="#0b0b0f" roughness={0.95} side={THREE.DoubleSide} />
+      {[[0.1, 0.75, 0, 0.34], [-0.14, 0.66, 0.1, 0.28], [0.05, 0.6, -0.15, 0.24]].map(([x, y, z, r], i) => (
+        <mesh key={i} position={[x, y, z]} rotation={[i * 0.5, i, i * 0.3]} castShadow>
+          <icosahedronGeometry args={[r, 0]} />
+          <meshStandardMaterial color={i % 2 ? '#2f6b42' : '#3a7d4e'} flatShading roughness={0.8} />
         </mesh>
       ))}
-      {/* ceiling rig over the table — a thin ring fixture, not a slab of light */}
-      <group position={[0, 4.3, 0]}>
-        <mesh>
-          <torusGeometry args={[1.9, 0.05, 8, 48]} />
-          <meshStandardMaterial color="#cfd6ff" emissive="#cfd6ff" emissiveIntensity={0.9} toneMapped={false} />
+    </group>
+  );
+}
+
+function Shelf({ position, rotation = [0, 0, 0] }) {
+  return (
+    <group position={position} rotation={rotation}>
+      <mesh position={[0, 1.1, 0]} castShadow receiveShadow>
+        <boxGeometry args={[2.4, 2.2, 0.34]} />
+        <meshStandardMaterial color="#3a2e26" roughness={0.85} />
+      </mesh>
+      {[0.45, 1.05, 1.65].map((y) => (
+        <group key={y}>
+          <mesh position={[0, y, 0.02]}>
+            <boxGeometry args={[2.24, 0.05, 0.32]} />
+            <meshStandardMaterial color="#4a3a2e" roughness={0.8} />
+          </mesh>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <mesh key={i} position={[-0.98 + i * 0.24, y + 0.19, 0.04]} castShadow>
+              <boxGeometry args={[0.14, 0.32 + ((i * 7) % 5) * 0.02, 0.24]} />
+              <meshStandardMaterial
+                color={new THREE.Color().setHSL(((i * 11) % 100) / 260 + 0.03, 0.3, 0.34)}
+                roughness={0.8}
+              />
+            </mesh>
+          ))}
+        </group>
+      ))}
+    </group>
+  );
+}
+
+function Shell() {
+  return (
+    <group>
+      {/* floor — warm boards, with a rug under the table */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[W, D]} />
+        <meshStandardMaterial color="#2a221c" roughness={0.9} metalness={0.05} />
+      </mesh>
+      {Array.from({ length: 14 }).map((_, i) => (
+        <mesh key={i} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, -D / 2 + i * 1.45]}>
+          <planeGeometry args={[W, 0.02]} />
+          <meshBasicMaterial color="#221b16" />
         </mesh>
-        {[0, 1, 2].map((i) => {
-          const a = (i / 3) * Math.PI * 2;
+      ))}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} receiveShadow>
+        <circleGeometry args={[SEAT_R + 1.5, 48]} />
+        <meshStandardMaterial color="#232a33" roughness={1} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.007, 0]}>
+        <ringGeometry args={[SEAT_R + 1.28, SEAT_R + 1.4, 48]} />
+        <meshBasicMaterial color="#39424f" />
+      </mesh>
+
+      {/* walls with a panelled dado */}
+      {[[0, -D / 2, 0], [0, D / 2, Math.PI], [-W / 2, 0, Math.PI / 2], [W / 2, 0, -Math.PI / 2]].map(([x, z, ry], i) => (
+        <group key={i} position={[x, 0, z]} rotation={[0, ry, 0]}>
+          <mesh position={[0, H / 2, 0]} receiveShadow>
+            <boxGeometry args={[W, H, 0.16]} />
+            <meshStandardMaterial color="#191b21" roughness={0.95} side={THREE.DoubleSide} />
+          </mesh>
+          <mesh position={[0, 1.05, 0.09]} receiveShadow>
+            <boxGeometry args={[W, 2.1, 0.06]} />
+            <meshStandardMaterial color="#22262e" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, 2.12, 0.13]}>
+            <boxGeometry args={[W, 0.07, 0.05]} />
+            <meshStandardMaterial color="#333947" roughness={0.7} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* a window wall — city at night, the only warm light from outside */}
+      <group position={[0, 0, -D / 2 + 0.14]}>
+        <mesh position={[0, 2.7, 0]}>
+          <planeGeometry args={[8.4, 2.6]} />
+          <meshStandardMaterial color="#0a1018" emissive="#16233a" emissiveIntensity={1.1} toneMapped={false} />
+        </mesh>
+        {Array.from({ length: 70 }).map((_, i) => {
+          const x = ((i * 37) % 80) / 10 - 4;
+          const y = 1.7 + ((i * 53) % 22) / 10;
           return (
-            <mesh key={i} position={[Math.cos(a) * 1.9, 0.35, Math.sin(a) * 1.9]}>
-              <cylinderGeometry args={[0.012, 0.012, 0.7, 6]} />
-              <meshStandardMaterial color="#2a2a32" />
+            <mesh key={i} position={[x, y, 0.01]}>
+              <planeGeometry args={[0.07, 0.05]} />
+              <meshBasicMaterial color={i % 4 ? '#ffd9a0' : '#9fc6ff'} />
             </mesh>
           );
         })}
+        {[-2.8, 0, 2.8].map((x) => (
+          <mesh key={x} position={[x, 2.7, 0.03]}>
+            <boxGeometry args={[0.08, 2.6, 0.06]} />
+            <meshStandardMaterial color="#0f1116" roughness={0.7} />
+          </mesh>
+        ))}
       </group>
+
+      {/* framed pieces on the other walls */}
+      {[[-W / 2 + 0.2, 2.7, -4, Math.PI / 2], [-W / 2 + 0.2, 2.7, 2, Math.PI / 2],
+        [W / 2 - 0.2, 2.7, -2, -Math.PI / 2], [0, 2.9, D / 2 - 0.2, Math.PI]].map(([x, y, z, ry], i) => (
+        <group key={i} position={[x, y, z]} rotation={[0, ry, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[1.5, 1.05, 0.06]} />
+            <meshStandardMaterial color="#4a3f33" roughness={0.7} />
+          </mesh>
+          <mesh position={[0, 0, 0.04]}>
+            <planeGeometry args={[1.32, 0.88]} />
+            <meshStandardMaterial
+              color={['#26303f', '#2f2a3a', '#243328', '#3a2f2a'][i]}
+              emissive={['#26303f', '#2f2a3a', '#243328', '#3a2f2a'][i]}
+              emissiveIntensity={0.25}
+              roughness={0.9}
+            />
+          </mesh>
+        </group>
+      ))}
+
+      {/* credenza + coffee station on the back wall */}
+      <group position={[6.2, 0, D / 2 - 1]}>
+        <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
+          <boxGeometry args={[3.2, 0.9, 0.7]} />
+          <meshStandardMaterial color="#3a2e26" roughness={0.85} />
+        </mesh>
+        <mesh position={[-0.9, 1.02, 0]} castShadow>
+          <boxGeometry args={[0.4, 0.34, 0.3]} />
+          <meshStandardMaterial color="#1a1a1f" roughness={0.6} metalness={0.3} />
+        </mesh>
+        {[-0.2, 0.1, 0.4].map((x) => (
+          <mesh key={x} position={[x, 0.98, 0.1]} castShadow>
+            <cylinderGeometry args={[0.07, 0.06, 0.16, 12]} />
+            <meshStandardMaterial color="#d8d8dc" roughness={0.5} />
+          </mesh>
+        ))}
+      </group>
+
+      <Shelf position={[-7.4, 0, D / 2 - 0.9]} rotation={[0, Math.PI, 0]} />
+      <Plant position={[-8.6, 0, -6.4]} scale={1.25} />
+      <Plant position={[8.6, 0, 6.6]} scale={1.1} />
+      <Plant position={[8.7, 0, -7]} scale={0.95} />
+
+      {/* pendant lamps over the table */}
+      <group position={[0, 0, 0]}>
+        {[[-1.5, 0], [1.5, 0], [0, 1.5], [0, -1.5]].map(([x, z], i) => (
+          <group key={i} position={[x, 0, z]}>
+            <mesh position={[0, 3.55, 0]}>
+              <cylinderGeometry args={[0.01, 0.01, 1.5, 6]} />
+              <meshStandardMaterial color="#2a2a32" />
+            </mesh>
+            <mesh position={[0, 2.75, 0]} castShadow>
+              <coneGeometry args={[0.3, 0.34, 16, 1, true]} />
+              <meshStandardMaterial color="#20242c" roughness={0.6} metalness={0.4} side={THREE.DoubleSide} />
+            </mesh>
+            <mesh position={[0, 2.63, 0]}>
+              <sphereGeometry args={[0.09, 12, 12]} />
+              <meshStandardMaterial color="#ffe6bd" emissive="#ffdca8" emissiveIntensity={2.4} toneMapped={false} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+
+      {/* ceiling */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, H, 0]}>
+        <planeGeometry args={[W, D]} />
+        <meshStandardMaterial color="#141419" roughness={1} />
+      </mesh>
     </group>
   );
 }
@@ -421,7 +564,7 @@ function Scene({ agents, live, desk, notes, sel, setSel, shownTurns, phaseOf }) 
     <>
       <color attach="background" args={['#050507']} />
       <fog attach="fog" args={['#050507', 26, 62]} />
-      <ambientLight intensity={0.35} />
+      <ambientLight intensity={0.42} color="#b9c2d8" />
       <directionalLight
         position={[9, 15, 7]} intensity={1.15} castShadow
         shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004}
@@ -429,8 +572,12 @@ function Scene({ agents, live, desk, notes, sel, setSel, shownTurns, phaseOf }) 
         shadow-camera-top={18} shadow-camera-bottom={-18}
       />
       {/* the rig over the table is the room's key practical light */}
-      <pointLight position={[0, 4, 0]} distance={16} intensity={act ? 26 : 12} color="#cfd6ff" />
-      <directionalLight position={[-10, 6, -8]} intensity={0.3} color="#7c88ff" />
+      {/* the four pendants are the room's key light */}
+      {[[-1.5,0],[1.5,0],[0,1.5],[0,-1.5]].map(([x,z],i)=>(
+        <pointLight key={i} position={[x,2.6,z]} distance={11} intensity={act ? 9 : 5.5} color="#ffdcae" />
+      ))}
+      <pointLight position={[0,2.9,-9]} distance={14} intensity={2.4} color="#7ea6ff" />
+      <directionalLight position={[-10, 6, -8]} intensity={0.25} color="#7c88ff" />
 
       <Shell />
       <Table notes={notes} active={!!act} onSelect={setSel} />
