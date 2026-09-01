@@ -17,13 +17,9 @@ class SceneBoundary extends Component {
       return (
         <div className="absolute inset-0 grid place-items-center p-6">
           <pre className="max-w-2xl max-h-full overflow-auto text-[11px] text-red-400 whitespace-pre-wrap">
-            The 3D office failed to start.{'
-
-'}
-            {String(this.state.err?.message || this.state.err)}
-            {'
-
-'}{String(this.state.err?.stack || '').slice(0, 1200)}
+            {['The 3D office failed to start.',
+              String(this.state.err?.message || this.state.err),
+              String(this.state.err?.stack || '').slice(0, 1200)].join('\n\n')}
           </pre>
         </div>
       );
