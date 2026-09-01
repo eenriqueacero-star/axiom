@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount,
+  getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount, renameAccount,
 } from '../api';
 import BrokerLink from './BrokerLink';
 
@@ -30,6 +30,8 @@ export default function Portfolio({ onAnalyze }) {
   const [importing, setImporting] = useState(null); // accountId
   const [importText, setImportText] = useState('');
   const [importBusy, setImportBusy] = useState(false);
+  const [renaming, setRenaming] = useState(null); // accountId
+  const [nameDraft, setNameDraft] = useState('');
 
   const load = () => getPortfolio().then(setData).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
@@ -54,6 +56,11 @@ export default function Portfolio({ onAnalyze }) {
 
   const doDeleteAccount = async (acct) => {
     try { setData(await deleteAccount(acct)); } catch (e) { setErr(e.message); }
+  };
+
+  const saveName = async (acct) => {
+    setRenaming(null);
+    try { setData(await renameAccount(acct, nameDraft)); } catch (e) { setErr(e.message); }
   };
 
   const doImport = async (acct) => {
@@ -100,7 +107,25 @@ export default function Portfolio({ onAnalyze }) {
           <section key={acct.id}>
             <div className="flex items-baseline justify-between mb-2">
               <div>
-                <h2 className="text-sm text-neutral-200">{acct.label}</h2>
+                {renaming === acct.id ? (
+                  <input
+                    autoFocus
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onBlur={() => saveName(acct.id)}
+                    onKeyDown={(e) => e.key === 'Enter' && saveName(acct.id)}
+                    placeholder="Account name"
+                    className="w-40 bg-ink-900 border border-ink-700 rounded px-1 text-sm text-neutral-200"
+                  />
+                ) : (
+                  <h2
+                    className="text-sm text-neutral-200 hover:text-indigo-400 cursor-text"
+                    onClick={() => { setRenaming(acct.id); setNameDraft(acct.label); }}
+                    title="Rename"
+                  >
+                    {acct.label}
+                  </h2>
+                )}
                 <p className="text-[11px] text-haze">
                   {acct.sub}{acct.dcaNote ? ` · ${acct.dcaNote}` : ''}
                   {linked && (
@@ -124,7 +149,7 @@ export default function Portfolio({ onAnalyze }) {
             {importing === acct.id && !linked && (
               <div className="card p-3 mb-2 space-y-2">
                 <p className="text-[11px] text-haze">
-                  Paste from your broker — any format works (<span className="font-mono">NVDA 12</span>,
+                  Paste from your broker — any format works (a symbol and share count per line,
                   CSV, or the copied positions table). Shares first, cost basis second if you have it.
                 </p>
                 <textarea
@@ -132,7 +157,7 @@ export default function Portfolio({ onAnalyze }) {
                   value={importText}
                   onChange={(e) => setImportText(e.target.value)}
                   rows={6}
-                  placeholder={'NVDA 12 180.50\nAMD 8 175'}
+                  placeholder={'One position per line'}
                   className="w-full bg-ink-900 border border-ink-800 rounded p-2 text-xs font-mono"
                 />
                 <div className="flex gap-2">
@@ -248,7 +273,7 @@ export default function Portfolio({ onAnalyze }) {
               )}
             </ul>
 
-            {!linked && acct.positions.length === 0 && acct.cash === 0 && (
+            {!linked && (
               <button
                 onClick={() => doDeleteAccount(acct.id)}
                 className="mt-1 text-[11px] text-ink-600 hover:text-red-400"

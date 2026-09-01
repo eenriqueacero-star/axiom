@@ -66,7 +66,7 @@ export async function getPortfolio(uid) {
     }).sort((x, y) => y.value - x.value);
     const acctValue = positions.reduce((s, p) => s + p.value, 0) + cash;
     return {
-      id: a.id, label: a.label, sub: a.sub, dca: a.dca, dcaNote: a.dcaNote,
+      id: a.id, label: a.nickname || a.label, sub: a.sub, dca: a.dca, dcaNote: a.dcaNote,
       linked: a.linked || false, syncedAt: a.syncedAt || null,
       cash, value: acctValue, positions,
     };
@@ -172,6 +172,14 @@ export async function removeTicker(uid, accountId, ticker) {
   const holdings = doc.data().holdings || {};
   delete holdings[ticker.toUpperCase()];
   await ref.update({ holdings });
+}
+
+export async function renameAccount(uid, accountId, nickname) {
+  const ref = db.doc(`users/${uid}/accounts/${accountId}`);
+  const doc = await ref.get();
+  if (!doc.exists) throw new Error('No such account');
+  const name = String(nickname || '').trim().slice(0, 40);
+  await ref.update({ nickname: name || null });
 }
 
 export async function deleteAccount(uid, accountId) {

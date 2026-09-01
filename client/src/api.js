@@ -59,6 +59,8 @@ export const importPositions = (accountId, text) =>
   request(`/portfolio/${accountId}/import`, { method: 'POST', body: { text } });
 export const deleteAccount = (accountId) =>
   request(`/portfolio/${accountId}`, { method: 'DELETE' });
+export const renameAccount = (accountId, nickname) =>
+  request(`/portfolio/${accountId}`, { method: 'PATCH', body: { nickname } });
 
 export const getBrokerStatus = () => request('/broker/status');
 export const syncBroker = () => request('/broker/sync', { method: 'POST' });
