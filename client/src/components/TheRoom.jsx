@@ -175,7 +175,7 @@ function Human({ color, clipBase, reaction, speakTick }) {
 
   return (
     <group ref={group} dispose={null}>
-      <primitive object={model} scale={0.62} />
+      <primitive object={model} scale={0.95} />
     </group>
   );
 }
@@ -540,7 +540,7 @@ function Rig({ mode, focusIndex }) {
 
   useFrame((s, dt) => {
     const t = s.clock.elapsedTime;
-    let dist = 26, zoom = 54;
+    let dist = 24, zoom = 62;
     if (mode === 'table') { aim.current.set(0, 1.1, 0); dist = 16; zoom = 76; }
     else if (mode === 'station' && focusIndex != null) {
       const p = stationPos(focusIndex);
@@ -576,9 +576,9 @@ function Scene({ agents, live, desk, notes, sel, setSel, shownTurns, phaseOf }) 
     <>
       <color attach="background" args={['#050507']} />
       <fog attach="fog" args={['#050507', 26, 62]} />
-      <ambientLight intensity={0.42} color="#b9c2d8" />
+      <ambientLight intensity={0.6} color="#b9c2d8" />
       <directionalLight
-        position={[9, 15, 7]} intensity={1.15} castShadow
+        position={[9, 15, 7]} intensity={1.5} castShadow
         shadow-mapSize={[2048, 2048]} shadow-bias={-0.0004}
         shadow-camera-left={-18} shadow-camera-right={18}
         shadow-camera-top={18} shadow-camera-bottom={-18}
@@ -586,9 +586,9 @@ function Scene({ agents, live, desk, notes, sel, setSel, shownTurns, phaseOf }) 
       {/* the rig over the table is the room's key practical light */}
       {/* the four pendants are the room's key light */}
       {[[-1.5,0],[1.5,0],[0,1.5],[0,-1.5]].map(([x,z],i)=>(
-        <pointLight key={i} position={[x,2.6,z]} distance={11} intensity={act ? 9 : 5.5} color="#ffdcae" />
+        <pointLight key={i} position={[x,2.6,z]} distance={11} intensity={act ? 16 : 11} color="#ffdcae" />
       ))}
-      <pointLight position={[0,2.9,-9]} distance={14} intensity={2.4} color="#7ea6ff" />
+      <pointLight position={[0,2.9,-9]} distance={16} intensity={4} color="#7ea6ff" />
       <directionalLight position={[-10, 6, -8]} intensity={0.25} color="#7c88ff" />
 
       <Shell />
