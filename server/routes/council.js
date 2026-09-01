@@ -7,6 +7,14 @@ import { aggregate } from '../lib/scorecard.js';
 import { callAgentChat } from '../lib/groq.js';
 import { priceFacts } from '../lib/metrics.js';
 import { tickerNews } from '../lib/signals.js';
+import { getPortfolio } from '../lib/portfolio.js';
+import { diagnose } from '../lib/strategy.js';
+
+const COMMON_WORDS = new Set(['I', 'A', 'THE', 'MY', 'IS', 'IT', 'DO', 'OK', 'ADD', 'HOLD', 'TRIM', 'EXIT', 'AI', 'US', 'CEO', 'ETF', 'YOU', 'AND', 'OR', 'FOR', 'ARE', 'NOT', 'BUY', 'SELL', 'WHY', 'HOW']);
+const findTicker = (text) => {
+  const m = String(text).match(/\b[A-Z]{2,5}(?:\.[A-Z])?\b/g) || [];
+  return m.find(t => !COMMON_WORDS.has(t)) || null;
+};
 
 const SCHEDULE = [
   { job: 'Daily scout scan', cadence: 'Weekdays 9:05 AM ET', does: 'Runs the full council on every holding + the discovery pool; pushes ADD/EXIT alerts.' },
@@ -85,15 +93,31 @@ router.post('/agent/:id/chat', async (req, res) => {
   }
 
   try {
+    const lastUser = messages[messages.length - 1].content;
+    const t = (String(req.body?.ticker || '').toUpperCase().match(/^[A-Z.\-]{1,10}$/)?.[0]) || findTicker(lastUser);
+
+    // Every agent chat is grounded in the user's real portfolio + any ticker mentioned.
+    const [portfolio, priced, news] = await Promise.all([
+      getPortfolio(req.uid).catch(() => null),
+      t ? priceFacts(t).catch(() => ({ block: '' })) : Promise.resolve({ block: '' }),
+      t ? tickerNews(t, { days: 7, limit: 4 }).catch(() => []) : Promise.resolve([]),
+    ]);
+
     let context = '';
-    const t = String(req.body?.ticker || '').toUpperCase();
-    if (/^[A-Z.\-]{1,10}$/.test(t)) {
-      const [{ block }, news] = await Promise.all([
-        priceFacts(t).catch(() => ({ block: '' })),
-        tickerNews(t, { days: 7, limit: 5 }).catch(() => []),
-      ]);
+    if (portfolio) {
+      const d = diagnose(portfolio);
+      if (d.ready) {
+        const topSectors = d.sectors.slice(0, 3).map(s => `${s.name} ${Math.round(s.pct * 100)}%`).join(', ');
+        const held = t && d.names.find(n => n.ticker === t);
+        context += `\n\nTHE INVESTOR'S PORTFOLIO ($${Math.round(d.total).toLocaleString()}): Core/Satellite ${Math.round(d.sleeve.corePct * 100)}/${Math.round(d.sleeve.satellitePct * 100)} (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100}). Sectors: ${topSectors}.`;
+        if (held) context += ` They currently hold ${(held.pct * 100).toFixed(1)}% in ${t}.`;
+        else if (t) context += ` They do NOT currently hold ${t}.`;
+        if (d.flags.length) context += ` Rulebook flags: ${d.flags.map(f => f.msg).join(' | ')}`;
+      }
+    }
+    if (t && priced.block) {
       const headlines = news.map(n => `- ${n.headline} (${n.source})`).join('\n');
-      context = `\n\nLIVE CONTEXT — ${t}:\n${block || 'no price data'}\n${headlines ? 'Recent news:\n' + headlines : ''}`;
+      context += `\n\nLIVE DATA — ${t}:\n${priced.block}\n${headlines ? 'Recent news:\n' + headlines : ''}`;
     }
 
     const checks = Object.entries(agent.checks || {}).map(([k, v]) => `- ${v}`).join('\n');
