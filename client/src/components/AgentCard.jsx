@@ -1,7 +1,14 @@
 import { stanceStyle } from './stance';
 
+const MARK = {
+  true: { s: '✓', c: 'text-emerald-400' },
+  false: { s: '✗', c: 'text-red-400' },
+  null: { s: '–', c: 'text-ink-600' },
+};
+
 export default function AgentCard({ agent, result, loading }) {
   const s = result ? stanceStyle(result.stance) : null;
+  const checkKeys = agent.checks ? Object.keys(agent.checks) : [];
 
   return (
     <div className="card p-4">
@@ -20,7 +27,6 @@ export default function AgentCard({ agent, result, loading }) {
             style={{ color: s.fg, background: s.bg }}
           >
             {s.label}
-            {typeof result.score === 'number' ? ` · ${result.score}` : ''}
           </span>
         ) : null}
       </div>
@@ -37,14 +43,21 @@ export default function AgentCard({ agent, result, loading }) {
           {result.headline && (
             <p className="text-sm text-neutral-200 mb-2">{result.headline}</p>
           )}
-          <ul className="space-y-1">
-            {(result.points || []).map((p, i) => (
-              <li key={i} className="text-xs text-neutral-400 flex gap-1.5">
-                <span className="text-ink-600">—</span>
-                <span>{p}</span>
-              </li>
-            ))}
+          <ul className="space-y-1 mb-2">
+            {checkKeys.map((k) => {
+              const v = result.checks?.[k];
+              const m = MARK[String(v)] || MARK.null;
+              return (
+                <li key={k} className="text-xs flex gap-1.5">
+                  <span className={`${m.c} w-3`}>{m.s}</span>
+                  <span className="text-neutral-400">{agent.checks[k]}</span>
+                </li>
+              );
+            })}
           </ul>
+          {result.note && (
+            <p className="text-[11px] text-haze italic">{result.note}</p>
+          )}
         </>
       ) : (
         <p className="text-xs text-ink-600">Waiting…</p>

@@ -8,12 +8,13 @@
 import { db } from './firebase.js';
 import { getQuote } from './quotes.js';
 
-const AGENT_IDS = ['technical', 'catalyst', 'risk', 'macro', 'bear', 'sizer'];
+const AGENT_IDS = ['quality', 'trend', 'catalyst', 'bear', 'sector', 'sizing'];
 
-// A verdict is "right" if the direction matched: BUY→up, SKIP→down. WATCH is neutral.
+// A verdict is "right" if the direction matched: ADD→up, TRIM/EXIT→down.
+// HOLD is neutral. (Legacy BUY/SKIP/WATCH still handled for old rows.)
 function isHit(verdict, perf) {
-  if (verdict === 'BUY') return perf > 0;
-  if (verdict === 'SKIP') return perf < 0;
+  if (verdict === 'ADD' || verdict === 'BUY') return perf > 0;
+  if (verdict === 'TRIM' || verdict === 'EXIT' || verdict === 'SKIP') return perf < 0;
   return null;
 }
 
@@ -76,7 +77,7 @@ export async function aggregate(uid) {
   });
 
   const byVerdict = {};
-  for (const v of ['BUY', 'WATCH', 'SKIP']) {
+  for (const v of ['ADD', 'HOLD', 'TRIM', 'EXIT']) {
     byVerdict[v] = bucket(scored.filter((a) => a.verdict === v));
   }
 

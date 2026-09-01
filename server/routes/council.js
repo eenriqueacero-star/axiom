@@ -8,7 +8,7 @@ const router = Router();
 
 // Public-ish: agent metadata for the client to render cards (no prompts leaked).
 router.get('/agents', (_req, res) => {
-  res.json(AGENTS.map(({ id, name, emoji, color, role }) => ({ id, name, emoji, color, role })));
+  res.json(AGENTS.map(({ id, name, emoji, color, role, checks }) => ({ id, name, emoji, color, role, checks })));
 });
 
 router.use(verifyToken);

@@ -56,40 +56,119 @@ export async function fetchLiveData(ticker) {
   return { liveDataBlock, price, changePct, nextEarnings, news, facts };
 }
 
-const FALLBACK = { stance: 'CAUTION', score: 5, headline: 'No response', points: [] };
+const FALLBACK = { checks: {}, note: 'No response', headline: 'No response', error: true };
 
-// Run all six agents against a ticker, then AXIOM's synthesis verdict.
-// mode: 'scout' = terse per-agent pass (fast, used by cron); 'full' = conversational.
+// Positive-signal agents — their yes-checks build the score. VEGA is scored
+// separately (its checks are inverted: true = a problem).
+const POSITIVE_AGENTS = ['quality', 'trend', 'catalyst', 'sector', 'sizing'];
+
+const asBool = (v) => (v === true ? true : v === false ? false : null);
+
+/** Derive a per-agent display stance from its checks. */
+function agentStance(id, checks) {
+  const vals = Object.values(checks || {}).map(asBool).filter(v => v !== null);
+  if (id === 'bear') {
+    return vals.some(v => v === true) ? 'BEARISH' : 'PASS';
+  }
+  if (!vals.length) return 'CAUTION';
+  const yes = vals.filter(v => v).length;
+  if (yes === vals.length) return 'PASS';
+  if (yes === 0) return 'FAIL';
+  return 'CAUTION';
+}
+
+/**
+ * Compute the council verdict from the agents' binary checks — in code, no LLM.
+ * Returns { verdict, conviction, score, broken, entryClear, tally }.
+ */
+export function scoreCouncil(agents) {
+  let yes = 0, no = 0;
+  for (const id of POSITIVE_AGENTS) {
+    for (const v of Object.values(agents[id]?.checks || {})) {
+      const b = asBool(v);
+      if (b === true) yes++;
+      else if (b === false) no++;
+    }
+  }
+  const answered = yes + no;
+  const yesRate = answered ? yes / answered : 0.5;
+  const score = Math.round(yesRate * 10);
+
+  const trend = agents.trend?.checks || {};
+  const bear = agents.bear?.checks || {};
+  const broken = asBool(bear.thesisBreaker) === true;
+  const downtrend = asBool(trend.aboveLongTermAvg) === false && asBool(trend.trendConstructive) === false;
+  const entryClear = asBool(trend.aboveLongTermAvg) !== false && asBool(trend.notOverextended) !== false;
+  const structuralBear = asBool(bear.structuralBearCase) === true;
+
+  let verdict, conviction;
+  if (broken) { verdict = 'EXIT'; conviction = 9; }
+  else if (downtrend) { verdict = 'EXIT'; conviction = 7; }
+  else if (score >= 7 && entryClear && !structuralBear) { verdict = 'ADD'; conviction = score; }
+  else if (score <= 3) { verdict = 'TRIM'; conviction = Math.max(5, 10 - score); }
+  else { verdict = 'HOLD'; conviction = 5; }
+
+  return {
+    verdict, conviction, score,
+    broken, downtrend, entryClear,
+    tally: { yes, no, answered },
+  };
+}
+
+// Run all agents against a ticker; the verdict is computed in code, then AXIOM
+// writes the human explanation of that (fixed) verdict.
+// mode: 'scout' = fast cron pass; 'full' = conversational.
 export async function runCouncil(ticker, { mode = 'full' } = {}) {
   const sym = ticker.toUpperCase().trim();
   const { liveDataBlock, price, changePct, nextEarnings, news, facts } = await fetchLiveData(sym);
-  const user = `Ticker: ${sym}. Investor considering BUYING.\n${liveDataBlock}\nReturn ONLY the JSON.`;
+  const user = `Ticker: ${sym}. Judge it for Axiom's long-term basket (belongs / broken / entry / size).\n${liveDataBlock}\nReturn ONLY the JSON.`;
 
   const agents = {};
   for (let i = 0; i < AGENTS.length; i++) {
+    const ag = AGENTS[i];
     try {
-      const { text } = await callAgent({ system: AGENTS[i].system, user, agentIndex: i });
-      agents[AGENTS[i].id] = extractJSON(text) || { ...FALLBACK };
+      const { text } = await callAgent({ system: ag.system, user, agentIndex: i });
+      const parsed = extractJSON(text) || { ...FALLBACK };
+      const checks = {};
+      for (const key of Object.keys(ag.checks)) checks[key] = asBool(parsed.checks?.[key]);
+      agents[ag.id] = {
+        checks,
+        note: String(parsed.note || '').slice(0, 160),
+        headline: String(parsed.headline || '').slice(0, 120),
+        stance: agentStance(ag.id, checks),
+        score: (() => {
+          const vals = Object.values(checks).filter(v => v !== null);
+          return vals.length ? Math.round((vals.filter(Boolean).length / vals.length) * 10) : null;
+        })(),
+      };
     } catch (err) {
-      agents[AGENTS[i].id] = { ...FALLBACK, headline: 'Error', error: err.message };
+      agents[ag.id] = { ...FALLBACK, checks: {}, stance: 'CAUTION', score: null, error: err.message };
     }
     if (i < AGENTS.length - 1) await sleep(mode === 'scout' ? 1200 : 600);
   }
 
-  const summary = AGENTS.map(ag => {
+  const computed = scoreCouncil(agents);
+
+  const checkLines = AGENTS.map(ag => {
     const r = agents[ag.id] || {};
-    return `${ag.name} (${ag.role}): stance=${r.stance} score=${r.score} — ${r.headline}`;
+    const cs = Object.entries(r.checks || {})
+      .map(([k, v]) => `${k}=${v === null ? '?' : v ? 'yes' : 'no'}`).join(', ');
+    return `${ag.name} (${ag.role}): ${cs} — ${r.note || r.headline}`;
   }).join('\n');
 
-  const synthSys = `You are AXIOM delivering the council's verdict on ${sym}. ${PROTOCOLS}
-Output ONLY raw JSON: {"verdict":"BUY"|"WATCH"|"SKIP","conviction":<0-10>,"headline":"<one bold line>","rationale":"<2-4 sentences, direct and casual>","catalyst":"<the single news item or event most driving this call, or null>"}
-BUY = strong opportunity (conviction 7+). WATCH = interesting but not ready. SKIP = pass.`;
+  const synthSys = `You are AXIOM, chair of THE COUNCIL, explaining a verdict on ${sym} to a sharp friend. ${PROTOCOLS}
+The verdict and conviction are ALREADY DECIDED by the rulebook math below — your job is to explain WHY in plain language, not to change it.
+VERDICT MEANINGS: ADD = buy / add to this. HOLD = keep it, no action. TRIM = reduce the position. EXIT = sell out.
+Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences, direct and casual, cite the checks that drove it>","catalyst":"<the single event most relevant, or null>"}`;
 
-  let synth = { verdict: 'WATCH', conviction: 5, headline: '', rationale: '', catalyst: null };
+  let synth = { headline: '', rationale: '', catalyst: null };
   try {
     const text = await callSynthesis({
       system: synthSys,
-      user: `${liveDataBlock}\nAgent results:\n${summary}\nPrice: ${price ? '$' + price.toFixed(2) : 'unknown'}`,
+      user: `${liveDataBlock}\nRULEBOOK VERDICT: ${computed.verdict} (conviction ${computed.conviction}/10). `
+        + `${computed.broken ? 'Thesis flagged BROKEN. ' : ''}${computed.downtrend ? 'Confirmed downtrend. ' : ''}`
+        + `${!computed.entryClear ? 'Entry not clear (trend/extension). ' : ''}\n`
+        + `Council checks:\n${checkLines}`,
       maxTokens: 512,
     });
     synth = { ...synth, ...(extractJSON(text) || {}) };
@@ -97,11 +176,15 @@ BUY = strong opportunity (conviction 7+). WATCH = interesting but not ready. SKI
 
   return {
     ticker: sym, price, changePct, nextEarnings, facts,
-    // exactly the headlines the agents saw — the panel renders these, not a separate fetch
     news: news.map(a => ({
       headline: a.headline, url: a.url, source: a.source,
       date: new Date(a.ts).toISOString().slice(0, 10), ts: a.ts,
     })),
-    agents, ...synth, ts: Date.now(),
+    agents,
+    verdict: computed.verdict,
+    conviction: computed.conviction,
+    computed: { broken: computed.broken, downtrend: computed.downtrend, entryClear: computed.entryClear, tally: computed.tally },
+    ...synth,
+    ts: Date.now(),
   };
 }

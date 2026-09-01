@@ -1,5 +1,7 @@
 import { verdictStyle } from './stance';
 
+const fmtPct = (n) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${(n * 100).toFixed(0)}%`);
+
 export default function VerdictBanner({ analysis }) {
   const v = verdictStyle(analysis.verdict);
   const chg = analysis.changePct;
@@ -38,8 +40,26 @@ export default function VerdictBanner({ analysis }) {
       {analysis.rationale && (
         <p className="text-sm text-neutral-300 mt-1 leading-relaxed">{analysis.rationale}</p>
       )}
+      {(analysis.computed?.broken || analysis.computed?.downtrend || analysis.computed?.entryClear === false) && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          {analysis.computed.broken && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-500/15 text-red-400">THESIS BROKEN</span>
+          )}
+          {analysis.computed.downtrend && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-500/15 text-red-400">CONFIRMED DOWNTREND</span>
+          )}
+          {analysis.computed.entryClear === false && !analysis.computed.broken && !analysis.computed.downtrend && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400">ENTRY NOT CLEAR</span>
+          )}
+        </div>
+      )}
+      {analysis.facts?.available && (
+        <p className="text-xs text-haze mt-3">
+          {analysis.facts.trend?.toUpperCase()} · {fmtPct(analysis.facts.pctFromHigh52w)} from 52wk high · 6mo {fmtPct(analysis.facts.ret6m)}
+        </p>
+      )}
       {analysis.nextEarnings && (
-        <p className="text-xs text-haze mt-3">Next earnings: {analysis.nextEarnings}</p>
+        <p className="text-xs text-haze mt-1">Next earnings: {analysis.nextEarnings}</p>
       )}
     </div>
   );
