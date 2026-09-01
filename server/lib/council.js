@@ -2,6 +2,7 @@ import { AGENTS, PROTOCOLS, AXIOM_SYSTEM } from '../agents/definitions.js';
 import { callAgent, callSynthesis } from './groq.js';
 import { safeJson } from './fetchJson.js';
 import { tickerNews } from './signals.js';
+import { priceFacts } from './metrics.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -49,8 +50,10 @@ export async function fetchLiveData(ticker) {
     return `- [${d}] ${a.headline}${gist ? ` — ${gist}` : ''} (${a.source})`;
   }).join('\n');
 
-  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\nRECENT NEWS:\n${newsText || 'No recent news.'}\n`;
-  return { liveDataBlock, price, changePct, nextEarnings, news };
+  const { facts, block: factsBlock } = await priceFacts(ticker, price).catch(() => ({ facts: { available: false }, block: '' }));
+
+  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
+  return { liveDataBlock, price, changePct, nextEarnings, news, facts };
 }
 
 const FALLBACK = { stance: 'CAUTION', score: 5, headline: 'No response', points: [] };
@@ -59,7 +62,7 @@ const FALLBACK = { stance: 'CAUTION', score: 5, headline: 'No response', points:
 // mode: 'scout' = terse per-agent pass (fast, used by cron); 'full' = conversational.
 export async function runCouncil(ticker, { mode = 'full' } = {}) {
   const sym = ticker.toUpperCase().trim();
-  const { liveDataBlock, price, changePct, nextEarnings, news } = await fetchLiveData(sym);
+  const { liveDataBlock, price, changePct, nextEarnings, news, facts } = await fetchLiveData(sym);
   const user = `Ticker: ${sym}. Investor considering BUYING.\n${liveDataBlock}\nReturn ONLY the JSON.`;
 
   const agents = {};
@@ -93,7 +96,7 @@ BUY = strong opportunity (conviction 7+). WATCH = interesting but not ready. SKI
   } catch { /* keep default */ }
 
   return {
-    ticker: sym, price, changePct, nextEarnings,
+    ticker: sym, price, changePct, nextEarnings, facts,
     // exactly the headlines the agents saw — the panel renders these, not a separate fetch
     news: news.map(a => ({
       headline: a.headline, url: a.url, source: a.source,
