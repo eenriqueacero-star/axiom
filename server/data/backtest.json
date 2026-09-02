@@ -1,0 +1,93 @@
+{
+  "start": "2013-01-02",
+  "end": "2025-08-01",
+  "years": 12.6,
+  "generatedAt": "2026-09-02",
+  "partialUniverse": true,
+  "satelliteNames": [
+    "AAPL",
+    "AMAT",
+    "AMD",
+    "CRM",
+    "KLAC",
+    "LRCX",
+    "MU",
+    "NFLX",
+    "NVDA"
+  ],
+  "coreNames": [
+    "MSFT",
+    "GOOGL",
+    "AMZN",
+    "COST",
+    "V",
+    "MA",
+    "LLY",
+    "UNH",
+    "ISRG",
+    "JPM"
+  ],
+  "rows": [
+    {
+      "strategy": "Buy & hold QQQ",
+      "total_return": 8.1868,
+      "cagr": 0.1928,
+      "max_drawdown": -0.3512,
+      "vol_annual": 0.2099,
+      "sharpe": 0.95,
+      "sortino": 1.2,
+      "pct_positive_months": 0.649,
+      "worst_month": -0.136,
+      "best_month": 0.1497,
+      "years": 12.58,
+      "corr_qqq": 1.0,
+      "vs_qqq_cagr": 0.0
+    },
+    {
+      "strategy": "Buy & hold SPY",
+      "total_return": 4.3059,
+      "cagr": 0.1419,
+      "max_drawdown": -0.337,
+      "vol_annual": 0.1708,
+      "sharpe": 0.86,
+      "sortino": 1.05,
+      "pct_positive_months": 0.689,
+      "worst_month": -0.1246,
+      "best_month": 0.127,
+      "years": 12.58,
+      "corr_qqq": 0.93,
+      "vs_qqq_cagr": -0.0509
+    },
+    {
+      "strategy": "Axiom Core-12 only",
+      "total_return": 4.1257,
+      "cagr": 0.1492,
+      "max_drawdown": -0.2222,
+      "vol_annual": 0.1377,
+      "sharpe": 1.08,
+      "sortino": 1.36,
+      "pct_positive_months": 0.648,
+      "worst_month": -0.0745,
+      "best_month": 0.1036,
+      "years": 11.75,
+      "corr_qqq": 0.83,
+      "vs_qqq_cagr": -0.0436
+    },
+    {
+      "strategy": "Axiom rulebook (50/50, rules only)",
+      "total_return": 10.7665,
+      "cagr": 0.2334,
+      "max_drawdown": -0.2693,
+      "vol_annual": 0.1865,
+      "sharpe": 1.22,
+      "sortino": 1.54,
+      "pct_positive_months": 0.683,
+      "worst_month": -0.1173,
+      "best_month": 0.1175,
+      "years": 11.75,
+      "corr_qqq": 0.84,
+      "vs_qqq_cagr": 0.0406
+    }
+  ],
+  "verdict": "The rules-only skeleton beat QQQ by +4.1%/yr over 13 years, max drawdown -27% vs QQQ -35%. This is BEFORE the council judgment overlay and before tax \u2014 the honest floor. (Partial universe: satellite pool reduced to 9 names by a data-provider limit; the full number will be lower.)"
+}

@@ -26,7 +26,14 @@ uvicorn app.main:app --reload          # http://localhost:8000/docs
 
 All routes except `/health` require the `x-api-key` header (`QUANT_API_KEY`).
 
-## Deploy (Render, 3rd service)
+## Default mode: static result, no service
+
+The app doesn't need this service running. `python refresh.py` regenerates
+`server/data/backtest.json`; commit it and the Scorecard panel reads it. Re-run
+monthly. This is the recommended setup for a solo project — no 3rd service, no
+cost, no extra API token.
+
+## Optional: deploy for live re-runs (Render, 3rd service)
 
 `render.yaml` in this dir is a blueprint. Or manually: Web Service, root `quant`,
 Python, build `pip install -r requirements.txt`, start

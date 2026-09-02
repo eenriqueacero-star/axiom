@@ -59,7 +59,9 @@ function StrategyBacktest() {
               </table>
             </div>
             <p className="mt-2 text-[10px] text-ink-600">
-              {bt.start} → {bt.end} · {Math.round(bt.years)}y · rules only, before tax — the council's judgment is the overlay on top.
+              {bt.start} → {bt.end} · {Math.round(bt.years)}y · rules only, before tax
+              {bt.generatedAt ? ` · refreshed ${bt.generatedAt}` : ''}
+              {bt.partialUniverse ? ' · partial universe — full number pending' : ''}
             </p>
           </>
         )}
