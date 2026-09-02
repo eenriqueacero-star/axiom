@@ -1,7 +1,56 @@
 import { useEffect, useState } from 'react';
 import { getHealth, getKeyStatus } from '../api';
+import { pushState, enablePush, disablePush } from '../lib/push';
 
 const dot = (ok) => (ok ? 'bg-emerald-400' : 'bg-red-400');
+
+const PUSH_COPY = {
+  on: 'Notifications on for this device.',
+  off: 'Get pushed when the council changes its verdict on a holding or a big move hits.',
+  denied: 'Notifications are blocked in your browser settings — allow them there, then reload.',
+  unsupported: 'This browser can’t do push notifications. On iPhone, add Axiom to your Home Screen first.',
+};
+
+function PushToggle() {
+  const [state, setState] = useState(null); // on | off | denied | unsupported
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { pushState().then(setState); }, []);
+
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      setState(state === 'on' ? await disablePush() : await enablePush());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (state == null) return null;
+  const actionable = state === 'on' || state === 'off';
+
+  return (
+    <div className="rounded-lg border hairline p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-neutral-300">Notifications</span>
+        {actionable && (
+          <button
+            onClick={toggle}
+            disabled={busy}
+            className={`h-7 px-3 rounded text-[11px] font-medium disabled:opacity-50 ${
+              state === 'on'
+                ? 'bg-ink-800 text-haze hover:bg-ink-700'
+                : 'bg-indigo-500 text-white hover:bg-indigo-400'
+            }`}
+          >
+            {busy ? '…' : state === 'on' ? 'Turn off' : 'Turn on'}
+          </button>
+        )}
+      </div>
+      <p className="text-[11px] text-haze leading-snug">{PUSH_COPY[state]}</p>
+    </div>
+  );
+}
 
 export default function SystemStatus({ open, onClose }) {
   const [health, setHealth] = useState(null);
@@ -56,6 +105,8 @@ export default function SystemStatus({ open, onClose }) {
             ))}
           </div>
         )}
+
+        <PushToggle />
 
         {keys && (
           <div className="space-y-1.5">

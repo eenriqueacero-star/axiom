@@ -47,6 +47,18 @@ export const getMarketNews = () => request('/signals/market');
 export const getTickerNews = (ticker) => request(`/signals/${ticker.toUpperCase()}`);
 
 export const getScorecard = () => request('/scorecard');
+
+// Push notifications
+export async function getVapidPublic() {
+  const res = await fetch(`${BASE}/api/push/vapid-public`);
+  if (!res.ok) throw new Error('Push not configured');
+  return res.json();
+}
+export const subscribePush = (subscription) =>
+  request('/push/subscribe', { method: 'POST', body: { subscription } });
+export const unsubscribePush = (endpoint) =>
+  request('/push/unsubscribe', { method: 'POST', body: { endpoint } });
+export const getPushStatus = () => request('/push/status');
 export const getBacktest = () => request('/quant/backtest');
 export const getQuantStatus = () => request('/quant/status');
 export const getQuantHoldings = () => request('/quant/holdings-now');
