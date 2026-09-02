@@ -77,8 +77,10 @@ Real lever = stock SELECTION + holding + low turnover. So:
     character, grounded in the user's real portfolio (sector %, mix, rulebook
     flags) + auto-detected ticker's live facts/news. Chat box in each Floor room.
     Verified: asked ATLAS "too concentrated in semis?" → "Yes, at 73%...".
-  - [ ] Slice 5d: conviction tiers per holding; backtest the rulebook vs QQQ on
-    the quant service; autonomous nightly agent debate → idea cards.
+  - [~] Slice 5d: **per-holding stance badges DONE** (Portfolio view shows the
+    council's latest ADD/HOLD/TRIM/EXIT + conviction on every owned name, via
+    `GET /api/council/stances`). Still open: conviction tiers, backtest the
+    rulebook vs QQQ on the quant service, autonomous nightly agent debate → idea cards.
 
 ## The Floor — 3D vision (user, 2026-09-01)
 User wants The Floor to be a real 3D house: agents living in it, a side menu of
@@ -196,7 +198,13 @@ content shown inside each 3D room.
   sub-questions scored in code** (LLM holistic scoring is provably inconsistent — see
   the AMD 5/5/4/5/3/5/5 evidence; BINEVAL / rubric research). Feed real computed
   metrics not one-line summaries. Majority-vote only the genuinely subjective questions.
-- [ ] **Per-position council stance** on the portfolio view (keep / trim / add / exit).
+- [x] **Per-position council stance** on the portfolio view (add / hold / trim / exit).
+  `server/lib/stances.js` `buildStances(uid)` — reads the latest `users/{uid}/analyses`
+  verdict for every held ticker (pure Firestore, no LLM). `GET /api/council/stances`
+  → `{ ready, counts, stances: { TICKER: { verdict, conviction, headline, ts, stale,
+  broken, downtrend, analyzed } } }`. Portfolio.jsx shows a `StanceBadge` per row
+  (verdict + conviction, colour-coded, dimmed when stale, tap → full analysis). The
+  daily scout keeps verdicts fresh; `stale` flags names it missed / added since.
 - [ ] **Candidate ranking** — for the weekly DCA, rank which names best deserve new money.
 - [x] **Paste-import positions** — tolerant parser for broker copy-paste / CSV.
 - [x] **Portfolio polish** — cash-fund rows (SPAXX etc → cash), linked accounts

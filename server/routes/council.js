@@ -10,6 +10,7 @@ import { tickerNews } from '../lib/signals.js';
 import { getPortfolio } from '../lib/portfolio.js';
 import { diagnose } from '../lib/strategy.js';
 import { buildFloorLive } from '../lib/floorLive.js';
+import { buildStances } from '../lib/stances.js';
 import { relevantMemos, memoBlock, saveMemo } from '../lib/memos.js';
 import { markUserActivity } from '../lib/budget.js';
 
@@ -145,6 +146,16 @@ router.get('/floor', async (req, res) => {
       scored: stats.total,
       live,
     });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Per-holding council stance — latest verdict on every name the user owns.
+// Cheap Firestore read (no LLM); drives the stance badges on the Portfolio view.
+router.get('/stances', async (req, res) => {
+  try {
+    res.json(await buildStances(req.uid));
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

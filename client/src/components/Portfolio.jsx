@@ -1,9 +1,36 @@
 import { useEffect, useState } from 'react';
 import {
   getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount, renameAccount,
+  getStances,
 } from '../api';
 import BrokerLink from './BrokerLink';
 import StrategyCheck from './StrategyCheck';
+
+const STANCE_STYLE = {
+  ADD: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/5',
+  HOLD: 'text-neutral-300 border-ink-700 bg-ink-800/50',
+  TRIM: 'text-amber-400 border-amber-500/30 bg-amber-500/5',
+  EXIT: 'text-red-400 border-red-500/30 bg-red-500/5',
+};
+
+/** The council's latest verdict on a held name. Tap → open the full analysis. */
+function StanceBadge({ s, onClick }) {
+  if (!s || !s.analyzed || !s.verdict) return null;
+  const title = [
+    s.headline,
+    s.stale ? '(stale — council hasn’t re-run recently)' : '',
+  ].filter(Boolean).join(' ');
+  return (
+    <button
+      onClick={onClick}
+      title={title || s.verdict}
+      className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide
+        ${STANCE_STYLE[s.verdict] || STANCE_STYLE.HOLD} ${s.stale ? 'opacity-50' : ''}`}
+    >
+      {s.verdict}{s.conviction != null ? ` ${s.conviction}` : ''}
+    </button>
+  );
+}
 
 const money = (n) =>
   n == null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
@@ -23,6 +50,7 @@ const ago = (ts) => {
 
 export default function Portfolio({ onAnalyze }) {
   const [data, setData] = useState(null);
+  const [stances, setStances] = useState({});
   const [err, setErr] = useState('');
   const [editing, setEditing] = useState(null); // `${acct}:${ticker}`
   const [draft, setDraft] = useState('');
@@ -38,6 +66,9 @@ export default function Portfolio({ onAnalyze }) {
 
   const load = () => getPortfolio().then(setData).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    getStances().then((r) => setStances(r.stances || {})).catch(() => {});
+  }, []);
 
   const saveShares = async (acct, ticker) => {
     setEditing(null);
@@ -203,6 +234,8 @@ export default function Portfolio({ onAnalyze }) {
                     >
                       {p.ticker}
                     </button>
+
+                    <StanceBadge s={stances[p.ticker]} onClick={() => onAnalyze(p.ticker)} />
 
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-neutral-400">
