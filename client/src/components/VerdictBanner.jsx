@@ -46,22 +46,26 @@ export default function VerdictBanner({ analysis }) {
       {analysis.rationale && (
         <p className="text-sm text-neutral-300 mt-1 leading-relaxed">{stripMd(analysis.rationale)}</p>
       )}
-      {(analysis.computed?.broken || analysis.computed?.downtrend || analysis.computed?.entryClear === false || analysis.computed?.concentrationBlock) && (
-        <div className="flex flex-wrap gap-2 mt-3">
-          {analysis.computed.broken && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-500/15 text-red-400">THESIS BROKEN</span>
-          )}
-          {analysis.computed.downtrend && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-red-500/15 text-red-400">CONFIRMED DOWNTREND</span>
-          )}
-          {analysis.computed.entryClear === false && !analysis.computed.broken && !analysis.computed.downtrend && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400">ENTRY NOT CLEAR</span>
-          )}
-          {analysis.computed.concentrationBlock && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400">ALREADY AT CAP</span>
-          )}
-        </div>
-      )}
+      {(() => {
+        const c = analysis.computed || {};
+        const chips = [];
+        if (c.broken) chips.push(['THESIS BROKEN', '#f0685f']);
+        if (c.downtrendExit) chips.push(['DOWNTREND + WEAK FUNDAMENTALS', '#f0685f']);
+        else if (c.downtrend) chips.push(['IN A DOWNTREND', '#e0a33a']);
+        if (c.concentrationTrim) chips.push([`OVERSIZED — ${c.overCapX ? c.overCapX + '× CAP' : 'TRIM TO SIZE'}`, '#e0a33a']);
+        if (c.atCap && !c.concentrationTrim) chips.push(['AT CAP — WOULD ADD', '#7c8db5']);
+        if (c.entryClear === false && !c.broken && !c.downtrend) chips.push(['ENTRY NOT CLEAR', '#e0a33a']);
+        if (c.structuralBear && !c.broken) chips.push(['STRUCTURAL BEAR CASE', '#e0a33a']);
+        if (!chips.length) return null;
+        return (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {chips.map(([label, col]) => (
+              <span key={label} className="text-[10px] font-semibold px-2 py-0.5 rounded"
+                style={{ color: col, background: `${col}26` }}>{label}</span>
+            ))}
+          </div>
+        );
+      })()}
       {analysis.holdings && (
         <p className="text-xs text-haze mt-2">
           {analysis.holdings.econ?.avgCost != null ? (

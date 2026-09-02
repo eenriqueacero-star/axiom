@@ -48,7 +48,7 @@ const sma = (arr, n) =>
 export async function priceFacts(ticker, livePrice = null) {
   const rows = await dailyCloses(ticker);
   if (rows.length < 60) {
-    return { facts: { available: false }, block: '' };
+    return { facts: { available: false, bars: rows.length }, block: '' };
   }
 
   const closes = rows.map(r => r.close);
@@ -81,6 +81,7 @@ export async function priceFacts(ticker, livePrice = null) {
 
   const facts = {
     available: true,
+    bars: rows.length,
     price: round(price),
     sma50: round(sma50), sma200: round(sma200),
     trend,
@@ -95,7 +96,8 @@ export async function priceFacts(ticker, livePrice = null) {
 - Price ${fmt(price)} vs 50-day avg ${fmt(sma50)} vs 200-day avg ${fmt(sma200)}
 - Trend: ${trend.toUpperCase()} (price ${aboveSma200 ? 'above' : 'below'} 200-day; 50-day ${sma50Above200 ? 'above' : 'below'} 200-day)
 - ${pctStr(pctFromHigh)} from the 52-week high, ${pctStr(pctFromLow)} above the 52-week low
-- Momentum: 3mo ${pctStr(ret63)}, 6mo ${pctStr(ret126)}, 12mo ${pctStr(ret252)}`;
+- Momentum: 3mo ${pctStr(ret63)}, 6mo ${pctStr(ret126)}, 12mo ${pctStr(ret252)}
+${rows.length < 240 ? `- NOTE: only ${rows.length} trading days of history — this stock is newly listed. The 200-day average is not yet meaningful; do not call a "confirmed downtrend" off it.` : ''}`.trimEnd();
 
   return { facts, block };
 }

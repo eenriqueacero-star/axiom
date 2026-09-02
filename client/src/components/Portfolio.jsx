@@ -184,11 +184,20 @@ function VerdictChip({ s, open, onClick }) {
 
 /* ------------------------------------------------------------- decision detail */
 
-const FLAGS = [
-  ['broken', 'Thesis broken', '#f0685f'],
-  ['downtrend', 'Confirmed downtrend', '#f0685f'],
-  ['concentrationBlock', 'Already at cap', '#e0a33a'],
-];
+const RED = '#f0685f', AMBER = '#e0a33a', COOL = '#7c8db5';
+
+/** Build the flag chips for a run — order matters, most serious first. */
+function verdictFlags(c) {
+  const out = [];
+  if (c.broken) out.push(['Thesis broken', RED]);
+  if (c.downtrendExit) out.push(['Downtrend + weak fundamentals', RED]);
+  else if (c.downtrend) out.push(['In a downtrend', AMBER]);
+  if (c.concentrationTrim) out.push([`Oversized — ${c.overCapX ? c.overCapX + '× its cap' : 'trim to size'}`, AMBER]);
+  if (c.atCap && !c.concentrationTrim) out.push(['At cap — would add otherwise', COOL]);
+  if (c.entryClear === false && !c.broken && !c.downtrend) out.push(['Entry not clear', AMBER]);
+  if (c.structuralBear && !c.broken) out.push(['Structural bear case', AMBER]);
+  return out;
+}
 
 function PositionLine({ econ }) {
   if (!econ || econ.avgCost == null) return null;
@@ -220,7 +229,7 @@ function DecisionDetail({ ticker, a, econ, agents, onFull }) {
   const v = verdictStyle(a.verdict);
   const t = tierStyle(a.tier);
   const c = a.computed || {};
-  const entryNotClear = c.entryClear === false && !c.broken && !c.downtrend;
+  const flags = verdictFlags(c);
 
   return (
     <div className="px-4 pb-4 pt-3 pl-6 space-y-3 border-t hairline bg-ink-950/40">
@@ -241,16 +250,12 @@ function DecisionDetail({ ticker, a, econ, agents, onFull }) {
       {a.headline && <p className="text-sm text-neutral-100 font-medium">{stripMd(a.headline)}</p>}
       {a.rationale && <p className="text-xs text-neutral-400 leading-relaxed">{stripMd(a.rationale)}</p>}
 
-      {(c.broken || c.downtrend || c.concentrationBlock || entryNotClear) && (
+      {flags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {FLAGS.filter(([k]) => c[k]).map(([k, label, col]) => (
-            <span key={k} className="text-[10px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded"
+          {flags.map(([label, col]) => (
+            <span key={label} className="text-[10px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded"
               style={{ color: col, background: `${col}22` }}>{label}</span>
           ))}
-          {entryNotClear && (
-            <span className="text-[10px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded"
-              style={{ color: '#e0a33a', background: '#e0a33a22' }}>Entry not clear</span>
-          )}
         </div>
       )}
 

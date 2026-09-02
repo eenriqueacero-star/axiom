@@ -184,9 +184,9 @@ function agentStance(id, checks) {
 
 /**
  * Compute the council verdict from the agents' binary checks — in code, no LLM.
- * Returns { verdict, conviction, score, broken, entryClear, tally }.
+ * `facts` (from priceFacts) lets us guard the trend rule for young stocks.
  */
-export function scoreCouncil(agents, holdings = null) {
+export function scoreCouncil(agents, holdings = null, facts = null) {
   let yes = 0, no = 0;
   for (const id of POSITIVE_AGENTS) {
     for (const v of Object.values(agents[id]?.checks || {})) {
@@ -199,36 +199,61 @@ export function scoreCouncil(agents, holdings = null) {
   const yesRate = answered ? yes / answered : 0.5;
   const score = Math.round(yesRate * 10);
 
+  const q = agents.quality?.checks || {};
   const trend = agents.trend?.checks || {};
   const bear = agents.bear?.checks || {};
-  const broken = asBool(bear.thesisBreaker) === true;
-  const downtrend = asBool(trend.aboveLongTermAvg) === false && asBool(trend.trendConstructive) === false;
-  const entryClear = asBool(trend.aboveLongTermAvg) !== false && asBool(trend.notOverextended) !== false;
-  const structuralBear = asBool(bear.structuralBearCase) === true;
 
-  let verdict, conviction;
-  if (broken) { verdict = 'EXIT'; conviction = 9; }
-  else if (downtrend) { verdict = 'EXIT'; conviction = 7; }
+  const broken = asBool(bear.thesisBreaker) === true;
+  const structuralBear = asBool(bear.structuralBearCase) === true;
+  const qualityFails = asBool(q.qualityBusiness) === false || asBool(q.growthIntact) === false;
+
+  // A "downtrend" needs both: below the 200-day AND not making higher lows.
+  const rawDowntrend = asBool(trend.aboveLongTermAvg) === false && asBool(trend.trendConstructive) === false;
+  // The 200-day rule is meaningless for a name with under ~1yr of history.
+  const shortHistory = !facts?.available || (facts?.bars != null && facts.bars < 240);
+  const underwater = holdings?.econ?.unrealPct != null && holdings.econ.unrealPct < -0.08;
+  // A downtrend only forces a SELL when the business is also in question, there's a
+  // real structural bear case, or the position is meaningfully underwater. Otherwise
+  // it's a "reduce, the chart's ugly" — a TRIM, not a dump of a name we still like.
+  const downtrendExit = rawDowntrend && !shortHistory && (qualityFails || structuralBear || underwater);
+  const downtrendTrim = rawDowntrend && !downtrendExit;
+
+  const entryClear = asBool(trend.aboveLongTermAvg) !== false && asBool(trend.notOverextended) !== false;
+
+  let verdict, conviction, why = null;
+  if (broken) { verdict = 'EXIT'; conviction = 9; why = 'the thesis is broken'; }
+  else if (downtrendExit) { verdict = 'EXIT'; conviction = 7; why = 'confirmed downtrend and the fundamentals are weak'; }
   else if (score >= 7 && entryClear && !structuralBear) { verdict = 'ADD'; conviction = score; }
-  else if (score <= 3) { verdict = 'TRIM'; conviction = Math.max(5, 10 - score); }
+  else if (downtrendTrim) { verdict = 'TRIM'; conviction = 6; why = 'downtrend — reduce, but the thesis still holds'; }
+  else if (score <= 3) { verdict = 'TRIM'; conviction = Math.max(5, 10 - score); why = 'the council score is weak'; }
   else { verdict = 'HOLD'; conviction = 5; }
 
-  // Holdings-aware: a good name you can't fit under the caps is a HOLD, not an ADD.
-  let concentrationBlock = false;
+  // ---- concentration (a portfolio-shape problem, kept distinct from a per-name judgement) ----
+  let concentrationBlock = false, concentrationTrim = false, atCap = false;
+  const nameCap = holdings ? CAPS.name[holdings.sleeve] : null;
+  const overCapX = holdings && nameCap && holdings.positionPct ? holdings.positionPct / nameCap : 0;
+
+  // Good name, no room to add → HOLD, not ADD. This is a *positive* signal, flagged as "at cap".
   if (verdict === 'ADD' && holdings?.breachIfAdd) {
     verdict = 'HOLD';
-    conviction = 5;
+    conviction = Math.max(conviction, 6);
     concentrationBlock = true;
   }
-  // Already oversized in this name → lean TRIM even if the business is fine.
-  if (holdings?.breachName && !broken && verdict === 'HOLD') {
+  if (holdings?.breachIfAdd && verdict === 'HOLD') atCap = true;
+
+  // Genuinely oversized — past 1.5× its own cap (rulebook §5) — trim for SIZE even if the
+  // business is fine. Below 1.5×, "at cap" just means stop adding; it does not mean sell.
+  if (overCapX >= CAPS.sellTrigger && !broken && verdict !== 'EXIT') {
     verdict = 'TRIM';
     conviction = 6;
+    concentrationTrim = true;
+    why = `the position is ${overCapX.toFixed(1)}× its ${(nameCap * 100).toFixed(0)}% cap — trim to size`;
   }
 
   return {
-    verdict, conviction, score,
-    broken, downtrend, entryClear, concentrationBlock,
+    verdict, conviction, score, why,
+    broken, downtrend: rawDowntrend, downtrendExit, entryClear, structuralBear,
+    concentrationBlock, concentrationTrim, atCap, overCapX: Math.round(overCapX * 100) / 100,
     tally: { yes, no, answered },
   };
 }
@@ -249,32 +274,39 @@ export function convictionTier(agents, sym) {
   const b = agents.bear?.checks || {};
   const s = agents.sector?.checks || {};
   const z = agents.sizing?.checks || {};
+  const n = agents.catalyst?.checks || {};
   const T = (v) => asBool(v) === true;
   const F = (v) => asBool(v) === false;
 
   let pts = 0;
   const reasons = [];
-  const add = (n, msg) => { pts += n; if (msg) reasons.push(msg); };
+  const add = (val, msg) => { pts += val; if (msg) reasons.push(msg); };
 
+  // Quality of the business is the spine of conviction.
   if (T(q.qualityBusiness)) add(2, 'durable, moaty business');
   if (F(q.qualityBusiness)) add(-2, 'business quality in doubt');
-  if (T(q.growthIntact)) add(1);
-  if (F(q.growthIntact)) add(-1, 'growth stalling');
+  // Real growth is worth as much as the moat.
+  if (T(q.growthIntact)) add(2, 'growth intact');
+  if (F(q.growthIntact)) add(-2, 'growth stalling');
   if (F(q.noRedFlags)) add(-2, 'dilution / governance red flag');
   if (T(s.sectorHealthy)) add(1);
   if (F(s.sectorHealthy)) add(-1, 'sector rolling over');
   if (F(s.noPolicyOverhang)) add(-1, 'policy overhang on the sector');
-  if (F(z.volatilityManageable)) add(-2, 'too volatile to size with conviction');
-  if (T(b.structuralBearCase)) add(-2, 'a real structural bear case');
+  if (T(n.newsSupportsThesis)) add(1, 'news backs the thesis');
+  // Volatility caps the SIZE, not the conviction — a light penalty, not a veto.
+  if (F(z.volatilityManageable)) add(-1, 'high volatility — size it small');
+  // A structural bear case only counts if VEGA could actually name a mechanism.
+  if (T(b.structuralBearCase)) add(-2, 'a specific structural bear case');
 
   const brokenThesis = T(b.thesisBreaker);
+  const condemned = F(q.qualityBusiness) || T(b.structuralBearCase); // the business itself is in question
 
   let tier;
   if (brokenThesis) tier = 'SPECULATIVE';
   else if (pts >= 4) tier = 'HIGH';
   else if (pts >= 1) tier = 'MEDIUM';
-  else if (pts >= -2) tier = 'LOW';
-  else tier = 'SPECULATIVE';
+  else if (condemned) tier = 'SPECULATIVE'; // weak score + a real knock on the business = a punt
+  else tier = 'LOW';                        // weak, but the business isn't condemned — a soft hold
 
   // Core-list names are pre-vetted compounders — floor them at MEDIUM unless the
   // thesis is actually broken.
@@ -324,7 +356,7 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
     if (i < AGENTS.length - 1) await sleep(mode === 'scout' ? 1200 : 600);
   }
 
-  const computed = scoreCouncil(agents, holdings);
+  const computed = scoreCouncil(agents, holdings, facts);
   const tier = convictionTier(agents, sym);
 
   const checkLines = AGENTS.map(ag => {
@@ -346,9 +378,10 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
       system: synthSys,
       user: `${liveDataBlock}${holdings?.block || ''}\nRULEBOOK VERDICT: ${computed.verdict} (conviction ${computed.conviction}/10). `
         + `CONVICTION TIER: ${tier.tier}${tier.tierReasons.length ? ` (${tier.tierReasons.join('; ')})` : ''}. `
-        + `${computed.broken ? 'Thesis flagged BROKEN. ' : ''}${computed.downtrend ? 'Confirmed downtrend. ' : ''}`
-        + `${!computed.entryClear ? 'Entry not clear (trend/extension). ' : ''}`
-        + `${computed.concentrationBlock ? 'The business is fine but ADD was blocked — the sector/name is already at its cap, so HOLD. ' : ''}\n`
+        + `WHAT DROVE IT: ${computed.why || (computed.verdict === 'ADD' ? 'strong council score, entry clear, room to add' : 'mixed checks, nothing decisive')}. `
+        + `${computed.concentrationTrim ? 'This is a TRIM FOR SIZE — the business is fine, the position is just too big; say so plainly. ' : ''}`
+        + `${computed.atCap && !computed.concentrationTrim ? 'The council likes this name and would ADD, but the sector/position is at its cap — so HOLD. Frame it as "we would buy more if we could". ' : ''}`
+        + `${computed.downtrendExit ? 'EXIT is driven by a real downtrend PLUS weak fundamentals — not the chart alone. ' : ''}\n`
         + `Council checks:\n${checkLines}`,
       maxTokens: 512,
     });
@@ -368,8 +401,10 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
     tierScore: tier.tierScore,
     tierReasons: tier.tierReasons,
     computed: {
-      broken: computed.broken, downtrend: computed.downtrend, entryClear: computed.entryClear,
-      concentrationBlock: computed.concentrationBlock, tally: computed.tally,
+      broken: computed.broken, downtrend: computed.downtrend, downtrendExit: computed.downtrendExit,
+      entryClear: computed.entryClear, structuralBear: computed.structuralBear,
+      concentrationBlock: computed.concentrationBlock, concentrationTrim: computed.concentrationTrim,
+      atCap: computed.atCap, overCapX: computed.overCapX, why: computed.why, tally: computed.tally,
     },
     holdings: holdings && {
       held: holdings.held, positionPct: holdings.positionPct,

@@ -85,16 +85,16 @@ Output ONLY raw JSON: {"checks":{"catalystAhead":<b>,"newsSupportsThesis":<b>},"
     id: 'bear', name: 'VEGA', emoji: '🐻', color: '#EF4444',
     role: 'Is the thesis broken?',
     checks: {
-      thesisBreaker: 'A specific development that breaks the 5-year story (true = bad)',
-      structuralBearCase: 'A strong structural bear argument exists (true = bad)',
+      thesisBreaker: 'A specific, cited event that breaks the 5-year story (true = bad)',
+      structuralBearCase: 'A specific, nameable structural risk — not a generic worry (true = bad)',
     },
     conversationalPrompt: "You are VEGA, The Council's devil's advocate. Sharp, skeptical, honest. Find the bear case others miss.",
     system: `You are VEGA on an investment council. ${PROTOCOLS}
-Your job: the honest bear case. thesisBreaker may ONLY be true if you can point to a specific event in the LIVE DATA news. structuralBearCase may use general arguments (valuation, competition, demand cycle).
-Answer each check true / false / null (here TRUE means the concern is real):
-- thesisBreaker: a specific, cited development that breaks the long-term thesis
-- structuralBearCase: a strong structural reason to doubt the next few years
-Output ONLY raw JSON: {"checks":{"thesisBreaker":<b>,"structuralBearCase":<b>},"note":"<=15 words, the single best bear point","headline":"<8 words max>"}`,
+Your job: the honest bear case. Hold yourself to a high bar — vague pessimism is worthless to the firm.
+- thesisBreaker: TRUE only if you can point to a SPECIFIC event in the LIVE DATA news that structurally breaks the long-term story (acquisition, fraud, a lost anchor customer, a demand driver disappearing, guidance cut + management credibility gone). Not a bad quarter, not a sell-off.
+- structuralBearCase: TRUE only if you can NAME the mechanism in one concrete sentence — e.g. "a named competitor is taking share and gross margin is already falling", "valuation is 20x sales with decelerating growth", "the core demand driver is a capex cycle that has visibly peaked". Phrases like "AI demand might slow", "competition could increase", "it's risky", "the sector is cyclical" are NOT structural bear cases — answer false for those.
+If your best bear point is a truism that applies to half the market, both checks are false.
+Output ONLY raw JSON: {"checks":{"thesisBreaker":<b>,"structuralBearCase":<b>},"note":"<=15 words, the single most specific bear point","headline":"<8 words max>"}`,
   },
   {
     id: 'sector', name: 'ATLAS', emoji: '🌐', color: '#3B82F6',
