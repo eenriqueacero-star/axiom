@@ -1,4 +1,4 @@
-import { verdictStyle } from './stance';
+import { verdictStyle, stripMd } from './stance';
 
 const fmtPct = (n) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${(n * 100).toFixed(0)}%`);
 
@@ -35,10 +35,10 @@ export default function VerdictBanner({ analysis }) {
         </span>
       </div>
       {analysis.headline && (
-        <p className="text-[15px] font-semibold text-neutral-100 mt-2">{analysis.headline}</p>
+        <p className="text-[15px] font-semibold text-neutral-100 mt-2">{stripMd(analysis.headline)}</p>
       )}
       {analysis.rationale && (
-        <p className="text-sm text-neutral-300 mt-1 leading-relaxed">{analysis.rationale}</p>
+        <p className="text-sm text-neutral-300 mt-1 leading-relaxed">{stripMd(analysis.rationale)}</p>
       )}
       {(analysis.computed?.broken || analysis.computed?.downtrend || analysis.computed?.entryClear === false || analysis.computed?.concentrationBlock) && (
         <div className="flex flex-wrap gap-2 mt-3">

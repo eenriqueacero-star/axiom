@@ -1,4 +1,4 @@
-import { stanceStyle } from './stance';
+import { stanceStyle, stripMd } from './stance';
 
 const MARK = {
   true: { s: '✓', c: 'text-emerald-400' },
@@ -41,7 +41,7 @@ export default function AgentCard({ agent, result, loading }) {
       ) : result ? (
         <>
           {result.headline && (
-            <p className="text-sm text-neutral-200 mb-2">{result.headline}</p>
+            <p className="text-sm text-neutral-200 mb-2">{stripMd(result.headline)}</p>
           )}
           <ul className="space-y-1 mb-2">
             {checkKeys.map((k) => {
@@ -58,7 +58,7 @@ export default function AgentCard({ agent, result, loading }) {
             })}
           </ul>
           {result.note && (
-            <p className="text-[11px] text-haze italic">{result.note}</p>
+            <p className="text-[11px] text-haze italic">{stripMd(result.note)}</p>
           )}
         </>
       ) : (

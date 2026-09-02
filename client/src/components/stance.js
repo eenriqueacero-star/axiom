@@ -19,3 +19,16 @@ export const VERDICT = {
 
 export const stanceStyle = (s) => STANCE[s] || STANCE.CAUTION;
 export const verdictStyle = (v) => VERDICT[v] || VERDICT.HOLD;
+
+// AXIOM sometimes wraps headlines/rationale in markdown. We render plain text,
+// so strip the inline markers (**bold**, *italic*, `code`, leading #/>).
+export const stripMd = (s) =>
+  typeof s === 'string'
+    ? s
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/(?<!\*)\*(?!\*)([^*]+?)\*(?!\*)/g, '$1')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/^\s*#{1,6}\s+/gm, '')
+        .replace(/^\s*>\s?/gm, '')
+        .trim()
+    : s;

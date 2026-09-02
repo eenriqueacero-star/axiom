@@ -5,7 +5,7 @@ import {
 } from '../api';
 import BrokerLink from './BrokerLink';
 import StrategyCheck from './StrategyCheck';
-import { verdictStyle, stanceStyle } from './stance';
+import { verdictStyle, stanceStyle, stripMd } from './stance';
 
 const STANCE_STYLE = {
   ADD: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/5',
@@ -72,8 +72,8 @@ function DecisionDetail({ ticker, a, agents, onFull }) {
         </button>
       </div>
 
-      {a.headline && <p className="text-sm text-neutral-100 font-medium">{a.headline}</p>}
-      {a.rationale && <p className="text-xs text-neutral-300 leading-relaxed">{a.rationale}</p>}
+      {a.headline && <p className="text-sm text-neutral-100 font-medium">{stripMd(a.headline)}</p>}
+      {a.rationale && <p className="text-xs text-neutral-300 leading-relaxed">{stripMd(a.rationale)}</p>}
 
       {(c.broken || c.downtrend || c.concentrationBlock || entryNotClear) && (
         <div className="flex flex-wrap gap-1.5">
@@ -96,7 +96,7 @@ function DecisionDetail({ ticker, a, agents, onFull }) {
               <li key={ag.id} className="text-[11px] flex gap-2">
                 <span className="w-14 shrink-0 font-mono" style={{ color: ag.color }}>{ag.name}</span>
                 <span className="w-16 shrink-0 font-semibold" style={{ color: st.fg }}>{st.label}</span>
-                <span className="text-haze truncate">{r.note || r.headline || ''}</span>
+                <span className="text-haze truncate">{stripMd(r.note || r.headline || '')}</span>
               </li>
             );
           })}
@@ -105,7 +105,7 @@ function DecisionDetail({ ticker, a, agents, onFull }) {
 
       {a.catalyst && (
         <p className="text-[11px] text-neutral-400">
-          <span className="text-indigo-400">Catalyst:</span> {a.catalyst}
+          <span className="text-indigo-400">Catalyst:</span> {stripMd(a.catalyst)}
         </p>
       )}
       {a.ts && (
