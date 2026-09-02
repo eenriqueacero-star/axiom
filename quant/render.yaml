@@ -1,0 +1,21 @@
+# Axiom quant service — deploy as a 3rd Render service.
+# Render → New → Blueprint, point at this repo; or create a Web Service manually
+# with: root dir `quant`, runtime Python, and the build/start commands below.
+services:
+  - type: web
+    name: axiom-quant
+    runtime: python
+    rootDir: quant
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: TIINGO_TOKEN
+        sync: false          # set in the Render dashboard — ideally a SEPARATE token
+                             # from the one the Node app uses (metrics.js), so a
+                             # backtest fetch can't rate-limit live price facts.
+      - key: QUANT_API_KEY
+        generateValue: true  # Render generates it; copy the same value into the
+                             # axiom (Node) service as QUANT_API_KEY, and set
+                             # QUANT_URL there to this service's URL.

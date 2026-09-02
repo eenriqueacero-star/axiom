@@ -36,8 +36,27 @@ LIQUID_120 = sorted(set([
     "MDLZ", "GIS", "T", "VZ", "CMCSA", "NEE", "DUK", "SO", "D", "AEP",
 ]))
 
+# --- The Axiom rulebook (server/lib/strategy.js) ---
+
+# §1/§7 Core sleeve — quality compounders held for years. (Tiingo wants BRK-B.)
+CORE_LIST = ["MSFT", "GOOGL", "META", "AMZN", "COST", "V", "MA", "LLY", "UNH", "ISRG", "JPM", "BRK-B"]
+
+# Satellite sleeve — the growth / AI / semis pool the momentum sleeve rotates in.
+SATELLITE_POOL = sorted(set([
+    "NVDA", "AMD", "MU", "AVGO", "TSM", "ASML", "LRCX", "KLAC", "AMAT", "MRVL", "ARM", "SMCI",
+    "TSLA", "AAPL", "NFLX", "CRM", "NOW", "SNOW", "NET", "DDOG", "PANW", "CRWD", "PLTR",
+    "COIN", "MSTR", "SHOP", "UBER", "ABNB", "AXON", "VRT", "ANET", "CEG",
+]))
+
+SPLIT_CORE = 0.50            # §1 Core/Satellite target
+SECTOR_CAP = 0.35            # §3
+NAME_CAP_SATELLITE = 0.08    # §3
+ENTRY_MA_DAYS = 200         # §4 must be above the 200-day to hold/add
+
 # Benchmarks + risk-off proxy
 BENCHMARKS = ["SPY", "QQQ"]
 CASH_PROXY = "BIL"
+
+AXIOM_UNIVERSE = sorted(set(CORE_LIST + SATELLITE_POOL + BENCHMARKS + [CASH_PROXY]))
 
 UNIVERSE = sorted(set(HOLDINGS + DISCOVERY_POOL))  # kept for the biased run

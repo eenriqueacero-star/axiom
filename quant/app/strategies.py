@@ -126,3 +126,92 @@ def dual_momentum(
         rows[d] = w
 
     return pd.DataFrame(rows).T
+
+
+def _sma_gate(window: pd.DataFrame, picks: list[str], ma_days: int) -> list[str]:
+    """Keep only names currently above their `ma_days` SMA."""
+    if not picks or not ma_days:
+        return picks
+    ma = window[picks].rolling(ma_days).mean().iloc[-1]
+    return [t for t in picks if window[t].iloc[-1] > ma[t]]
+
+
+def core_quality_hold(
+    prices: pd.DataFrame,
+    core_list: list[str],
+    *,
+    entry_ma_days: int = 200,
+) -> pd.DataFrame:
+    """Axiom Core sleeve, mechanical: equal-weight the core names, rebalanced
+    monthly back to equal weight. A name below its 200-day average is dropped to
+    cash until it recovers (rulebook §4/§5's spirit, minus the LLM judgment).
+    """
+    core = [t for t in core_list if t in prices.columns]
+    warmup = entry_ma_days + 5
+    rebal = _month_ends(prices.index)
+    rebal = rebal[rebal >= prices.index[warmup]]
+
+    rows = {}
+    for d in rebal:
+        window = prices.loc[:d, core]
+        held = _sma_gate(window, core, entry_ma_days)
+        w = pd.Series(0.0, index=core)
+        if held:
+            w[held] = 1.0 / len(core)   # sizing is 1/N of the FULL sleeve — gated names sit in cash
+        rows[d] = w
+    return pd.DataFrame(rows).T
+
+
+def axiom_5050(
+    prices: pd.DataFrame,
+    core_list: list[str],
+    satellite_pool: list[str],
+    *,
+    split_core: float = 0.50,
+    lookback_days: int = 126,
+    top_n: int = 6,
+    entry_ma_days: int = 200,
+    name_cap_sat: float = 0.08,
+) -> pd.DataFrame:
+    """The mechanical skeleton of the whole Axiom rulebook: a 50/50 Core /
+    Satellite book, monthly rebalance.
+
+    - Core sleeve: equal-weight the core list, 200-day entry gate (§1/§4).
+    - Satellite sleeve: top-N by 6-month momentum from the growth pool, each
+      also above its 200-day average, capped at `name_cap_sat` of the whole
+      book (§3). Anything that fails the gates sits in cash.
+
+    No 'thesis broken' call — that's the judgment the council adds on top. This
+    is the honest floor: does the rules-only version beat just holding QQQ?
+    """
+    core = [t for t in core_list if t in prices.columns]
+    pool = [t for t in satellite_pool if t in prices.columns]
+    all_names = sorted(set(core + pool))
+    warmup = max(lookback_days, entry_ma_days) + 5
+    rebal = _month_ends(prices.index)
+    rebal = rebal[rebal >= prices.index[warmup]]
+    split_sat = 1.0 - split_core
+
+    rows = {}
+    for d in rebal:
+        window = prices.loc[:d]
+        w = pd.Series(0.0, index=all_names)
+
+        # --- core sleeve ---
+        core_held = _sma_gate(window[core], core, entry_ma_days)
+        for t in core_held:
+            w[t] += split_core / len(core)
+
+        # --- satellite sleeve ---
+        pw = window[pool]
+        mom = pw.iloc[-1] / pw.iloc[-lookback_days] - 1
+        valid = pw.iloc[-lookback_days].notna()
+        ranked = mom[valid].dropna().sort_values(ascending=False)
+        picks = _sma_gate(pw, list(ranked.index[:top_n]), entry_ma_days)
+        if picks:
+            each = min(split_sat / len(picks), name_cap_sat)
+            for t in picks:
+                w[t] += each
+
+        rows[d] = w
+    return pd.DataFrame(rows).T
