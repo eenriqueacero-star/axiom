@@ -217,12 +217,13 @@ const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
  * multipliers from the scorecard (default 1.0).
  */
 export function scoreCouncil(agents, holdings = null, facts = null, weights = {}) {
-  let earned = 0, possible = 0;
+  let earned = 0, possible = 0, answeredChecks = 0;
   for (const [agentId, checks] of Object.entries(CHECK_WEIGHTS)) {
     const mult = weights[agentId] ?? 1;
     for (const [key, w] of Object.entries(checks)) {
       const b = asBool(agents[agentId]?.checks?.[key]);
       if (b === null) continue;
+      answeredChecks++;
       const ww = w * mult;
       possible += ww;
       earned += b ? ww : -ww;
@@ -254,9 +255,13 @@ export function scoreCouncil(agents, holdings = null, facts = null, weights = {}
 
   const entryClear = asBool(trend.aboveLongTermAvg) !== false && asBool(trend.notOverextended) !== false;
 
+  // Not enough of the checks came back to form a real opinion — don't fake confidence.
+  const thinData = answeredChecks < 4;
+
   let verdict, conviction, why = null;
   if (broken) { verdict = 'EXIT'; conviction = 9; why = 'the thesis is broken'; }
   else if (downtrendExit) { verdict = 'EXIT'; conviction = 7; why = 'confirmed downtrend and the fundamentals are weak'; }
+  else if (thinData) { verdict = 'HOLD'; conviction = 3; why = 'not enough data came back to judge — treat as unrated'; }
   else if (score100 >= 68 && entryClear && !structuralBear) {
     verdict = 'ADD'; conviction = clamp(Math.round(score100 / 10), 6, 10);
   }
@@ -289,7 +294,7 @@ export function scoreCouncil(agents, holdings = null, facts = null, weights = {}
   }
 
   return {
-    verdict, conviction, score, score100, why,
+    verdict, conviction, score, score100, why, thinData,
     broken, downtrend: rawDowntrend, downtrendExit, entryClear, structuralBear,
     concentrationBlock, concentrationTrim, atCap, overCapX: Math.round(overCapX * 100) / 100,
   };
@@ -311,6 +316,11 @@ export function convictionTier(agents, sym) {
   const b = agents.bear?.checks || {};
   const s = agents.sector?.checks || {};
   const z = agents.sizing?.checks || {};
+
+  // Not enough of the quality/sector checks resolved to rate conviction at all.
+  const answered = [...Object.values(q), ...Object.values(s), ...Object.values(z), ...Object.values(b)]
+    .filter(v => asBool(v) !== null).length;
+  if (answered < 3) return { tier: null, tierScore: 0, tierReasons: ['not enough data to rate conviction'] };
   const n = agents.catalyst?.checks || {};
   const T = (v) => asBool(v) === true;
   const F = (v) => asBool(v) === false;
@@ -445,7 +455,8 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
       broken: computed.broken, downtrend: computed.downtrend, downtrendExit: computed.downtrendExit,
       entryClear: computed.entryClear, structuralBear: computed.structuralBear,
       concentrationBlock: computed.concentrationBlock, concentrationTrim: computed.concentrationTrim,
-      atCap: computed.atCap, overCapX: computed.overCapX, why: computed.why, score100: computed.score100,
+      atCap: computed.atCap, overCapX: computed.overCapX, why: computed.why,
+      score100: computed.score100, thinData: computed.thinData,
     },
     holdings: holdings && {
       held: holdings.held, positionPct: holdings.positionPct,

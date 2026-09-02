@@ -49,6 +49,7 @@ export default function VerdictBanner({ analysis }) {
       {(() => {
         const c = analysis.computed || {};
         const chips = [];
+        if (c.thinData) chips.push(['NOT ENOUGH DATA — UNRATED', '#7c8db5']);
         if (c.broken) chips.push(['THESIS BROKEN', '#f0685f']);
         if (c.downtrendExit) chips.push(['DOWNTREND + WEAK FUNDAMENTALS', '#f0685f']);
         else if (c.downtrend) chips.push(['IN A DOWNTREND', '#e0a33a']);

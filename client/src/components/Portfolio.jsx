@@ -189,6 +189,7 @@ const RED = '#f0685f', AMBER = '#e0a33a', COOL = '#7c8db5';
 /** Build the flag chips for a run — order matters, most serious first. */
 function verdictFlags(c) {
   const out = [];
+  if (c.thinData) out.push(['Not enough data — treat as unrated', COOL]);
   if (c.broken) out.push(['Thesis broken', RED]);
   if (c.downtrendExit) out.push(['Downtrend + weak fundamentals', RED]);
   else if (c.downtrend) out.push(['In a downtrend', AMBER]);
