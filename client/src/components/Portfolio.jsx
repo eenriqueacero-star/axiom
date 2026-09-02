@@ -118,6 +118,30 @@ function NextContribution({ onAnalyze }) {
   );
 }
 
+/* ----------------------------------------------------------------- movers */
+
+function Movers({ positions }) {
+  const ranked = positions
+    .filter((p) => p.changePct != null && p.value > 0)
+    .sort((a, b) => b.changePct - a.changePct);
+  if (ranked.length < 2) return null;
+  const show = ranked.length <= 4 ? ranked : [...ranked.slice(0, 2), ...ranked.slice(-2)];
+
+  return (
+    <div className="card p-4">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-haze mb-2">Today</p>
+      <ul className="space-y-1.5">
+        {show.map((p) => (
+          <li key={p.ticker} className="flex items-center justify-between text-[11px] font-mono tabular-nums">
+            <span className="text-neutral-300">{p.ticker}</span>
+            <span className={tone(p.changePct)}>{pctRaw(p.changePct)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /* --------------------------------------------------------------- verdict chip */
 
 function VerdictChip({ s, open, onClick }) {
@@ -244,10 +268,13 @@ function Holding({ p, weight, stance, isOpen, linked, editing, draft, setDraft, 
       {/* conviction rail */}
       <div className="absolute inset-y-0 left-0 w-[3px]" style={{ background: railColor }} />
 
-      <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5 pl-5">
-        <button onClick={onToggle} className="font-mono text-sm text-neutral-100 hover:text-indigo-300 w-[52px] text-left">
-          {p.ticker}
-        </button>
+      <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 pl-5">
+        <div className="w-[58px] shrink-0">
+          <button onClick={onToggle} className="font-mono text-sm text-neutral-100 hover:text-indigo-300 block text-left leading-tight">
+            {p.ticker}
+          </button>
+          <span className="font-mono text-[10px] text-ink-600">{p.shares} sh</span>
+        </div>
 
         <VerdictChip s={stance} open={isOpen} onClick={onToggle} />
 
@@ -276,26 +303,24 @@ function Holding({ p, weight, stance, isOpen, linked, editing, draft, setDraft, 
           {p.gainPct != null && <div className={tone(p.gainPct)}>{pct(p.gainPct)}</div>}
         </div>
 
-        {/* shares — editable line under the row for manual accounts */}
-        <div className="basis-full pl-[52px] text-[10px] font-mono text-ink-600">
-          {editing && !linked ? (
-            <input
-              autoFocus value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onBlur={onSaveShares}
-              onKeyDown={(e) => e.key === 'Enter' && onSaveShares()}
-              className="w-20 bg-ink-800 border border-ink-700 rounded px-1 text-neutral-200"
-              inputMode="decimal"
-            />
-          ) : linked ? (
-            <span>{p.shares} sh</span>
-          ) : (
-            <button onClick={onEdit} className="hover:text-haze">{p.shares ? `${p.shares} sh` : 'set shares'}</button>
-          )}
-          {!linked && (
+        {/* manual accounts: edit shares / remove, on their own line */}
+        {!linked && (
+          <div className="basis-full pl-[58px] text-[10px] font-mono text-ink-600">
+            {editing ? (
+              <input
+                autoFocus value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={onSaveShares}
+                onKeyDown={(e) => e.key === 'Enter' && onSaveShares()}
+                className="w-20 bg-ink-800 border border-ink-700 rounded px-1 text-neutral-200"
+                inputMode="decimal"
+              />
+            ) : (
+              <button onClick={onEdit} className="hover:text-haze">{p.shares ? 'edit shares' : 'set shares'}</button>
+            )}
             <button onClick={onRemove} className="ml-3 text-ink-600 hover:text-[#f0685f]" title="Remove holding">remove</button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {isOpen && detail}
@@ -501,7 +526,7 @@ export default function Portfolio({ onAnalyze }) {
                   {acct.cash > 0 && (
                     <li className="relative flex items-center gap-3 px-4 py-3 pl-5">
                       <div className="absolute inset-y-0 left-0 w-[3px] bg-ink-700" />
-                      <span className="font-mono text-sm text-neutral-400 w-[52px]">Cash</span>
+                      <span className="font-mono text-sm text-neutral-400 w-[58px]">Cash</span>
                       <span className="flex-1 text-[11px] text-ink-600">money market</span>
                       <span className="font-mono text-[11px] tabular-nums text-neutral-300">{money(acct.cash)}</span>
                     </li>
@@ -554,6 +579,7 @@ export default function Portfolio({ onAnalyze }) {
         <aside className="lg:sticky lg:top-20 self-start space-y-4">
           <StrategyCheck />
           <NextContribution onAnalyze={onAnalyze} />
+          <Movers positions={data.accounts.flatMap((a) => a.positions || [])} />
         </aside>
       </div>
     </div>
