@@ -24,7 +24,7 @@ const findTicker = (text) => {
 
 const SCHEDULE = [
   { job: 'Daily scout scan', cadence: 'Weekdays 9:05 AM ET', does: 'Runs the full council on every holding + the discovery pool; pushes ADD/EXIT alerts.' },
-  { job: 'Portfolio alerts', cadence: 'Every 30 min, market hours', does: 'Checks each holding vs your cost basis, pushes on big moves.' },
+  { job: 'Big-mover re-review', cadence: 'Every 30 min, market hours', does: 'Any holding down/up 8%+ on the day gets a fresh council run and a push with the new verdict.' },
   { job: 'Verdict scorecard', cadence: 'Weekdays 4:30 PM ET', does: 'Scores past verdicts against what the stock actually did.' },
 ];
 

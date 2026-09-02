@@ -213,6 +213,24 @@ function PositionLine({ econ }) {
   );
 }
 
+const fnum = (x, suffix = '%') => (x == null ? null : `${x >= 0 ? '' : ''}${x.toFixed(0)}${suffix}`);
+
+function FundamentalsLine({ f }) {
+  if (!f?.available) return null;
+  const bits = [
+    fnum(f.revGrowth) && `rev ${fnum(f.revGrowth)}`,
+    fnum(f.netMargin) && `net margin ${fnum(f.netMargin)}`,
+    f.debtToEquity != null && `D/E ${f.debtToEquity.toFixed(1)}`,
+    f.pe != null && `P/E ${f.pe.toFixed(0)}`,
+  ].filter(Boolean);
+  if (!bits.length) return null;
+  return (
+    <p className="text-[10px] font-mono text-ink-600">
+      <span className="uppercase tracking-wider">fundamentals </span>{bits.join('  ·  ')}
+    </p>
+  );
+}
+
 function DecisionDetail({ ticker, a, econ, agents, onFull }) {
   if (a === undefined) {
     return <div className="px-4 pb-3 pl-6 text-[11px] text-haze animate-pulse">Loading the council’s notes…</div>;
@@ -246,6 +264,7 @@ function DecisionDetail({ ticker, a, econ, agents, onFull }) {
       )}
 
       <PositionLine econ={econ || a.holdings?.econ} />
+      <FundamentalsLine f={a.fundamentals} />
 
       {a.headline && <p className="text-sm text-neutral-100 font-medium">{stripMd(a.headline)}</p>}
       {a.rationale && <p className="text-xs text-neutral-400 leading-relaxed">{stripMd(a.rationale)}</p>}

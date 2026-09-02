@@ -6,6 +6,7 @@ import { priceFacts } from './metrics.js';
 import { getPortfolio } from './portfolio.js';
 import { diagnose, sectorOf, sleeveOf, CAPS, CORE_LIST } from './strategy.js';
 import { relevantMemos, memoBlock } from './memos.js';
+import { fundamentals, fundamentalsBlock } from './fundamentals.js';
 import { db } from './firebase.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -56,7 +57,20 @@ export async function fetchLiveData(ticker) {
 
   const { facts, block: factsBlock } = await priceFacts(ticker, price).catch(() => ({ facts: { available: false }, block: '' }));
 
-  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
+  // On a big single-day move, pull the last ~2 days of headlines to the front so
+  // VEGA and NOVA reason about WHY it moved, not just that it did.
+  let moveBlock = '';
+  if (changePct != null && Math.abs(changePct) >= 5) {
+    const recent = news
+      .filter(a => Date.now() - a.ts < 2.5 * 864e5)
+      .slice(0, 3)
+      .map(a => `- ${a.headline} (${a.source})`)
+      .join('\n');
+    moveBlock = `\nWHY IT'S MOVING — ${ticker} is ${changePct >= 0 ? 'up' : 'down'} ${Math.abs(changePct).toFixed(1)}% today. `
+      + (recent ? `The freshest headlines:\n${recent}\n` : `No news explains the move — treat a move with no news behind it as noise, not a thesis change.\n`);
+  }
+
+  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${moveBlock}${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
   return { liveDataBlock, price, changePct, nextEarnings, news, facts };
 }
 
@@ -324,13 +338,15 @@ export function convictionTier(agents, sym) {
 // mode: 'scout' = fast cron pass; 'full' = conversational.
 export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
   const sym = ticker.toUpperCase().trim();
-  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings, memos] = await Promise.all([
+  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings, memos, fund] = await Promise.all([
     fetchLiveData(sym),
     buildHoldingsContext(uid, sym).catch(() => null),
     uid ? relevantMemos(uid, { ticker: sym }).catch(() => []) : Promise.resolve([]),
+    fundamentals(sym).catch(() => ({ available: false })),
   ]);
   const desk = memoBlock(memos);
-  const user = `${sym}: rule on it for the firm's book — does it belong, is the thesis broken, is the entry OK, can it be sized.\n${liveDataBlock}${holdings?.block || ''}${desk}\nReturn ONLY the JSON.`;
+  const fundBlock = fundamentalsBlock(fund);
+  const user = `${sym}: rule on it for the firm's book — does it belong, is the thesis broken, is the entry OK, can it be sized.\n${liveDataBlock}${fundBlock}${holdings?.block || ''}${desk}\nReturn ONLY the JSON.`;
 
   const agents = {};
   for (let i = 0; i < AGENTS.length; i++) {
@@ -376,7 +392,7 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
   try {
     const text = await callSynthesis({
       system: synthSys,
-      user: `${liveDataBlock}${holdings?.block || ''}\nRULEBOOK VERDICT: ${computed.verdict} (conviction ${computed.conviction}/10). `
+      user: `${liveDataBlock}${fundBlock}${holdings?.block || ''}\nRULEBOOK VERDICT: ${computed.verdict} (conviction ${computed.conviction}/10). `
         + `CONVICTION TIER: ${tier.tier}${tier.tierReasons.length ? ` (${tier.tierReasons.join('; ')})` : ''}. `
         + `WHAT DROVE IT: ${computed.why || (computed.verdict === 'ADD' ? 'strong council score, entry clear, room to add' : 'mixed checks, nothing decisive')}. `
         + `${computed.concentrationTrim ? 'This is a TRIM FOR SIZE — the business is fine, the position is just too big; say so plainly. ' : ''}`
@@ -390,6 +406,7 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
 
   return {
     ticker: sym, price, changePct, nextEarnings, facts,
+    fundamentals: fund?.available ? fund : null,
     news: news.map(a => ({
       headline: a.headline, url: a.url, source: a.source,
       date: new Date(a.ts).toISOString().slice(0, 10), ts: a.ts,
