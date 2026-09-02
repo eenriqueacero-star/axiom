@@ -5,7 +5,7 @@ import {
 } from '../api';
 import BrokerLink from './BrokerLink';
 import StrategyCheck from './StrategyCheck';
-import { verdictStyle, stanceStyle, stripMd } from './stance';
+import { verdictStyle, stanceStyle, tierStyle, stripMd } from './stance';
 
 const STANCE_STYLE = {
   ADD: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/5',
@@ -31,6 +31,21 @@ function StanceBadge({ s, onClick, open }) {
     >
       {s.verdict}{s.conviction != null ? ` ${s.conviction}` : ''}
     </button>
+  );
+}
+
+/** Conviction tier — the belief, shown next to the action badge. */
+function TierTag({ t }) {
+  const st = tierStyle(t);
+  if (!st) return null;
+  return (
+    <span
+      title={`Conviction: ${st.hint}`}
+      className="shrink-0 text-[9px] font-mono uppercase tracking-wider opacity-80"
+      style={{ color: st.fg }}
+    >
+      {st.label}
+    </span>
   );
 }
 
@@ -66,11 +81,19 @@ function DecisionDetail({ ticker, a, agents, onFull }) {
       <div className="flex items-baseline justify-between">
         <span className="text-xs font-bold tracking-wide" style={{ color: v.fg }}>
           {a.verdict} · {a.conviction}/10
+          {tierStyle(a.tier) && (
+            <span className="ml-2 font-mono text-[10px] tracking-wider" style={{ color: tierStyle(a.tier).fg }}>
+              {tierStyle(a.tier).label} CONVICTION
+            </span>
+          )}
         </span>
         <button onClick={onFull} className="text-[11px] text-indigo-400 hover:text-indigo-300">
           full analysis →
         </button>
       </div>
+      {a.tier && a.tierReasons?.length > 0 && (
+        <p className="text-[10px] text-haze -mt-2">{a.tierReasons.join(' · ')}</p>
+      )}
 
       {a.headline && <p className="text-sm text-neutral-100 font-medium">{stripMd(a.headline)}</p>}
       {a.rationale && <p className="text-xs text-neutral-300 leading-relaxed">{stripMd(a.rationale)}</p>}
@@ -335,6 +358,7 @@ export default function Portfolio({ onAnalyze }) {
                     </button>
 
                     <StanceBadge s={stances[p.ticker]} open={isOpen} onClick={() => toggleDetail(p.ticker)} />
+                    <TierTag t={stances[p.ticker]?.tier} />
 
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-neutral-400">

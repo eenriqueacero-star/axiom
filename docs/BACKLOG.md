@@ -43,7 +43,12 @@ Real lever = stock SELECTION + holding + low turnover. So:
   DCA → most-underweight eligible name. 12-name Core list proposed & approved.
   - [x] Config as data (`server/lib/strategy.js`) + `/api/strategy` +
     `/strategy/diagnostics` (pure math) + StrategyCheck panel on Portfolio.
-  - [ ] DCA suggestion engine ("this week's $X → NAME") + conviction tiers per holding.
+  - [x] DCA suggestion engine ("this week's $X → NAME") — `lib/dca.js`.
+  - [x] Conviction tiers per holding — `convictionTier()` in `lib/council.js`
+    (HIGH/MEDIUM/LOW/SPECULATIVE, code-computed from the binary checks). Stored on
+    every analysis, surfaced on Portfolio + the full analysis, fed back into the
+    next run's agent context, and gates the DCA engine (soured Core names get no
+    new money). See STRATEGY.md §7.
   - [ ] Backtest the rulebook vs QQQ/VOO on the quant service.
   - [ ] Wire the diagnostics into the council (agents see the flags).
 
@@ -77,10 +82,16 @@ Real lever = stock SELECTION + holding + low turnover. So:
     character, grounded in the user's real portfolio (sector %, mix, rulebook
     flags) + auto-detected ticker's live facts/news. Chat box in each Floor room.
     Verified: asked ATLAS "too concentrated in semis?" → "Yes, at 73%...".
-  - [~] Slice 5d: **per-holding stance badges DONE** (Portfolio view shows the
+  - [x] Slice 5d: **per-holding stance badges** (Portfolio view shows the
     council's latest ADD/HOLD/TRIM/EXIT + conviction on every owned name, via
-    `GET /api/council/stances`). Still open: conviction tiers, backtest the
-    rulebook vs QQQ on the quant service, autonomous nightly agent debate → idea cards.
+    `GET /api/council/stances`).
+  - [x] Slice 5e: **conviction tiers** (STRATEGY.md §7) + the daily scout now
+    runs the full council on every held name per user and writes to
+    `users/{uid}/analyses` (`scoutHoldingsForUser` in `jobs/scoutJob.js`) — before
+    this the scout only wrote a global `scoutResults` collection nothing read, so
+    stance badges only ever populated for manually-convened tickers.
+  - Still open: backtest the rulebook vs QQQ on the quant service, autonomous
+    nightly agent debate → idea cards.
 
 ## The Floor — 3D vision (user, 2026-09-01)
 User wants The Floor to be a real 3D house: agents living in it, a side menu of
@@ -209,7 +220,9 @@ content shown inside each 3D room.
   catalyst, "full analysis →" link. Backed by `GET /api/council/analysis/:ticker`
   (Firestore read, no LLM). The daily scout keeps verdicts fresh; `stale` flags
   names it missed / added since.
-- [ ] **Candidate ranking** — for the weekly DCA, rank which names best deserve new money.
+- [~] **Candidate ranking** — for the weekly DCA, rank which names best deserve new
+  money. `lib/dca.js` ranks Core names by underweight-gap, then conviction tier,
+  then sector. Open: extend to underweight HIGH-conviction *satellite* holdings.
 - [x] **Paste-import positions** — tolerant parser for broker copy-paste / CSV.
 - [x] **Portfolio polish** — cash-fund rows (SPAXX etc → cash), linked accounts
   read-only, rename accounts (nickname persists across sync), two-step delete

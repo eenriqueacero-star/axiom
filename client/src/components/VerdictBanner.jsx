@@ -1,4 +1,4 @@
-import { verdictStyle, stripMd } from './stance';
+import { verdictStyle, tierStyle, stripMd } from './stance';
 
 const fmtPct = (n) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${(n * 100).toFixed(0)}%`);
 
@@ -34,6 +34,12 @@ export default function VerdictBanner({ analysis }) {
           {analysis.verdict} · {analysis.conviction}/10
         </span>
       </div>
+      {tierStyle(analysis.tier) && (
+        <p className="text-[11px] font-mono uppercase tracking-wider mt-0.5" style={{ color: tierStyle(analysis.tier).fg }}>
+          {tierStyle(analysis.tier).label} conviction
+          {analysis.tierReasons?.length ? <span className="text-haze normal-case tracking-normal"> — {analysis.tierReasons.join(' · ')}</span> : null}
+        </p>
+      )}
       {analysis.headline && (
         <p className="text-[15px] font-semibold text-neutral-100 mt-2">{stripMd(analysis.headline)}</p>
       )}

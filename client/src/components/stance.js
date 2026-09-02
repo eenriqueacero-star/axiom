@@ -17,8 +17,18 @@ export const VERDICT = {
   SKIP:  { fg: '#e85c5c', bg: 'rgba(232,92,92,0.14)',  ring: 'rgba(232,92,92,0.4)' },
 };
 
+// Conviction tier — how strongly a name belongs in the long-term basket,
+// separate from the ADD/HOLD/TRIM/EXIT action. Set in code by the council.
+export const TIER = {
+  HIGH:        { fg: '#2fcb8a', label: 'HIGH',  hint: 'Quality compounder — own it, size toward the cap' },
+  MEDIUM:      { fg: '#8ba2c0', label: 'MED',   hint: 'Solid — hold at a normal weight' },
+  LOW:         { fg: '#c8922a', label: 'LOW',   hint: 'Thin conviction — hold what you have, don’t add' },
+  SPECULATIVE: { fg: '#e8922a', label: 'SPEC',  hint: 'A punt — broken thesis, story stock, or unsizable' },
+};
+
 export const stanceStyle = (s) => STANCE[s] || STANCE.CAUTION;
 export const verdictStyle = (v) => VERDICT[v] || VERDICT.HOLD;
+export const tierStyle = (t) => TIER[t] || null;
 
 // AXIOM sometimes wraps headlines/rationale in markdown. We render plain text,
 // so strip the inline markers (**bold**, *italic*, `code`, leading #/>).

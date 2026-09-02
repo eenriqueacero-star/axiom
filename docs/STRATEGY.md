@@ -105,10 +105,11 @@ headline that doesn't change the 5-year story, or boredom.
 ## 6. Where contributions go (the DCA engine)
 
 Each weekly/monthly contribution:
-1. List holdings **most underweight vs their target**, highest conviction first.
+1. List holdings **most underweight vs their target**, highest conviction tier first.
 2. Walk that list; buy the first one that **passes the §4 entry rule**.
 3. If that would breach a §3 cap, skip to the next.
-4. If none pass → ETF buffer this cycle.
+4. Skip any name the council has tagged **LOW or SPECULATIVE** (§7) — conviction's gone.
+5. If none pass → ETF buffer this cycle.
 
 This is how the portfolio diversifies and rebalances — no calendar rebalance,
 no forced sales.
@@ -117,18 +118,30 @@ no forced sales.
 
 ## 7. Conviction tiers
 
-Every holding is tagged, and the tag drives its target weight and whether it gets
-new money:
+Every holding carries a **conviction tier** — how strongly the name belongs in the
+long-term basket, separate from the ADD/HOLD/TRIM/EXIT *action*. The verdict is
+the move this cycle; the tier is the standing belief.
 
-| Tier | Core target | Satellite target | Gets new $? |
-|---|---|---|---|
-| **High** | 8–10% | 6–8% | Yes |
-| **Medium** | 4–7% | 3–5% | Yes, if underweight |
-| **Starter** | 2–4% | 1–3% | Only to reach starter weight |
-| **Exit** | → 0 | → 0 | No — trim/sell per §5 |
+The council sets it in code (`convictionTier()` in `server/lib/council.js`) from
+the same binary checks that drive the verdict — SAGE's quality trio, ATLAS sector
+health + policy, ZEN volatility, VEGA structural bear + thesis-breaker. Core-list
+names are floored at Medium unless the thesis is actually broken.
 
-Conviction is reviewed **quarterly** (or on a material event) — that's the
-council's "does it still belong?" job.
+| Tier | Meaning | Core target | Satellite target | Gets new $? |
+|---|---|---|---|---|
+| **HIGH** | Quality compounder — own it, size toward the cap | 8–10% | 6–8% | Yes |
+| **MEDIUM** | Solid — hold at a normal weight | 4–7% | 3–5% | Yes, if underweight |
+| **LOW** | Thin conviction — hold what you have | 2–4% | 1–3% | No |
+| **SPECULATIVE** | A punt — broken thesis, story stock, or unsizable vol | → trim | → trim | No |
+
+The tier is surfaced on the Portfolio view (next to the stance badge) and in the
+full analysis, is fed back into the next council run (the run reaffirms or
+deliberately changes it), and gates the DCA engine (§6): a Core name the council
+has soured on — LOW or SPECULATIVE — does **not** get fresh money even while
+underweight, and tier breaks ties between otherwise-equal candidates.
+
+It's refreshed every run — the daily scout now runs the full council on every
+held name, so tiers stay current without manual convening.
 
 ---
 

@@ -60,6 +60,8 @@ export async function buildStances(uid) {
     stances[t] = {
       verdict: r.verdict || null,
       conviction: r.conviction ?? null,
+      tier: r.tier || null,
+      tierReasons: r.tierReasons || [],
       headline: r.headline || '',
       ts: r.ts || null,
       stale: now - (r.ts || 0) > STALE_MS,
@@ -70,7 +72,11 @@ export async function buildStances(uid) {
   }
 
   const counts = { ADD: 0, HOLD: 0, TRIM: 0, EXIT: 0, none: 0 };
-  for (const s of Object.values(stances)) counts[s.verdict || 'none']++;
+  const tierCounts = { HIGH: 0, MEDIUM: 0, LOW: 0, SPECULATIVE: 0, none: 0 };
+  for (const s of Object.values(stances)) {
+    counts[s.verdict || 'none']++;
+    tierCounts[s.tier || 'none']++;
+  }
 
-  return { ready: true, ts: now, counts, stances };
+  return { ready: true, ts: now, counts, tierCounts, stances };
 }

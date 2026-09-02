@@ -4,8 +4,9 @@ import { safeJson } from './fetchJson.js';
 import { tickerNews } from './signals.js';
 import { priceFacts } from './metrics.js';
 import { getPortfolio } from './portfolio.js';
-import { diagnose, sectorOf, sleeveOf, CAPS } from './strategy.js';
+import { diagnose, sectorOf, sleeveOf, CAPS, CORE_LIST } from './strategy.js';
 import { relevantMemos, memoBlock } from './memos.js';
+import { db } from './firebase.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -92,6 +93,18 @@ async function buildHoldingsContext(uid, sym) {
     `- Core/Satellite mix: ${(d.sleeve.corePct * 100).toFixed(0)}% / ${(d.sleeve.satellitePct * 100).toFixed(0)}% (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100})`,
   ];
   if (d.flags.length) lines.push(`- Rulebook flags: ${d.flags.map(f => f.msg).join(' | ')}`);
+
+  // The council's standing conviction tier on this name (from its last run) — so
+  // a run reaffirms or deliberately changes the tier rather than starting blank.
+  try {
+    const snap = await db.collection(`users/${uid}/analyses`).where('ticker', '==', sym).get();
+    const prior = snap.docs.map(x => x.data()).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+    if (prior?.tier) {
+      lines.push(`- Council's standing conviction tier on ${sym}: ${prior.tier}`
+        + ` (set ${new Date(prior.ts).toISOString().slice(0, 10)}) — reaffirm it or change it on today's facts.`);
+    }
+  } catch { /* no prior run — fine */ }
+
   if (breachIfAdd) {
     lines.push(breachSector
       ? `- ADDING ${sym} IS BLOCKED: the ${sector} sector is already at/over its ${CAPS.sector * 100}% cap.`
@@ -171,6 +184,60 @@ export function scoreCouncil(agents, holdings = null) {
   };
 }
 
+/**
+ * Conviction tier — how strongly this name belongs in the long-term basket,
+ * independent of today's entry timing. Where the verdict (ADD/HOLD/TRIM/EXIT) is
+ * the *action*, the tier is the *belief*. Computed in code from the same binary
+ * checks, same as scoreCouncil — the LLM supplies judgment, code assigns the label.
+ *
+ * HIGH        — quality compounder, own it, size it up toward the cap
+ * MEDIUM      — solid, keep it at a normal weight
+ * LOW         — thin conviction; hold what you have, don't add
+ * SPECULATIVE — a punt: broken thesis, unprofitable/story-stock, or unsizable vol
+ */
+export function convictionTier(agents, sym) {
+  const q = agents.quality?.checks || {};
+  const b = agents.bear?.checks || {};
+  const s = agents.sector?.checks || {};
+  const z = agents.sizing?.checks || {};
+  const T = (v) => asBool(v) === true;
+  const F = (v) => asBool(v) === false;
+
+  let pts = 0;
+  const reasons = [];
+  const add = (n, msg) => { pts += n; if (msg) reasons.push(msg); };
+
+  if (T(q.qualityBusiness)) add(2, 'durable, moaty business');
+  if (F(q.qualityBusiness)) add(-2, 'business quality in doubt');
+  if (T(q.growthIntact)) add(1);
+  if (F(q.growthIntact)) add(-1, 'growth stalling');
+  if (F(q.noRedFlags)) add(-2, 'dilution / governance red flag');
+  if (T(s.sectorHealthy)) add(1);
+  if (F(s.sectorHealthy)) add(-1, 'sector rolling over');
+  if (F(s.noPolicyOverhang)) add(-1, 'policy overhang on the sector');
+  if (F(z.volatilityManageable)) add(-2, 'too volatile to size with conviction');
+  if (T(b.structuralBearCase)) add(-2, 'a real structural bear case');
+
+  const brokenThesis = T(b.thesisBreaker);
+
+  let tier;
+  if (brokenThesis) tier = 'SPECULATIVE';
+  else if (pts >= 4) tier = 'HIGH';
+  else if (pts >= 1) tier = 'MEDIUM';
+  else if (pts >= -2) tier = 'LOW';
+  else tier = 'SPECULATIVE';
+
+  // Core-list names are pre-vetted compounders — floor them at MEDIUM unless the
+  // thesis is actually broken.
+  if (!brokenThesis && CORE_LIST.includes(String(sym).toUpperCase())
+      && (tier === 'LOW' || tier === 'SPECULATIVE')) {
+    tier = 'MEDIUM';
+    reasons.unshift('Core-list compounder (floored at Medium)');
+  }
+
+  return { tier, tierScore: pts, tierReasons: reasons.slice(0, 3) };
+}
+
 // Run all agents against a ticker; the verdict is computed in code, then AXIOM
 // writes the human explanation of that (fixed) verdict.
 // mode: 'scout' = fast cron pass; 'full' = conversational.
@@ -209,6 +276,7 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
   }
 
   const computed = scoreCouncil(agents, holdings);
+  const tier = convictionTier(agents, sym);
 
   const checkLines = AGENTS.map(ag => {
     const r = agents[ag.id] || {};
@@ -227,6 +295,7 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
     const text = await callSynthesis({
       system: synthSys,
       user: `${liveDataBlock}${holdings?.block || ''}\nRULEBOOK VERDICT: ${computed.verdict} (conviction ${computed.conviction}/10). `
+        + `CONVICTION TIER: ${tier.tier}${tier.tierReasons.length ? ` (${tier.tierReasons.join('; ')})` : ''}. `
         + `${computed.broken ? 'Thesis flagged BROKEN. ' : ''}${computed.downtrend ? 'Confirmed downtrend. ' : ''}`
         + `${!computed.entryClear ? 'Entry not clear (trend/extension). ' : ''}`
         + `${computed.concentrationBlock ? 'The business is fine but ADD was blocked — the sector/name is already at its cap, so HOLD. ' : ''}\n`
@@ -245,6 +314,9 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
     agents,
     verdict: computed.verdict,
     conviction: computed.conviction,
+    tier: tier.tier,
+    tierScore: tier.tierScore,
+    tierReasons: tier.tierReasons,
     computed: {
       broken: computed.broken, downtrend: computed.downtrend, entryClear: computed.entryClear,
       concentrationBlock: computed.concentrationBlock, tally: computed.tally,
