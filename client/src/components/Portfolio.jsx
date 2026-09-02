@@ -254,6 +254,7 @@ function DecisionDetail({ ticker, a, econ, agents, onFull }) {
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-2 font-mono text-xs">
           <span className="font-semibold tracking-wide" style={{ color: v.fg }}>{a.verdict} · {a.conviction}/10</span>
+          {c.score100 != null && <span className="text-ink-600">council score {c.score100}</span>}
           {t && <span className="tracking-wider" style={{ color: t.fg }}>{t.label} conviction</span>}
         </div>
         <button onClick={onFull} className="shrink-0 text-[11px] text-indigo-400 hover:text-indigo-300">full analysis →</button>

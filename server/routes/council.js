@@ -13,6 +13,7 @@ import { buildFloorLive } from '../lib/floorLive.js';
 import { buildStances } from '../lib/stances.js';
 import { topDiscoveries } from '../lib/discovery.js';
 import { scoutHoldingsForUser } from '../jobs/scoutJob.js';
+import { agentWeights } from '../lib/agentWeights.js';
 import { relevantMemos, memoBlock, saveMemo } from '../lib/memos.js';
 import { markUserActivity } from '../lib/budget.js';
 
@@ -119,6 +120,9 @@ router.get('/floor', async (req, res) => {
     let discovery = [];
     try { discovery = await topDiscoveries(req.uid); } catch { /* non-fatal */ }
 
+    let weights = { weights: {}, detail: {}, scored: 0 };
+    try { weights = await agentWeights(req.uid); } catch { /* non-fatal */ }
+
     const perAgent = {};
     for (const ag of AGENTS) {
       const recent = [];
@@ -151,6 +155,8 @@ router.get('/floor', async (req, res) => {
       scored: stats.total,
       live,
       discovery,
+      weights: weights.weights,
+      weightDetail: weights.detail,
     });
   } catch (err) {
     res.status(502).json({ error: err.message });
@@ -179,6 +185,15 @@ router.post('/review', async (req, res) => {
     .catch((err) => console.error('[review] failed:', err.message))
     .finally(() => reviewing.delete(req.uid));
   res.json({ started: true });
+});
+
+// Per-agent vote weights, learned from the scorecard. Flat 1.0 until verdicts age.
+router.get('/agent-weights', async (req, res) => {
+  try {
+    res.json(await agentWeights(req.uid));
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // The latest stored council run for one ticker — the "why" behind its stance

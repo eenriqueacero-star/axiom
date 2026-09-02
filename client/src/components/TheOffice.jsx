@@ -364,7 +364,7 @@ export default function TheOffice({ onAnalyze, onExit }) {
             <button onClick={() => setSel(null)} className="text-[11px] text-haze hover:text-neutral-300">close</button>
           </div>
           <p className="text-[11px] uppercase tracking-wide text-haze">{selAgent.role}</p>
-          <AgentPanel agent={selAgent} data={floor.perAgent[selAgent.id]} onAnalyze={onAnalyze} />
+          <AgentPanel agent={selAgent} data={floor.perAgent[selAgent.id]} weight={floor.weights?.[selAgent.id]} onAnalyze={onAnalyze} />
           <AgentChat agent={selAgent} />
         </div>
       )}

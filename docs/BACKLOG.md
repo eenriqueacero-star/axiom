@@ -262,12 +262,27 @@ content shown inside each 3D room.
 
 ## Strategy / agent methodology
 
-- [ ] Give REX (technical agent) real price bars or code-computed trend, not a guess
-  from one price point.
-- [ ] Replace hard AND-gates with a weighted 0-100 score + threshold (smoother, tunable).
+- [x] Give REX real code-computed trend, not a guess — `metrics.js` priceFacts feeds
+  the COMPUTED FACTS block (trend vs 50/200-day, momentum, drawdown, `bars` count).
+- [x] **Verdict overhaul (2026-09-02, 3 tiers)** — see STRATEGY.md "How a verdict is
+  computed":
+  - **T1** — a downtrend forces EXIT only with weak fundamentals / structural bear /
+    underwater, else it's a TRIM; young stocks (<240 bars) can't trigger a downtrend
+    EXIT; concentration split into `atCap` (HOLD, "would add") vs `concentrationTrim`
+    (>1.5× own cap → real trim). VEGA's bear checks must name a mechanism. Tier
+    penalties retuned (growth ±2, vol −1, SPEC needs a condemned business).
+  - **T2** — real fundamentals (`lib/fundamentals.js`, Finnhub metrics) feed SAGE;
+    "why it's moving" news block on ≥5% days; `runMoveReview` re-runs the council on
+    any holding ±8% intraday (30-min cron) and pushes the new verdict.
+  - **T3** — `scoreCouncil` is now a **weighted 0-100 score** (`CHECK_WEIGHTS`), not a
+    hard AND-cascade; hard gates (broken/downtrend-exit/>1.5× cap) still override.
+    `lib/agentWeights.js` turns the scorecard into per-agent vote multipliers
+    (`GET /api/council/agent-weights`, shown on The Floor as "×N.NN vote") —
+    flat 1.0 until verdicts age enough to score.
 - [ ] Agent self-improvement loop — nightly: AXIOM reviews the week's calls vs price
   action, writes per-agent calibration notes prepended to prompts. (Mine TradingAgents'
-  reflection-loop design.)
+  reflection-loop design.) — partially covered by agentWeights; the prompt-side
+  calibration note is still open.
 - [ ] Majority-vote mode for forced re-runs (only if the 6h cache proves insufficient).
 - [ ] Backtest the current 4-Gate + Sell Protocol specifically vs buy-and-hold.
 
@@ -288,7 +303,7 @@ content shown inside each 3D room.
 - [x] **Verdict scorecard (v1)** — `lib/scorecard.js` scores past analyses vs actual
   price move; aggregate hit rate by verdict + agent stance; daily cron + Scorecard tab.
   Empty until verdicts age 7d — data accumulates from here.
-- [ ] **Scorecard → agent weights** — once there's data, tune AXIOM's agent weighting
+- [x] **Scorecard → agent weights** — `lib/agentWeights.js` (T3 above). Was: once there's data, tune AXIOM's agent weighting
   and drop/fix agents that don't predict. (The point of collecting it.)
 - [ ] **Paper-portfolio of AXIOM's own calls** — makes "the edge" a real number.
 - [~] Watchlist + auto-scan — the discovery sweep's `scoutResults` now feeds a

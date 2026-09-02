@@ -71,7 +71,7 @@ function DcaCard() {
   );
 }
 
-function Room({ agent, data, onAnalyze }) {
+function Room({ agent, data, weight, onAnalyze }) {
   const [open, setOpen] = useState(false);
   const last = data?.recent?.[0];
   const s = last ? stanceStyle(last.stance) : null;
@@ -99,7 +99,7 @@ function Room({ agent, data, onAnalyze }) {
 
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t hairline pt-3">
-          <AgentPanel agent={agent} data={data} onAnalyze={onAnalyze} />
+          <AgentPanel agent={agent} data={data} weight={weight} onAnalyze={onAnalyze} />
           <AgentChat agent={agent} />
         </div>
       )}
@@ -131,7 +131,7 @@ export default function TheFloor({ onAnalyze }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         {floor.agents.map((a) => (
-          <Room key={a.id} agent={a} data={floor.perAgent[a.id]} onAnalyze={onAnalyze} />
+          <Room key={a.id} agent={a} data={floor.perAgent[a.id]} weight={floor.weights?.[a.id]} onAnalyze={onAnalyze} />
         ))}
       </div>
 

@@ -187,7 +187,36 @@ months. If we're not beating QQQ, we simplify.
 | **ZEN** | §3 position & sector caps, §6 which name gets the contribution — using **real holdings** |
 | **NOVA** | catalysts / news that should move a conviction tier |
 | **ATLAS** | sector health — is a whole sector sleeve (e.g. semis) structurally rolling over |
-| **AXIOM** | combines the above into the verdict: **ADD / HOLD / TRIM / EXIT** + conviction tier |
+| **AXIOM** | explains the verdict — it does not choose it (the verdict is code, see §11) |
+
+---
+
+## 11. How a verdict is computed (`scoreCouncil` in `server/lib/council.js`)
+
+The six agents answer yes/no/null. **Code**, not the LLM, turns those into the
+verdict. AXIOM only writes the explanation.
+
+**Step 1 — weighted score (0–100).** Each check adds or subtracts its weight
+(`CHECK_WEIGHTS`): quality and growth count 3 each, trend/entry 1–2, sector 1–2,
+catalyst 1–2, sizing 1. A structural bear case from VEGA subtracts 4. The net is
+mapped to 0–100. Each agent's whole vote is scaled by its scorecard weight
+(`agentWeights.js`; 1.0 until its calls have been scored).
+
+**Step 2 — hard gates (these override the score, up or down):**
+- VEGA flags a *cited* thesis-breaker → **EXIT**.
+- Confirmed downtrend (below the 200-day **and** not making higher lows) **and**
+  the fundamentals are weak / there's a real structural bear case / the position
+  is >8% underwater → **EXIT**. A downtrend without any of those → **TRIM**, not a
+  sell. A name with <240 trading days of history can't trigger this at all.
+- Position is past **1.5× its own cap** (§3/§5) → **TRIM for size**, regardless of
+  how good the business is.
+
+**Step 3 — the score picks the rest:** ≥68 with a clear entry and room → **ADD**;
+<42 → **TRIM**; in between → **HOLD**. A good name with no room to add is a HOLD
+flagged **"at cap — would add otherwise"** (a positive), never a forced sell.
+
+Conviction (0–10) is derived from the score. The conviction *tier*
+(HIGH/MEDIUM/LOW/SPECULATIVE, §7) is a separate code function on the same checks.
 
 ---
 

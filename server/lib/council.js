@@ -7,6 +7,7 @@ import { getPortfolio } from './portfolio.js';
 import { diagnose, sectorOf, sleeveOf, CAPS, CORE_LIST } from './strategy.js';
 import { relevantMemos, memoBlock } from './memos.js';
 import { fundamentals, fundamentalsBlock } from './fundamentals.js';
+import { agentWeights } from './agentWeights.js';
 import { db } from './firebase.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -196,22 +197,37 @@ function agentStance(id, checks) {
   return 'CAUTION';
 }
 
+// How much each check moves the council score. Quality is the spine; the chart
+// and the catalyst matter less. A "yes" adds the weight, a "no" subtracts it,
+// "null" is skipped. `weights` (from the scorecard) scales an agent's whole vote.
+const CHECK_WEIGHTS = {
+  quality: { qualityBusiness: 3, growthIntact: 3, noRedFlags: 2 },
+  trend:   { aboveLongTermAvg: 2, notOverextended: 1, trendConstructive: 2 },
+  catalyst: { catalystAhead: 1, newsSupportsThesis: 2 },
+  sector:  { sectorHealthy: 2, noPolicyOverhang: 1 },
+  sizing:  { volatilityManageable: 1 },
+};
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
 /**
  * Compute the council verdict from the agents' binary checks — in code, no LLM.
- * `facts` (from priceFacts) lets us guard the trend rule for young stocks.
+ * A weighted 0-100 score sets ADD/HOLD/TRIM; hard gates (broken thesis, real
+ * downtrend + weak fundamentals, >1.5x cap) can still override it either way.
+ * `facts` guards the trend rule for young stocks; `weights` are per-agent
+ * multipliers from the scorecard (default 1.0).
  */
-export function scoreCouncil(agents, holdings = null, facts = null) {
-  let yes = 0, no = 0;
-  for (const id of POSITIVE_AGENTS) {
-    for (const v of Object.values(agents[id]?.checks || {})) {
-      const b = asBool(v);
-      if (b === true) yes++;
-      else if (b === false) no++;
+export function scoreCouncil(agents, holdings = null, facts = null, weights = {}) {
+  let earned = 0, possible = 0;
+  for (const [agentId, checks] of Object.entries(CHECK_WEIGHTS)) {
+    const mult = weights[agentId] ?? 1;
+    for (const [key, w] of Object.entries(checks)) {
+      const b = asBool(agents[agentId]?.checks?.[key]);
+      if (b === null) continue;
+      const ww = w * mult;
+      possible += ww;
+      earned += b ? ww : -ww;
     }
   }
-  const answered = yes + no;
-  const yesRate = answered ? yes / answered : 0.5;
-  const score = Math.round(yesRate * 10);
 
   const q = agents.quality?.checks || {};
   const trend = agents.trend?.checks || {};
@@ -221,14 +237,18 @@ export function scoreCouncil(agents, holdings = null, facts = null) {
   const structuralBear = asBool(bear.structuralBearCase) === true;
   const qualityFails = asBool(q.qualityBusiness) === false || asBool(q.growthIntact) === false;
 
+  // VEGA's structural bear case is a real drag on the score.
+  if (structuralBear) { earned -= 4 * (weights.bear ?? 1); possible += 4 * (weights.bear ?? 1); }
+
+  // -1..+1 → 0..100
+  const score01 = possible > 0 ? (earned / possible + 1) / 2 : 0.5;
+  const score100 = Math.round(score01 * 100);
+  const score = Math.round(score01 * 10); // legacy 0-10, kept for compatibility
+
   // A "downtrend" needs both: below the 200-day AND not making higher lows.
   const rawDowntrend = asBool(trend.aboveLongTermAvg) === false && asBool(trend.trendConstructive) === false;
-  // The 200-day rule is meaningless for a name with under ~1yr of history.
   const shortHistory = !facts?.available || (facts?.bars != null && facts.bars < 240);
   const underwater = holdings?.econ?.unrealPct != null && holdings.econ.unrealPct < -0.08;
-  // A downtrend only forces a SELL when the business is also in question, there's a
-  // real structural bear case, or the position is meaningfully underwater. Otherwise
-  // it's a "reduce, the chart's ugly" — a TRIM, not a dump of a name we still like.
   const downtrendExit = rawDowntrend && !shortHistory && (qualityFails || structuralBear || underwater);
   const downtrendTrim = rawDowntrend && !downtrendExit;
 
@@ -237,10 +257,14 @@ export function scoreCouncil(agents, holdings = null, facts = null) {
   let verdict, conviction, why = null;
   if (broken) { verdict = 'EXIT'; conviction = 9; why = 'the thesis is broken'; }
   else if (downtrendExit) { verdict = 'EXIT'; conviction = 7; why = 'confirmed downtrend and the fundamentals are weak'; }
-  else if (score >= 7 && entryClear && !structuralBear) { verdict = 'ADD'; conviction = score; }
+  else if (score100 >= 68 && entryClear && !structuralBear) {
+    verdict = 'ADD'; conviction = clamp(Math.round(score100 / 10), 6, 10);
+  }
   else if (downtrendTrim) { verdict = 'TRIM'; conviction = 6; why = 'downtrend — reduce, but the thesis still holds'; }
-  else if (score <= 3) { verdict = 'TRIM'; conviction = Math.max(5, 10 - score); why = 'the council score is weak'; }
-  else { verdict = 'HOLD'; conviction = 5; }
+  else if (score100 < 42) {
+    verdict = 'TRIM'; conviction = clamp(Math.round((100 - score100) / 10), 5, 9); why = 'the council score is weak';
+  }
+  else { verdict = 'HOLD'; conviction = clamp(Math.round(score100 / 10), 4, 7); }
 
   // ---- concentration (a portfolio-shape problem, kept distinct from a per-name judgement) ----
   let concentrationBlock = false, concentrationTrim = false, atCap = false;
@@ -250,7 +274,7 @@ export function scoreCouncil(agents, holdings = null, facts = null) {
   // Good name, no room to add → HOLD, not ADD. This is a *positive* signal, flagged as "at cap".
   if (verdict === 'ADD' && holdings?.breachIfAdd) {
     verdict = 'HOLD';
-    conviction = Math.max(conviction, 6);
+    conviction = clamp(conviction, 6, 8); // a would-add HOLD is a strong hold, but not a 10
     concentrationBlock = true;
   }
   if (holdings?.breachIfAdd && verdict === 'HOLD') atCap = true;
@@ -265,10 +289,9 @@ export function scoreCouncil(agents, holdings = null, facts = null) {
   }
 
   return {
-    verdict, conviction, score, why,
+    verdict, conviction, score, score100, why,
     broken, downtrend: rawDowntrend, downtrendExit, entryClear, structuralBear,
     concentrationBlock, concentrationTrim, atCap, overCapX: Math.round(overCapX * 100) / 100,
-    tally: { yes, no, answered },
   };
 }
 
@@ -338,11 +361,12 @@ export function convictionTier(agents, sym) {
 // mode: 'scout' = fast cron pass; 'full' = conversational.
 export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
   const sym = ticker.toUpperCase().trim();
-  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings, memos, fund] = await Promise.all([
+  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings, memos, fund, aw] = await Promise.all([
     fetchLiveData(sym),
     buildHoldingsContext(uid, sym).catch(() => null),
     uid ? relevantMemos(uid, { ticker: sym }).catch(() => []) : Promise.resolve([]),
     fundamentals(sym).catch(() => ({ available: false })),
+    uid ? agentWeights(uid).catch(() => ({ weights: {} })) : Promise.resolve({ weights: {} }),
   ]);
   const desk = memoBlock(memos);
   const fundBlock = fundamentalsBlock(fund);
@@ -372,7 +396,7 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
     if (i < AGENTS.length - 1) await sleep(mode === 'scout' ? 1200 : 600);
   }
 
-  const computed = scoreCouncil(agents, holdings, facts);
+  const computed = scoreCouncil(agents, holdings, facts, aw.weights);
   const tier = convictionTier(agents, sym);
 
   const checkLines = AGENTS.map(ag => {
@@ -421,7 +445,7 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
       broken: computed.broken, downtrend: computed.downtrend, downtrendExit: computed.downtrendExit,
       entryClear: computed.entryClear, structuralBear: computed.structuralBear,
       concentrationBlock: computed.concentrationBlock, concentrationTrim: computed.concentrationTrim,
-      atCap: computed.atCap, overCapX: computed.overCapX, why: computed.why, tally: computed.tally,
+      atCap: computed.atCap, overCapX: computed.overCapX, why: computed.why, score100: computed.score100,
     },
     holdings: holdings && {
       held: holdings.held, positionPct: holdings.positionPct,

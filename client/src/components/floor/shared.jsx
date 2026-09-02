@@ -13,14 +13,25 @@ export const pctS = (n) => (n == null ? '—' : `${Math.round(n * 100)}%`);
 
 // The checks / track-record / recent-calls block for one agent. Shared by the
 // card Floor and the 3D room overlay.
-export function AgentPanel({ agent, data, onAnalyze }) {
+export function AgentPanel({ agent, data, onAnalyze, weight }) {
   const hitRates = Object.entries(data?.stanceStats || {})
     .map(([st, v]) => ({ st, ...v }))
     .filter((v) => v.hitRate != null);
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-neutral-400">{agent.blurb}</p>
+      <div className="flex items-baseline gap-2">
+        <p className="text-xs text-neutral-400 flex-1">{agent.blurb}</p>
+        {weight != null && Math.abs(weight - 1) >= 0.05 && (
+          <span
+            className="shrink-0 font-mono text-[10px] tracking-wider"
+            title="Vote weight, learned from this agent's track record"
+            style={{ color: weight > 1 ? '#34d399' : '#e0a33a' }}
+          >
+            ×{weight.toFixed(2)} vote
+          </span>
+        )}
+      </div>
 
       <div>
         <p className="text-[10px] uppercase tracking-wide text-haze mb-1">Checks it owns</p>
