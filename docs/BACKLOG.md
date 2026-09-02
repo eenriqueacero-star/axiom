@@ -6,10 +6,21 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 ## 🔜 Up next (2026-09-02) — don't lose these
 
-1. **Backtest the rulebook vs QQQ/VOO.** The honesty check §9 demands. Quant service
-   (`quant/`) is scaffolded but not deployed. Needs: wrap as FastAPI (`/backtest`),
-   deploy as a 3rd Render service, wire the app + agents to call it. Highest value,
-   most infra. → gates the "keep building vs. just index" decision.
+1. **Backtest the rulebook vs QQQ** — mostly DONE (2026-09-02), one step left.
+   - [x] `axiom_5050` / `core_quality_hold` strategies (quant/app/strategies.py) —
+     the mechanical rulebook skeleton, no LLM.
+   - [x] FastAPI wrapper (`quant/app/main.py`): /health, /backtest, /holdings-now.
+   - [x] Node proxy (`server/lib/quant.js` + `routes/quant.js`, degrades when
+     QUANT_URL unset) + Scorecard "Strategy vs. the index" panel + the backtest
+     verdict is fed into the council synth.
+   - [x] `quant/render.yaml` + README.
+   - [ ] **USER: create the 3rd Render service** (blueprint or manual — see
+     quant/README.md), set TIINGO_TOKEN (separate token!) + QUANT_API_KEY, then
+     set QUANT_URL + QUANT_API_KEY on the `axiom` Node service.
+   - [ ] Re-run `python run_axiom.py` once the Tiingo hourly limit clears to
+     backfill the ~25 missing post-2009 tickers and get the honest full-universe
+     number (first partial run: Axiom-50/50 23.3% CAGR vs QQQ 19.3%, DD −27% vs
+     −35% — but on a winner-heavy reduced satellite pool).
 2. **Agent calibration notes** — IN PROGRESS this session. Weekly job: review scored
    verdicts, write a one-line per-agent calibration note prepended to its prompt
    (the qualitative half of self-improvement; `agentWeights.js` is the numeric half).

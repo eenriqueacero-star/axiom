@@ -9,6 +9,7 @@ import { relevantMemos, memoBlock } from './memos.js';
 import { fundamentals, fundamentalsBlock } from './fundamentals.js';
 import { agentWeights } from './agentWeights.js';
 import { getCalibration } from './calibration.js';
+import { backtestVerdictLine } from './quant.js';
 import { db } from './firebase.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -380,6 +381,7 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
     uid ? agentWeights(uid).catch(() => ({ weights: {} })) : Promise.resolve({ weights: {} }),
     uid ? getCalibration(uid).catch(() => ({ notes: {} })) : Promise.resolve({ notes: {} }),
   ]);
+  const btLine = await backtestVerdictLine().catch(() => '');
   const desk = memoBlock(memos);
   const fundBlock = fundamentalsBlock(fund);
   const user = `${sym}: rule on it for the firm's book — does it belong, is the thesis broken, is the entry OK, can it be sized.\n${liveDataBlock}${fundBlock}${holdings?.block || ''}${desk}\nReturn ONLY the JSON.`;
@@ -432,7 +434,7 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
   try {
     const text = await callSynthesis({
       system: synthSys,
-      user: `${liveDataBlock}${fundBlock}${holdings?.block || ''}\nRULEBOOK VERDICT: ${computed.verdict} (conviction ${computed.conviction}/10). `
+      user: `${liveDataBlock}${fundBlock}${holdings?.block || ''}${btLine}\nRULEBOOK VERDICT: ${computed.verdict} (conviction ${computed.conviction}/10). `
         + `CONVICTION TIER: ${tier.tier}${tier.tierReasons.length ? ` (${tier.tierReasons.join('; ')})` : ''}. `
         + `WHAT DROVE IT: ${computed.why || (computed.verdict === 'ADD' ? 'strong council score, entry clear, room to add' : 'mixed checks, nothing decisive')}. `
         + `${computed.concentrationTrim ? 'This is a TRIM FOR SIZE — the business is fine, the position is just too big; say so plainly. ' : ''}`

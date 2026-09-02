@@ -47,6 +47,9 @@ export const getMarketNews = () => request('/signals/market');
 export const getTickerNews = (ticker) => request(`/signals/${ticker.toUpperCase()}`);
 
 export const getScorecard = () => request('/scorecard');
+export const getBacktest = () => request('/quant/backtest');
+export const getQuantStatus = () => request('/quant/status');
+export const getQuantHoldings = () => request('/quant/holdings-now');
 
 export const getPortfolio = () => request('/portfolio');
 export const setHolding = (accountId, ticker, body) =>
