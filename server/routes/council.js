@@ -161,6 +161,24 @@ router.get('/stances', async (req, res) => {
   }
 });
 
+// The latest stored council run for one ticker — the "why" behind its stance
+// badge. Firestore read only; returns { found: false } when it's never been run.
+router.get('/analysis/:ticker', async (req, res) => {
+  const ticker = String(req.params.ticker || '').toUpperCase();
+  if (!TICKER_RE.test(ticker)) return res.status(400).json({ error: 'Invalid ticker' });
+  try {
+    const snap = await db.collection(`users/${req.uid}/analyses`)
+      .where('ticker', '==', ticker).get();
+    const latest = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+    if (!latest) return res.json({ found: false });
+    res.json({ found: true, analysis: latest });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 // Lean live-state poll for the 3D scene (no analyses/scorecard payload).
 router.get('/floor/live', async (req, res) => {
   try {

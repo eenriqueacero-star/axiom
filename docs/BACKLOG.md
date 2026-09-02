@@ -203,8 +203,12 @@ content shown inside each 3D room.
   verdict for every held ticker (pure Firestore, no LLM). `GET /api/council/stances`
   → `{ ready, counts, stances: { TICKER: { verdict, conviction, headline, ts, stale,
   broken, downtrend, analyzed } } }`. Portfolio.jsx shows a `StanceBadge` per row
-  (verdict + conviction, colour-coded, dimmed when stale, tap → full analysis). The
-  daily scout keeps verdicts fresh; `stale` flags names it missed / added since.
+  (verdict + conviction, colour-coded, dimmed when stale). Tapping the ticker or
+  badge expands `DecisionDetail` inline — verdict, AXIOM rationale, rulebook flags
+  (THESIS BROKEN / DOWNTREND / AT CAP / ENTRY NOT CLEAR), per-agent stance + note,
+  catalyst, "full analysis →" link. Backed by `GET /api/council/analysis/:ticker`
+  (Firestore read, no LLM). The daily scout keeps verdicts fresh; `stale` flags
+  names it missed / added since.
 - [ ] **Candidate ranking** — for the weekly DCA, rank which names best deserve new money.
 - [x] **Paste-import positions** — tolerant parser for broker copy-paste / CSV.
 - [x] **Portfolio polish** — cash-fund rows (SPAXX etc → cash), linked accounts

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount, renameAccount,
-  getStances,
+  getStances, getLatestAnalysis, getAgents,
 } from '../api';
 import BrokerLink from './BrokerLink';
 import StrategyCheck from './StrategyCheck';
+import { verdictStyle, stanceStyle } from './stance';
 
 const STANCE_STYLE = {
   ADD: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/5',
@@ -13,8 +14,8 @@ const STANCE_STYLE = {
   EXIT: 'text-red-400 border-red-500/30 bg-red-500/5',
 };
 
-/** The council's latest verdict on a held name. Tap → open the full analysis. */
-function StanceBadge({ s, onClick }) {
+/** The council's latest verdict on a held name. Tap → expand the reasoning. */
+function StanceBadge({ s, onClick, open }) {
   if (!s || !s.analyzed || !s.verdict) return null;
   const title = [
     s.headline,
@@ -25,10 +26,92 @@ function StanceBadge({ s, onClick }) {
       onClick={onClick}
       title={title || s.verdict}
       className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide
-        ${STANCE_STYLE[s.verdict] || STANCE_STYLE.HOLD} ${s.stale ? 'opacity-50' : ''}`}
+        ${STANCE_STYLE[s.verdict] || STANCE_STYLE.HOLD} ${s.stale ? 'opacity-50' : ''}
+        ${open ? 'ring-1 ring-current' : ''}`}
     >
       {s.verdict}{s.conviction != null ? ` ${s.conviction}` : ''}
     </button>
+  );
+}
+
+const FLAGS = [
+  ['broken', 'THESIS BROKEN', 'bg-red-500/15 text-red-400'],
+  ['downtrend', 'CONFIRMED DOWNTREND', 'bg-red-500/15 text-red-400'],
+  ['concentrationBlock', 'ALREADY AT CAP', 'bg-amber-500/15 text-amber-400'],
+];
+
+/**
+ * Why the council landed where it did — the latest stored run, shown inline
+ * under the holding. `a` is undefined while loading, null when never run.
+ */
+function DecisionDetail({ ticker, a, agents, onFull }) {
+  if (a === undefined) {
+    return <div className="px-4 pb-3 text-[11px] text-haze animate-pulse">Loading the council’s notes…</div>;
+  }
+  if (a === null) {
+    return (
+      <div className="px-4 pb-3 text-[11px] text-haze">
+        The council hasn’t run on {ticker} yet.{' '}
+        <button onClick={onFull} className="text-indigo-400 hover:text-indigo-300">Convene it →</button>
+      </div>
+    );
+  }
+
+  const v = verdictStyle(a.verdict);
+  const c = a.computed || {};
+  const entryNotClear = c.entryClear === false && !c.broken && !c.downtrend;
+
+  return (
+    <div className="px-4 pb-4 pt-1 space-y-3 border-t border-ink-800/60 bg-ink-900/30">
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs font-bold tracking-wide" style={{ color: v.fg }}>
+          {a.verdict} · {a.conviction}/10
+        </span>
+        <button onClick={onFull} className="text-[11px] text-indigo-400 hover:text-indigo-300">
+          full analysis →
+        </button>
+      </div>
+
+      {a.headline && <p className="text-sm text-neutral-100 font-medium">{a.headline}</p>}
+      {a.rationale && <p className="text-xs text-neutral-300 leading-relaxed">{a.rationale}</p>}
+
+      {(c.broken || c.downtrend || c.concentrationBlock || entryNotClear) && (
+        <div className="flex flex-wrap gap-1.5">
+          {FLAGS.filter(([k]) => c[k]).map(([k, label, cls]) => (
+            <span key={k} className={`text-[10px] font-semibold px-2 py-0.5 rounded ${cls}`}>{label}</span>
+          ))}
+          {entryNotClear && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-400">ENTRY NOT CLEAR</span>
+          )}
+        </div>
+      )}
+
+      {agents.length > 0 && a.agents && (
+        <ul className="space-y-1">
+          {agents.map((ag) => {
+            const r = a.agents[ag.id];
+            if (!r) return null;
+            const st = stanceStyle(r.stance);
+            return (
+              <li key={ag.id} className="text-[11px] flex gap-2">
+                <span className="w-14 shrink-0 font-mono" style={{ color: ag.color }}>{ag.name}</span>
+                <span className="w-16 shrink-0 font-semibold" style={{ color: st.fg }}>{st.label}</span>
+                <span className="text-haze truncate">{r.note || r.headline || ''}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {a.catalyst && (
+        <p className="text-[11px] text-neutral-400">
+          <span className="text-indigo-400">Catalyst:</span> {a.catalyst}
+        </p>
+      )}
+      {a.ts && (
+        <p className="text-[10px] text-ink-600">Council run {ago(a.ts)}</p>
+      )}
+    </div>
   );
 }
 
@@ -51,6 +134,9 @@ const ago = (ts) => {
 export default function Portfolio({ onAnalyze }) {
   const [data, setData] = useState(null);
   const [stances, setStances] = useState({});
+  const [agents, setAgents] = useState([]);
+  const [expanded, setExpanded] = useState(null);   // ticker
+  const [analyses, setAnalyses] = useState({});     // ticker -> analysis | null | undefined(loading)
   const [err, setErr] = useState('');
   const [editing, setEditing] = useState(null); // `${acct}:${ticker}`
   const [draft, setDraft] = useState('');
@@ -68,7 +154,18 @@ export default function Portfolio({ onAnalyze }) {
   useEffect(() => { load(); }, []);
   useEffect(() => {
     getStances().then((r) => setStances(r.stances || {})).catch(() => {});
+    getAgents().then(setAgents).catch(() => {});
   }, []);
+
+  const toggleDetail = (ticker) => {
+    setExpanded((cur) => (cur === ticker ? null : ticker));
+    if (!(ticker in analyses) && expanded !== ticker) {
+      setAnalyses((m) => ({ ...m, [ticker]: undefined }));
+      getLatestAnalysis(ticker)
+        .then((r) => setAnalyses((m) => ({ ...m, [ticker]: r.found ? r.analysis : null })))
+        .catch(() => setAnalyses((m) => ({ ...m, [ticker]: null })));
+    }
+  };
 
   const saveShares = async (acct, ticker) => {
     setEditing(null);
@@ -226,16 +323,18 @@ export default function Portfolio({ onAnalyze }) {
             <ul className="divide-y divide-ink-800 card overflow-hidden">
               {acct.positions.map((p) => {
                 const key = `${acct.id}:${p.ticker}`;
+                const isOpen = expanded === p.ticker;
                 return (
-                  <li key={p.ticker} className="px-4 py-3 flex items-center gap-3">
+                  <li key={p.ticker}>
+                   <div className="px-4 py-3 flex items-center gap-3">
                     <button
-                      onClick={() => onAnalyze(p.ticker)}
+                      onClick={() => toggleDetail(p.ticker)}
                       className="font-mono text-sm text-neutral-200 hover:text-indigo-400 w-16 text-left"
                     >
                       {p.ticker}
                     </button>
 
-                    <StanceBadge s={stances[p.ticker]} onClick={() => onAnalyze(p.ticker)} />
+                    <StanceBadge s={stances[p.ticker]} open={isOpen} onClick={() => toggleDetail(p.ticker)} />
 
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-neutral-400">
@@ -284,6 +383,15 @@ export default function Portfolio({ onAnalyze }) {
                         ✕
                       </button>
                     )}
+                   </div>
+                   {isOpen && (
+                     <DecisionDetail
+                       ticker={p.ticker}
+                       a={analyses[p.ticker]}
+                       agents={agents}
+                       onFull={() => onAnalyze(p.ticker)}
+                     />
+                   )}
                   </li>
                 );
               })}
