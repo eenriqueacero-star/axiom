@@ -1,7 +1,33 @@
 import { useEffect, useState } from 'react';
 import { getFloor, getDca } from '../api';
-import { stanceStyle, verdictStyle } from './stance';
+import { stanceStyle, verdictStyle, tierStyle } from './stance';
 import { AgentPanel, AgentChat, rel } from './floor/shared';
+
+/** Scout's best calls on names you don't own — the daily discovery sweep, ranked. */
+function DiscoveryCard({ items, onAnalyze }) {
+  if (!items?.length) return null;
+  return (
+    <div className="card p-4">
+      <p className="text-[11px] uppercase tracking-widest text-haze mb-2">Worth a look — scout picks you don’t own</p>
+      <ul className="space-y-1">
+        {items.map((r) => {
+          const v = verdictStyle(r.verdict);
+          const t = tierStyle(r.tier);
+          return (
+            <li key={r.ticker}>
+              <button onClick={() => onAnalyze(r.ticker)} className="w-full flex items-center gap-2 text-left py-1 hover:bg-ink-850 rounded px-1">
+                <span className="font-mono text-sm text-neutral-200 w-14">{r.ticker}</span>
+                <span className="text-xs font-semibold shrink-0" style={{ color: v.fg }}>{r.verdict} {r.conviction}/10</span>
+                {t && <span className="font-mono text-[10px] tracking-wider shrink-0" style={{ color: t.fg }}>{t.label}</span>}
+                <span className="text-[11px] text-haze truncate flex-1">{r.headline}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 function DcaCard() {
   const [d, setD] = useState(null);
@@ -101,6 +127,7 @@ export default function TheFloor({ onAnalyze }) {
       </div>
 
       <DcaCard />
+      <DiscoveryCard items={floor.discovery} onAnalyze={onAnalyze} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         {floor.agents.map((a) => (

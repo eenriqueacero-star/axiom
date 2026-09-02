@@ -11,6 +11,7 @@ import { getPortfolio } from '../lib/portfolio.js';
 import { diagnose } from '../lib/strategy.js';
 import { buildFloorLive } from '../lib/floorLive.js';
 import { buildStances } from '../lib/stances.js';
+import { topDiscoveries } from '../lib/discovery.js';
 import { relevantMemos, memoBlock, saveMemo } from '../lib/memos.js';
 import { markUserActivity } from '../lib/budget.js';
 
@@ -114,6 +115,9 @@ router.get('/floor', async (req, res) => {
     let live = { ready: false };
     try { live = await buildFloorLive(req.uid); } catch { /* non-fatal */ }
 
+    let discovery = [];
+    try { discovery = await topDiscoveries(req.uid); } catch { /* non-fatal */ }
+
     const perAgent = {};
     for (const ag of AGENTS) {
       const recent = [];
@@ -145,6 +149,7 @@ router.get('/floor', async (req, res) => {
       })),
       scored: stats.total,
       live,
+      discovery,
     });
   } catch (err) {
     res.status(502).json({ error: err.message });

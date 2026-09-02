@@ -220,9 +220,10 @@ content shown inside each 3D room.
   catalyst, "full analysis →" link. Backed by `GET /api/council/analysis/:ticker`
   (Firestore read, no LLM). The daily scout keeps verdicts fresh; `stale` flags
   names it missed / added since.
-- [~] **Candidate ranking** — for the weekly DCA, rank which names best deserve new
-  money. `lib/dca.js` ranks Core names by underweight-gap, then conviction tier,
-  then sector. Open: extend to underweight HIGH-conviction *satellite* holdings.
+- [x] **Candidate ranking** — for the weekly DCA, `lib/dca.js` ranks Core names by
+  underweight-gap, then conviction tier, then sector; and now also considers
+  underweight HIGH/MEDIUM-conviction *satellite* holdings against a §7 tier target
+  weight, so a high-conviction growth name can win the contribution too.
 - [x] **Paste-import positions** — tolerant parser for broker copy-paste / CSV.
 - [x] **Portfolio polish** — cash-fund rows (SPAXX etc → cash), linked accounts
   read-only, rename accounts (nickname persists across sync), two-step delete
@@ -278,7 +279,10 @@ content shown inside each 3D room.
 - [ ] **Scorecard → agent weights** — once there's data, tune AXIOM's agent weighting
   and drop/fix agents that don't predict. (The point of collecting it.)
 - [ ] **Paper-portfolio of AXIOM's own calls** — makes "the edge" a real number.
-- [ ] Watchlist + auto-scan (scout job exists) → daily conviction-ranked digest push.
+- [~] Watchlist + auto-scan — the discovery sweep's `scoutResults` now feeds a
+  "Worth a look — scout picks you don't own" card on The Floor (`lib/discovery.js`
+  `topDiscoveries`, ranked ADD-first then conviction, held names excluded, tap →
+  Analyze). Open: the daily digest *push* (deferred with the other automated fns).
 - [ ] Portfolio / accounts view (Edwin / Dad / Bro holdings already in definitions.js).
 - [ ] Rulings log (user decisions + rationale) — CRUD, was in old the-council.
 - [ ] Quotes / news panel per ticker.

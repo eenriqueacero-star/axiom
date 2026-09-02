@@ -2,14 +2,15 @@
  * DCA engine — where should this cycle's contribution go?
  * Rulebook §6: the most-underweight eligible name that passes the entry rule.
  *
- * Targets (until per-holding conviction tiers exist):
+ * Targets:
  *  - Core names: equal share of the Core sleeve (SPLIT.core / CORE_LIST.length)
- *  - Existing satellite holdings: their CURRENT weight (hold, don't grow)
- *  - Anything else: 0
- * So new money naturally flows into the under-built Core = diversification.
+ *  - Satellite holdings the council rates HIGH/MEDIUM conviction: a tier-based
+ *    target weight (§7) — so a high-conviction satellite name you're underweight
+ *    can win the contribution too, not only Core.
+ *  - Everything else (incl. LOW/SPECULATIVE satellites): 0
  */
 import { getPortfolio } from './portfolio.js';
-import { diagnose, sectorOf, SPLIT, CORE_LIST, BUFFER_ETF, CAPS, ENTRY } from './strategy.js';
+import { diagnose, sectorOf, sleeveOf, SPLIT, CORE_LIST, BUFFER_ETF, CAPS, ENTRY } from './strategy.js';
 import { priceFacts } from './metrics.js';
 import { buildStances } from './stances.js';
 import { ACCOUNTS } from '../agents/definitions.js';
@@ -17,6 +18,8 @@ import { ACCOUNTS } from '../agents/definitions.js';
 const TIER_RANK = { HIGH: 3, MEDIUM: 2, LOW: 1, SPECULATIVE: 0 };
 // The council has to have actively lost conviction (not just "no run yet") to veto a pick.
 const TIER_BLOCKS = new Set(['LOW', 'SPECULATIVE']);
+// §7 target weight for a satellite name by its conviction tier (mid of the band).
+const SATELLITE_TARGET = { HIGH: 0.07, MEDIUM: 0.04 };
 
 async function entryCheck(ticker) {
   try {
@@ -54,13 +57,26 @@ export async function dcaSuggestion(uid) {
   const stances = await buildStances(uid).catch(() => ({ stances: {} }));
   const tierOf = (t) => stances.stances?.[t]?.tier || null;
 
-  // Build the candidate list: Core names (underweight vs equal share) + note satellites.
-  const candidates = CORE_LIST.map(ticker => {
+  // Core names — underweight vs an equal share of the Core sleeve.
+  const coreCandidates = CORE_LIST.map(ticker => {
     const current = currentOf(ticker);
     const gap = Math.max(0, coreTarget - current);
     const tier = tierOf(ticker);
     return { ticker, sleeve: 'core', sector: sectorOf(ticker), current, target: coreTarget, gap, tier };
-  }).filter(c => c.gap > 0.002);
+  });
+
+  // Satellite holdings the council rates HIGH/MEDIUM and you're underweight their
+  // §7 tier target — a high-conviction growth name can win the contribution too.
+  const satelliteCandidates = d.names
+    .filter(n => sleeveOf(n.ticker) === 'satellite')
+    .map(n => {
+      const tier = tierOf(n.ticker);
+      const target = SATELLITE_TARGET[tier] || 0;
+      return { ticker: n.ticker, sleeve: 'satellite', sector: sectorOf(n.ticker), current: n.pct, target, gap: Math.max(0, target - n.pct), tier };
+    })
+    .filter(c => c.target > 0);
+
+  const candidates = [...coreCandidates, ...satelliteCandidates].filter(c => c.gap > 0.002);
 
   // Rank: biggest gap first; then higher council conviction; then sectors we hold least of.
   const sectorPct = Object.fromEntries(d.sectors.map(s => [s.name, s.pct]));
@@ -89,15 +105,16 @@ export async function dcaSuggestion(uid) {
     accounts: Object.values(ACCOUNTS).map(a => ({ label: a.label, dca: a.dca, note: a.dcaNote })),
     pick: pick
       ? {
-          ticker: pick.ticker, sector: pick.sector, tier: pick.tier,
-          reason: `Most underweight Core name that's ${pick.entryWhy}`
+          ticker: pick.ticker, sector: pick.sector, tier: pick.tier, sleeve: pick.sleeve,
+          reason: `Most underweight ${pick.sleeve === 'core' ? 'Core' : 'high-conviction satellite'} name `
+            + `that's ${pick.entryWhy}`
             + `${pick.tier ? `, council conviction ${pick.tier}` : ''}. `
             + `You hold ${(pick.current * 100).toFixed(1)}%, target ~${(pick.target * 100).toFixed(1)}%.`,
         }
       : null,
     buffer: pick ? null : { etf: BUFFER_ETF, reason: 'Nothing eligible passed the entry rule this cycle — park it in the buffer and wait.' },
     ranked: ranked.map(r => ({
-      ticker: r.ticker, sector: r.sector,
+      ticker: r.ticker, sector: r.sector, sleeve: r.sleeve,
       current: r.current, target: r.target,
       entryOk: r.entryOk, entryWhy: r.entryWhy, sectorRoom: r.sectorRoom,
       tier: r.tier, tierOk: r.tierOk,
