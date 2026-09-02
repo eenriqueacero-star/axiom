@@ -45,30 +45,29 @@ export default function StrategyCheck() {
           </span>
         </div>
         <div className="relative h-2 rounded-full bg-ink-800 overflow-hidden">
-          <div className="absolute inset-y-0 left-0 bg-indigo-400/70" style={{ width: `${d.sleeve.corePct * 100}%` }} />
-          {/* target marker */}
-          <div className="absolute inset-y-0 w-px bg-neutral-100/40" style={{ left: `${d.sleeve.targetCore * 100}%` }} />
+          <div className="absolute inset-y-0 left-0 bg-indigo-400/75" style={{ width: `${d.sleeve.corePct * 100}%` }} />
+          <div className="absolute inset-y-0 right-0 bg-[#7c8db5]/25" style={{ width: `${d.sleeve.satellitePct * 100}%` }} />
+          <div className="absolute -inset-y-0.5 w-px bg-neutral-100/50" style={{ left: `${d.sleeve.targetCore * 100}%` }} />
         </div>
       </div>
 
-      {/* sector concentration */}
+      {/* sector concentration — each bar carries the 35% cap line */}
       <div className="space-y-1.5">
         {sectors.map((s) => {
           const over = s.pct > 0.35;
           return (
             <div key={s.name} className="flex items-center gap-2 text-[11px]">
               <span className="w-32 truncate text-neutral-400">{s.name}</span>
-              <div className="flex-1 h-1.5 rounded-full bg-ink-800 overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${Math.min(s.pct * 100, 100)}%`, background: over ? '#e0a33a' : '#6366f1aa' }}
-                />
+              <div className="relative flex-1 h-1.5 rounded-full bg-ink-800 overflow-hidden">
+                <div className="h-full rounded-full"
+                  style={{ width: `${Math.min(s.pct * 100, 100)}%`, background: over ? '#e0a33a' : '#6366f1aa' }} />
+                <div className="absolute inset-y-0 w-px bg-neutral-100/25" style={{ left: '35%' }} />
               </div>
               <span className={`w-9 text-right font-mono ${over ? 'text-amber-400' : 'text-neutral-400'}`}>{pct(s.pct)}</span>
             </div>
           );
         })}
-        <p className="text-[10px] text-ink-600 pt-0.5">Vertical line = 35% sector cap · marker on the bar = target mix</p>
+        <p className="text-[10px] text-ink-600 pt-0.5">Hairline marks the cap: 35% per sector, 50% target core.</p>
       </div>
 
       {/* cap breaches — collapsed to a count, one plain line each when open */}

@@ -26,7 +26,7 @@ const ago = (ts) => {
   return `${Math.round(s / 86400)}d ago`;
 };
 
-const UNRATED = '#3a3a42';
+const UNRATED = '#565661';
 
 /* ------------------------------------------------------ conviction strip */
 
@@ -56,13 +56,19 @@ function ConvictionStrip({ rows, total }) {
     { key: 'unrated', v: buckets.unrated, color: UNRATED, label: 'UNRATED' },
   ].filter((s) => s.v > 0);
 
+  const rated = 1 - buckets.unrated / total;
+
   return (
     <div className="mt-5">
-      <div className="flex h-2 w-full overflow-hidden rounded-full bg-ink-800">
+      <div className="flex items-baseline justify-between mb-1.5">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-haze">The council’s read</p>
+        <p className="text-[11px] font-mono text-ink-600">{Math.round(rated * 100)}% of the book rated</p>
+      </div>
+      <div className="flex h-3 w-full gap-px overflow-hidden rounded-md bg-ink-800">
         {segs.map((s) => (
           <div
             key={s.key}
-            className="h-full first:rounded-l-full last:rounded-r-full transition-[width] duration-500"
+            className="h-full transition-[width] duration-500"
             style={{ width: `${(s.v / total) * 100}%`, background: s.color }}
             title={`${s.label} — ${money(s.v)} (${Math.round((s.v / total) * 100)}%)`}
           />
@@ -70,15 +76,15 @@ function ConvictionStrip({ rows, total }) {
       </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
         {segs.map((s) => (
-          <span key={s.key} className="flex items-center gap-1.5 text-haze">
-            <span className="h-2 w-2 rounded-[2px]" style={{ background: s.color }} />
-            <span className="text-neutral-300">{s.label}</span>
-            <span className="font-mono text-ink-600">{Math.round((s.v / total) * 100)}%</span>
+          <span key={s.key} className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: s.color }} />
+            <span className="text-neutral-200">{s.label}</span>
+            <span className="font-mono text-haze">{Math.round((s.v / total) * 100)}%</span>
           </span>
         ))}
         {(flags.trim > 0 || flags.exit > 0) && (
-          <span className="font-mono text-[#e0a33a]">
-            council flags{flags.trim ? ` ${flags.trim} trim` : ''}{flags.exit ? `${flags.trim ? ',' : ''} ${flags.exit} exit` : ''}
+          <span className="font-mono text-[#e0a33a] ml-auto">
+            {flags.trim ? `${flags.trim} flagged to trim` : ''}{flags.trim && flags.exit ? ' · ' : ''}{flags.exit ? `${flags.exit} to exit` : ''}
           </span>
         )}
       </div>
@@ -208,18 +214,24 @@ function Holding({ p, weight, stance, isOpen, linked, editing, draft, setDraft, 
     <li className="relative">
       {/* weight of the book, drawn behind the row */}
       <div className="absolute inset-y-0 left-0 pointer-events-none"
-        style={{ width: `${Math.min(weight * 100, 100)}%`, background: railColor, opacity: 0.06 }} />
+        style={{ width: `${Math.min(weight * 100, 100)}%`, background: `linear-gradient(90deg, ${railColor}1f, ${railColor}00)` }} />
       {/* conviction rail */}
       <div className="absolute inset-y-0 left-0 w-[3px]" style={{ background: railColor }} />
 
-      <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 pl-5">
+      <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5 pl-5">
         <button onClick={onToggle} className="font-mono text-sm text-neutral-100 hover:text-indigo-300 w-[52px] text-left">
           {p.ticker}
         </button>
 
         <VerdictChip s={stance} open={isOpen} onClick={onToggle} />
 
-        <div className="flex-1 min-w-0" />
+        {/* the council's one line, filling the row */}
+        <button onClick={onToggle} className="flex-1 min-w-0 text-left hidden md:block">
+          <span className="text-[11px] text-haze truncate block hover:text-neutral-400">
+            {stance?.analyzed && stance?.headline ? stripMd(stance.headline) : ''}
+          </span>
+        </button>
+        <div className="flex-1 min-w-0 md:hidden" />
 
         {/* price + day move */}
         <div className="font-mono text-[11px] tabular-nums text-right w-[92px]">
