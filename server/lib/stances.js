@@ -17,6 +17,15 @@ const STALE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 // badge prompt a fresh run instead of showing a stance the rulebook can't mean.
 const VERDICTS = new Set(['ADD', 'HOLD', 'TRIM', 'EXIT']);
 
+// First sentence of the AXIOM rationale, markdown stripped — a one-line "why"
+// for the Portfolio rows without shipping the whole paragraph.
+function firstSentence(text) {
+  if (!text) return '';
+  const clean = String(text).replace(/\*\*(.+?)\*\*/g, '$1').replace(/[*`_#>]/g, '').trim();
+  const m = clean.match(/^.*?[.!?](?=\s|$)/);
+  return (m ? m[0] : clean).slice(0, 150).trim();
+}
+
 /** Distinct tickers the user holds right now (cash sweeps already stripped by getPortfolio). */
 function heldTickers(portfolio) {
   const set = new Set();
@@ -63,6 +72,7 @@ export async function buildStances(uid) {
       tier: r.tier || null,
       tierReasons: r.tierReasons || [],
       headline: r.headline || '',
+      summary: firstSentence(r.rationale) || r.headline || '',
       ts: r.ts || null,
       stale: now - (r.ts || 0) > STALE_MS,
       broken: !!r.computed?.broken,

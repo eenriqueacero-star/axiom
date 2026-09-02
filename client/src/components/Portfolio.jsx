@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount, renameAccount,
-  getStances, getLatestAnalysis, getAgents,
+  getStances, getLatestAnalysis, getAgents, getDca,
 } from '../api';
 import BrokerLink from './BrokerLink';
 import StrategyCheck from './StrategyCheck';
@@ -88,6 +88,32 @@ function ConvictionStrip({ rows, total }) {
           </span>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------- next contribution */
+
+function NextContribution({ onAnalyze }) {
+  const [d, setD] = useState(null);
+  useEffect(() => { getDca().then(setD).catch(() => setD(false)); }, []);
+  if (!d || d.ready === false) return null;
+
+  const target = d.pick || (d.buffer && { ticker: d.buffer.etf, reason: d.buffer.reason, buffer: true });
+  if (!target) return null;
+
+  return (
+    <div className="card p-4">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-haze">Next contribution</p>
+      <button
+        onClick={() => onAnalyze(target.ticker)}
+        className="mt-2 font-mono text-lg tracking-tight hover:text-indigo-300"
+        style={{ color: target.buffer ? '#e0a33a' : '#34d399' }}
+      >
+        {target.ticker}
+        {target.buffer && <span className="ml-1.5 text-[10px] uppercase tracking-wider text-haze">buffer</span>}
+      </button>
+      <p className="mt-1 text-[11px] text-haze leading-snug">{target.reason}</p>
     </div>
   );
 }
@@ -214,7 +240,7 @@ function Holding({ p, weight, stance, isOpen, linked, editing, draft, setDraft, 
     <li className="relative">
       {/* weight of the book, drawn behind the row */}
       <div className="absolute inset-y-0 left-0 pointer-events-none"
-        style={{ width: `${Math.min(weight * 100, 100)}%`, background: `linear-gradient(90deg, ${railColor}1f, ${railColor}00)` }} />
+        style={{ width: `${Math.min(weight * 100, 100)}%`, background: `linear-gradient(90deg, ${railColor}33, ${railColor}00)` }} />
       {/* conviction rail */}
       <div className="absolute inset-y-0 left-0 w-[3px]" style={{ background: railColor }} />
 
@@ -228,7 +254,7 @@ function Holding({ p, weight, stance, isOpen, linked, editing, draft, setDraft, 
         {/* the council's one line, filling the row */}
         <button onClick={onToggle} className="flex-1 min-w-0 text-left hidden md:block">
           <span className="text-[11px] text-haze truncate block hover:text-neutral-400">
-            {stance?.analyzed && stance?.headline ? stripMd(stance.headline) : ''}
+            {stance?.analyzed ? stripMd(stance.summary || stance.headline || '') : ''}
           </span>
         </button>
         <div className="flex-1 min-w-0 md:hidden" />
@@ -527,6 +553,7 @@ export default function Portfolio({ onAnalyze }) {
         {/* ---- right rail: allocation ---- */}
         <aside className="lg:sticky lg:top-20 self-start space-y-4">
           <StrategyCheck />
+          <NextContribution onAnalyze={onAnalyze} />
         </aside>
       </div>
     </div>
