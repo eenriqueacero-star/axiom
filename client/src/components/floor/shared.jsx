@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { chatAgent } from '../../api';
-import { stanceStyle } from '../stance';
+import { stanceStyle, stripMd } from '../stance';
 
 export const rel = (ts) => {
   if (!ts) return '';
@@ -57,7 +57,7 @@ export function AgentPanel({ agent, data, onAnalyze }) {
                     {c.ticker}
                   </button>
                   <span style={{ color: cs.fg }}>{cs.label}</span>
-                  <span className="text-haze flex-1">{c.note}</span>
+                  <span className="text-haze flex-1">{stripMd(c.note)}</span>
                 </li>
               );
             })}

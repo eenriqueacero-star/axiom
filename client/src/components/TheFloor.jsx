@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getFloor, getDca } from '../api';
-import { stanceStyle, verdictStyle, tierStyle } from './stance';
+import { stanceStyle, verdictStyle, tierStyle, stripMd } from './stance';
 import { AgentPanel, AgentChat, rel } from './floor/shared';
 
 /** Scout's best calls on names you don't own — the daily discovery sweep, ranked. */
@@ -19,7 +19,7 @@ function DiscoveryCard({ items, onAnalyze }) {
                 <span className="font-mono text-sm text-neutral-200 w-14">{r.ticker}</span>
                 <span className="text-xs font-semibold shrink-0" style={{ color: v.fg }}>{r.verdict} {r.conviction}/10</span>
                 {t && <span className="font-mono text-[10px] tracking-wider shrink-0" style={{ color: t.fg }}>{t.label}</span>}
-                <span className="text-[11px] text-haze truncate flex-1">{r.headline}</span>
+                <span className="text-[11px] text-haze truncate flex-1">{stripMd(r.headline)}</span>
               </button>
             </li>
           );
@@ -159,7 +159,7 @@ export default function TheFloor({ onAnalyze }) {
                   <button onClick={() => onAnalyze(r.ticker)} className="w-full flex items-center justify-between px-4 py-3 hover:bg-ink-850 text-left">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="font-mono text-sm text-neutral-200">{r.ticker}</span>
-                      <span className="text-[11px] text-haze truncate">{r.headline}</span>
+                      <span className="text-[11px] text-haze truncate">{stripMd(r.headline)}</span>
                     </div>
                     <span className="text-xs font-semibold shrink-0 ml-2" style={{ color: v.fg }}>
                       {r.verdict} · {r.conviction}/10
