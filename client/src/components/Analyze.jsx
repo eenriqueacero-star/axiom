@@ -6,7 +6,7 @@ import { getAgents, runCouncil } from '../api';
 import AgentCard from './AgentCard';
 import VerdictBanner from './VerdictBanner';
 import NewsPanel from './NewsPanel';
-import { verdictStyle } from './stance';
+import { verdictStyle, tierStyle } from './stance';
 
 export default function Analyze({ initialTicker = '' }) {
   const { user } = useAuth();
@@ -152,7 +152,12 @@ export default function Analyze({ initialTicker = '' }) {
                         {new Date(h.ts).toLocaleDateString()}
                       </span>
                     </div>
-                    <span className="text-xs font-semibold" style={{ color: v.fg }}>
+                    <span className="text-xs font-semibold flex items-baseline gap-2" style={{ color: v.fg }}>
+                      {tierStyle(h.tier) && (
+                        <span className="font-mono text-[10px] tracking-wider opacity-70" style={{ color: tierStyle(h.tier).fg }}>
+                          {tierStyle(h.tier).label}
+                        </span>
+                      )}
                       {h.verdict} · {h.conviction}/10
                     </span>
                   </button>
