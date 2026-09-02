@@ -12,21 +12,29 @@ import { AgentPanel, AgentChat } from './floor/shared';
  * talking, and each status line is that agent's own read on the book.
  */
 
-const W = 940;
-const H = 600;
+const W = 1060;
+const H = 560;
 const CX = W / 2;
-const CY = H / 2;
-const DESK_R = 222;   // ring the desks sit on
-const SEAT_R = 104;   // where they stand when called in
-const TABLE_R = 74;
+const CY = H / 2 + 8;
+// An ellipse, not a circle — the frame is wide, and a circle left the corners
+// empty while crowding the top and bottom.
+const RX = 352, RY = 176;
+const SEAT_R = 112;
+const TABLE_R = 78;
 
 const TURN_MS = 4200;
 const WALK_MS = 2200;
 
-const pt = (i, r) => {
-  const a = -Math.PI / 2 + (i * Math.PI * 2) / 6;
-  return { x: CX + Math.cos(a) * r, y: CY + Math.sin(a) * r };
-};
+const ang = (i) => -Math.PI / 2 + (i * Math.PI * 2) / 6;
+// k scales the ring inward: 1 = the desk ring, smaller = closer to the centre.
+const pt = (i, k = 1) => ({
+  x: CX + Math.cos(ang(i)) * RX * k,
+  y: CY + Math.sin(ang(i)) * RY * k,
+});
+const seatPt = (i) => ({
+  x: CX + Math.cos(ang(i)) * SEAT_R * 1.35,
+  y: CY + Math.sin(ang(i)) * SEAT_R,
+});
 
 function statusFor(id, live, act, shownTurns) {
   if (act && (act.a === id || act.b === id)) {
@@ -66,8 +74,8 @@ function statusFor(id, live, act, shownTurns) {
 }
 
 /* ------------------------------------------------------------------ desk */
-function Desk({ agent, index, selected, dim, status, onSelect }) {
-  const p = pt(index, DESK_R);
+function Desk({ agent, index, selected, dim, live, status, onSelect }) {
+  const p = pt(index);
   const w = 208, h = 74;
   const x = p.x - w / 2, y = p.y - h / 2;
   return (
@@ -76,11 +84,15 @@ function Desk({ agent, index, selected, dim, status, onSelect }) {
       onClick={(e) => { e.stopPropagation(); onSelect(agent.id); }}
       style={{ opacity: dim ? 0.35 : 1, transition: 'opacity .4s' }}
     >
+      {(selected || live) && (
+        <rect x={x - 4} y={y - 4} width={w + 8} height={h + 8} rx={12}
+          fill="none" stroke={agent.color} strokeWidth="1" opacity={live ? 0.5 : 0.25} />
+      )}
       <rect
-        x={x} y={y} width={w} height={h} rx={8}
-        fill="#101014"
-        stroke={selected ? agent.color : '#26262e'}
-        strokeWidth={selected ? 1.5 : 1}
+        x={x} y={y} width={w} height={h} rx={10}
+        fill="#0f0f14"
+        stroke={selected || live ? agent.color : '#26262e'}
+        strokeWidth={selected || live ? 1.4 : 1}
       />
       <rect x={x} y={y} width={3} height={h} rx={1.5} fill={agent.color} />
       <text x={x + 16} y={y + 25} className="font-mono" fontSize="15" letterSpacing="1.6" fill="#e7e7ea">
@@ -88,7 +100,7 @@ function Desk({ agent, index, selected, dim, status, onSelect }) {
       </text>
       <text x={x + 16} y={y + 43} fontSize="11.5" fill="#6f6f7c">{agent.role}</text>
       <text x={x + 16} y={y + 62} fontSize="12" fill="#9a9aa6">
-        {status.icon} {status.text.length > 28 ? status.text.slice(0, 27) + '…' : status.text}
+        {status.icon} {status.text.length > 24 ? status.text.slice(0, 23) + '…' : status.text}
       </text>
     </g>
   );
@@ -97,8 +109,8 @@ function Desk({ agent, index, selected, dim, status, onSelect }) {
 /* ---------------------------------------------------------------- token */
 // The analyst themselves. Slides between desk and table; nothing else moves it.
 function Token({ agent, index, atTable, speaking }) {
-  const home = pt(index, DESK_R - 86);
-  const seat = pt(index, SEAT_R);
+  const home = pt(index, 0.62);
+  const seat = seatPt(index);
   const p = atTable ? seat : home;
   return (
     <g
@@ -138,16 +150,16 @@ function Table({ notes, active, selected, onSelect }) {
       <text x={CX} y={CY + 24} textAnchor="middle" fontSize="10" fill="#5b5b68">
         {notes.length === 1 ? 'note' : 'notes'}
       </text>
-      {/* one tick per note, gold when it's actionable */}
-      {notes.slice(0, 14).map((n, i) => {
-        const a = -Math.PI / 2 + (i / 14) * Math.PI * 2;
-        const r1 = TABLE_R + 6, r2 = TABLE_R + 12;
+      {/* one dot per desk note, evenly spaced; gold when it's actionable */}
+      {notes.slice(0, 18).map((n, i) => {
+        const total = Math.min(notes.length, 18);
+        const a = -Math.PI / 2 + (i / total) * Math.PI * 2;
+        const r = TABLE_R + 13;
         return (
-          <line
+          <circle
             key={n.id || i}
-            x1={CX + Math.cos(a) * r1} y1={CY + Math.sin(a) * r1}
-            x2={CX + Math.cos(a) * r2} y2={CY + Math.sin(a) * r2}
-            stroke={n.actionable ? '#facc15' : '#4a4a58'} strokeWidth="2" strokeLinecap="round"
+            cx={CX + Math.cos(a) * r} cy={CY + Math.sin(a) * r} r={n.actionable ? 3 : 2}
+            fill={n.actionable ? '#facc15' : '#4c4c5a'}
           />
         );
       })}
@@ -237,27 +249,35 @@ export default function TheOffice({ onAnalyze, onExit }) {
         >
           <defs>
             <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="0.7" fill="#191921" />
+              <circle cx="1" cy="1" r="0.7" fill="#17171e" />
             </pattern>
+            <radialGradient id="pool">
+              <stop offset="0%" stopColor="#2a2f45" stopOpacity="0.5" />
+              <stop offset="100%" stopColor="#0a0a10" stopOpacity="0" />
+            </radialGradient>
           </defs>
           <rect width={W} height={H} fill="url(#grid)" />
-          <rect x={26} y={26} width={W - 52} height={H - 52} rx={14} fill="none" stroke="#1c1c24" />
+          <ellipse cx={CX} cy={CY} rx={330} ry={215} fill="url(#pool)" />
 
-          {/* a line from each analyst to the desk; live only while they're talking */}
+          {/* one path per analyst into the desk; it only comes alive for the
+              pair that is genuinely in session */}
           {agents.map((a, i) => {
-            const h = pt(i, DESK_R - 86);
+            const h = pt(i, 0.72);
             const on = talking.includes(a.id);
+            const mx = (h.x + CX) / 2 + (h.y - CY) * 0.12;
+            const my = (h.y + CY) / 2 - (h.x - CX) * 0.12;
             return (
-              <line
+              <path
                 key={a.id}
-                x1={h.x} y1={h.y} x2={CX} y2={CY}
-                stroke={on ? a.color : '#17171e'}
-                strokeWidth={on ? 1.2 : 1}
-                strokeDasharray={on ? '4 4' : undefined}
+                d={`M ${h.x} ${h.y} Q ${mx} ${my} ${CX} ${CY}`}
+                fill="none"
+                stroke={on ? a.color : '#191922'}
+                strokeWidth={on ? 1.4 : 1}
+                strokeDasharray={on ? '5 5' : undefined}
                 style={{ transition: 'stroke .5s' }}
               >
-                {on && <animate attributeName="stroke-dashoffset" values="16;0" dur="1s" repeatCount="indefinite" />}
-              </line>
+                {on && <animate attributeName="stroke-dashoffset" values="20;0" dur="1.1s" repeatCount="indefinite" />}
+              </path>
             );
           })}
 
@@ -267,6 +287,7 @@ export default function TheOffice({ onAnalyze, onExit }) {
             <Desk
               key={a.id} agent={a} index={i}
               selected={sel === a.id}
+              live={talking.includes(a.id)}
               dim={!!act && !talking.includes(a.id)}
               status={statusFor(a.id, floor.live, act, shownTurns)}
               onSelect={setSel}
