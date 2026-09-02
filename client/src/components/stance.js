@@ -20,11 +20,13 @@ export const VERDICT = {
 // Conviction tier — how strongly a name belongs in the long-term basket,
 // separate from the ADD/HOLD/TRIM/EXIT action. Set in code by the council.
 export const TIER = {
-  HIGH:        { fg: '#2fcb8a', label: 'HIGH',  hint: 'Quality compounder — own it, size toward the cap' },
-  MEDIUM:      { fg: '#8ba2c0', label: 'MED',   hint: 'Solid — hold at a normal weight' },
-  LOW:         { fg: '#c8922a', label: 'LOW',   hint: 'Thin conviction — hold what you have, don’t add' },
-  SPECULATIVE: { fg: '#e8922a', label: 'SPEC',  hint: 'A punt — broken thesis, story stock, or unsizable' },
+  HIGH:        { fg: '#34d399', label: 'HIGH',  hint: 'Quality compounder — own it, size toward the cap' },
+  MEDIUM:      { fg: '#7c8db5', label: 'MED',   hint: 'Solid — hold at a normal weight' },
+  LOW:         { fg: '#e0a33a', label: 'LOW',   hint: 'Thin conviction — hold what you have, don’t add' },
+  SPECULATIVE: { fg: '#ec7f45', label: 'SPEC',  hint: 'A punt — broken thesis, story stock, or unsizable' },
 };
+// Tier order, strongest → weakest. Used to sort and to lay out the conviction strip.
+export const TIER_ORDER = ['HIGH', 'MEDIUM', 'LOW', 'SPECULATIVE'];
 
 export const stanceStyle = (s) => STANCE[s] || STANCE.CAUTION;
 export const verdictStyle = (v) => VERDICT[v] || VERDICT.HOLD;

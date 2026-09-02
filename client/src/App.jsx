@@ -47,10 +47,13 @@ export default function App() {
     </button>
   );
 
+  const wide = view === 'portfolio' || (view === 'floor' && roomView);
+  const shell = view === 'floor' && roomView ? 'max-w-6xl' : wide ? 'max-w-5xl' : 'max-w-3xl';
+
   return (
     <div className="min-h-dvh">
       <header className="sticky top-0 z-10 backdrop-blur bg-ink-950/80 border-b hairline">
-        <div className="mx-auto max-w-3xl px-4 h-14 flex items-center justify-between">
+        <div className={`mx-auto ${shell} px-4 h-14 flex items-center justify-between`}>
           <div className="flex items-center gap-3">
             <span className="font-mono text-sm tracking-widest text-indigo-400">AXIOM</span>
             <button
@@ -66,14 +69,14 @@ export default function App() {
             {user.email} · sign out
           </button>
         </div>
-        <div className="mx-auto max-w-3xl px-4 flex gap-4">
+        <div className={`mx-auto ${shell} px-4 flex gap-4`}>
           {tab('portfolio', 'Portfolio')}
           {tab('analyze', 'Analyze')}
           {tab('floor', 'The Floor')}
           {tab('scorecard', 'Scorecard')}
         </div>
       </header>
-      <main className={`mx-auto px-4 py-6 ${view === 'floor' && roomView ? 'max-w-6xl' : 'max-w-3xl'}`}>
+      <main className={`mx-auto px-4 py-6 ${shell}`}>
         {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
         {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
         {view === 'floor' && (
