@@ -69,6 +69,7 @@ export const getLatestAnalysis = (ticker) =>
   request(`/council/analysis/${ticker.toUpperCase()}`);
 export const getFloor = () => request('/council/floor');
 export const getAgentWeights = () => request('/council/agent-weights');
+export const getCalibration = () => request('/council/calibration');
 export const getFloorLive = () => request('/council/floor/live');
 
 // The desk — agent-to-agent conversations and the notes they leave behind.

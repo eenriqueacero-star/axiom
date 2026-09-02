@@ -8,6 +8,7 @@ import { diagnose, sectorOf, sleeveOf, CAPS, CORE_LIST } from './strategy.js';
 import { relevantMemos, memoBlock } from './memos.js';
 import { fundamentals, fundamentalsBlock } from './fundamentals.js';
 import { agentWeights } from './agentWeights.js';
+import { getCalibration } from './calibration.js';
 import { db } from './firebase.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -371,12 +372,13 @@ export function convictionTier(agents, sym) {
 // mode: 'scout' = fast cron pass; 'full' = conversational.
 export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
   const sym = ticker.toUpperCase().trim();
-  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings, memos, fund, aw] = await Promise.all([
+  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings, memos, fund, aw, cal] = await Promise.all([
     fetchLiveData(sym),
     buildHoldingsContext(uid, sym).catch(() => null),
     uid ? relevantMemos(uid, { ticker: sym }).catch(() => []) : Promise.resolve([]),
     fundamentals(sym).catch(() => ({ available: false })),
     uid ? agentWeights(uid).catch(() => ({ weights: {} })) : Promise.resolve({ weights: {} }),
+    uid ? getCalibration(uid).catch(() => ({ notes: {} })) : Promise.resolve({ notes: {} }),
   ]);
   const desk = memoBlock(memos);
   const fundBlock = fundamentalsBlock(fund);
@@ -385,8 +387,12 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
   const agents = {};
   for (let i = 0; i < AGENTS.length; i++) {
     const ag = AGENTS[i];
+    const calNote = cal?.notes?.[ag.id];
+    const system = calNote
+      ? `${ag.system}\n\nCALIBRATION (your own track record — adjust accordingly): ${calNote}`
+      : ag.system;
     try {
-      const { text } = await callAgent({ system: ag.system, user, agentIndex: i });
+      const { text } = await callAgent({ system, user, agentIndex: i });
       const parsed = extractJSON(text) || { ...FALLBACK };
       const checks = {};
       for (const key of Object.keys(ag.checks)) checks[key] = asBool(parsed.checks?.[key]);

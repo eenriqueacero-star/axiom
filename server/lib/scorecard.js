@@ -18,7 +18,12 @@ function isHit(verdict, perf) {
   return null;
 }
 
-/** Score every analysis that's >=7 days old and not yet scored (or stale by >7d). */
+// 5 trading-ish days is noisy for judging a long-term thesis, but it's enough to
+// start calibrating the agents (was it right about the trend, the catalyst?) —
+// and the scorecard keeps re-scoring at longer horizons as each analysis ages.
+const SCORE_AFTER_DAYS = 5;
+
+/** Score every analysis older than SCORE_AFTER_DAYS and not scored in the last 6d. */
 export async function scoreUser(uid) {
   const snap = await db.collection(`users/${uid}/analyses`).get();
   const now = Date.now();
@@ -33,7 +38,7 @@ export async function scoreUser(uid) {
   for (const doc of snap.docs) {
     const a = doc.data();
     const ageDays = (now - (a.ts || 0)) / 864e5;
-    if (ageDays < 7 || !a.price) continue;
+    if (ageDays < SCORE_AFTER_DAYS || !a.price) continue;
     const lastScored = a.score?.asOf || 0;
     if (now - lastScored < 6 * 864e5) continue; // re-score at most weekly
 

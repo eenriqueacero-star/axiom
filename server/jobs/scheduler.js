@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { runDailyScout } from './scoutJob.js';
 import { runPortfolioAlerts, runMoveReview } from './alertJob.js';
 import { scoreAllUsers } from '../lib/scorecard.js';
+import { calibrateAllUsers } from '../lib/calibration.js';
 import { deskTick } from './deskLoop.js';
 
 export function initScheduler() {
@@ -18,12 +19,14 @@ export function initScheduler() {
     runMoveReview().catch(err => console.error('[move-review] Error:', err.message));
   }, { timezone: 'America/New_York' });
 
-  // Verdict scorecard — score past analyses vs actual price, 4:30 PM ET
+  // Verdict scorecard + agent calibration — 4:30 PM ET
   cron.schedule('30 16 * * 1-5', () => {
-    console.log('[scheduler] Scoring verdicts...');
+    console.log('[scheduler] Scoring verdicts + recomputing agent calibration...');
     scoreAllUsers()
       .then(n => console.log(`[scorecard] scored ${n} analyses`))
-      .catch(err => console.error('[scorecard] Error:', err.message));
+      .then(() => calibrateAllUsers())
+      .then(n => console.log(`[calibration] recomputed for ${n} users`))
+      .catch(err => console.error('[scorecard/calibration] Error:', err.message));
   }, { timezone: 'America/New_York' });
 
   // The desk — agents talk among themselves when the user is away and there's

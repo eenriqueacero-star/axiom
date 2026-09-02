@@ -4,6 +4,32 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 ---
 
+## 🔜 Up next (2026-09-02) — don't lose these
+
+1. **Backtest the rulebook vs QQQ/VOO.** The honesty check §9 demands. Quant service
+   (`quant/`) is scaffolded but not deployed. Needs: wrap as FastAPI (`/backtest`),
+   deploy as a 3rd Render service, wire the app + agents to call it. Highest value,
+   most infra. → gates the "keep building vs. just index" decision.
+2. **Agent calibration notes** — IN PROGRESS this session. Weekly job: review scored
+   verdicts, write a one-line per-agent calibration note prepended to its prompt
+   (the qualitative half of self-improvement; `agentWeights.js` is the numeric half).
+3. **Notification delivery is unreliable** — we now push a lot (move-review, scout
+   alerts) but Web Push is flaky: stale subscriptions never pruned, no PWA manifest,
+   single-subscription model, iOS PWA constraints. The alerts are only as good as
+   the pipe. See "Infra / polish" below.
+4. **The Desk / autonomous nightly runs** — user: "plan all automated functions
+   after you finish", and it's "not supposed to be a debate" — do NOT build v3
+   "The Desk" dialogue as spec'd. Needs a dedicated planning conversation first.
+5. **Congressional trading tracker** — BLOCKED on the user picking a data source
+   (Disclosed Capitol free tier / EODHD free tier / Quiver $25-mo / defer).
+6. **Broker sync** — user still needs to connect 2 of 3 brokerages in SnapTrade
+   (2× Fidelity + Robinhood; 1 done), then hit Sync.
+7. **Scorecard has no data yet** — verdicts must age before `agentWeights` +
+   calibration do anything. Consider a shorter scoring horizon so they activate
+   this week instead of next.
+
+---
+
 ## ⭐ Hard requirements (never drop)
 
 - **EVERYTHING MUST BE CONNECTED.** No isolated features. Every piece feeds the others —
