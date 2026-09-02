@@ -12,6 +12,11 @@ import { getPortfolio } from './portfolio.js';
 
 const STALE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
+// The current rulebook vocabulary. Old analyses carry legacy verdicts
+// (BUY/SKIP/WATCH) from before the council rework — ignore those and let the
+// badge prompt a fresh run instead of showing a stance the rulebook can't mean.
+const VERDICTS = new Set(['ADD', 'HOLD', 'TRIM', 'EXIT']);
+
 /** Distinct tickers the user holds right now (cash sweeps already stripped by getPortfolio). */
 function heldTickers(portfolio) {
   const set = new Set();
@@ -48,7 +53,7 @@ export async function buildStances(uid) {
   const stances = {};
   for (const t of tickers) {
     const r = latest.get(t);
-    if (!r) {
+    if (!r || !VERDICTS.has(r.verdict)) {
       stances[t] = { verdict: null, analyzed: false };
       continue;
     }
