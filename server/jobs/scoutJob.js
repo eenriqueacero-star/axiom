@@ -8,6 +8,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Don't re-run the council on a name that already has a fresh verdict today.
 const FRESH_MS = 20 * 60 * 60 * 1000;
+const VERDICTS = new Set(['ADD', 'HOLD', 'TRIM', 'EXIT']);
 
 /** Distinct tickers a portfolio actually holds (shares > 0, cash sweeps already stripped). */
 function heldTickers(portfolio) {
@@ -42,7 +43,10 @@ export async function scoutHoldingsForUser(uid, { force = false } = {}) {
         const latest = snap.docs
           .map(d => d.data())
           .sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
-        if (latest && Date.now() - (latest.ts || 0) < FRESH_MS) continue;
+        // Skip only if it's genuinely fresh AND carries the current rating shape
+        // (a valid verdict + a conviction tier). Re-run pre-tier analyses.
+        const fresh = latest && Date.now() - (latest.ts || 0) < FRESH_MS;
+        if (fresh && latest.tier && VERDICTS.has(latest.verdict)) continue;
       }
       const result = await runCouncil(ticker, { mode: 'scout', uid });
       await col.add(result);
