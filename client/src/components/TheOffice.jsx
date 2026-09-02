@@ -12,13 +12,13 @@ import { AgentPanel, AgentChat } from './floor/shared';
  * talking, and each status line is that agent's own read on the book.
  */
 
-const W = 1000;
-const H = 640;
+const W = 940;
+const H = 600;
 const CX = W / 2;
 const CY = H / 2;
-const DESK_R = 232;   // ring the desks sit on
+const DESK_R = 222;   // ring the desks sit on
 const SEAT_R = 104;   // where they stand when called in
-const TABLE_R = 66;
+const TABLE_R = 74;
 
 const TURN_MS = 4200;
 const WALK_MS = 2200;
@@ -68,7 +68,7 @@ function statusFor(id, live, act, shownTurns) {
 /* ------------------------------------------------------------------ desk */
 function Desk({ agent, index, selected, dim, status, onSelect }) {
   const p = pt(index, DESK_R);
-  const w = 176, h = 62;
+  const w = 208, h = 74;
   const x = p.x - w / 2, y = p.y - h / 2;
   return (
     <g
@@ -83,12 +83,12 @@ function Desk({ agent, index, selected, dim, status, onSelect }) {
         strokeWidth={selected ? 1.5 : 1}
       />
       <rect x={x} y={y} width={3} height={h} rx={1.5} fill={agent.color} />
-      <text x={x + 14} y={y + 22} className="font-mono" fontSize="12.5" letterSpacing="1.4" fill="#e7e7ea">
+      <text x={x + 16} y={y + 25} className="font-mono" fontSize="15" letterSpacing="1.6" fill="#e7e7ea">
         {agent.name}
       </text>
-      <text x={x + 14} y={y + 38} fontSize="9.5" fill="#6f6f7c">{agent.role}</text>
-      <text x={x + 14} y={y + 53} fontSize="10" fill="#9a9aa6">
-        {status.icon} {status.text.length > 26 ? status.text.slice(0, 25) + '…' : status.text}
+      <text x={x + 16} y={y + 43} fontSize="11.5" fill="#6f6f7c">{agent.role}</text>
+      <text x={x + 16} y={y + 62} fontSize="12" fill="#9a9aa6">
+        {status.icon} {status.text.length > 28 ? status.text.slice(0, 27) + '…' : status.text}
       </text>
     </g>
   );
@@ -97,7 +97,7 @@ function Desk({ agent, index, selected, dim, status, onSelect }) {
 /* ---------------------------------------------------------------- token */
 // The analyst themselves. Slides between desk and table; nothing else moves it.
 function Token({ agent, index, atTable, speaking }) {
-  const home = pt(index, DESK_R - 52);
+  const home = pt(index, DESK_R - 86);
   const seat = pt(index, SEAT_R);
   const p = atTable ? seat : home;
   return (
@@ -131,11 +131,11 @@ function Table({ notes, active, selected, onSelect }) {
       >
         {active && <animate attributeName="stroke-opacity" values="1;0.35;1" dur="2s" repeatCount="indefinite" />}
       </circle>
-      <text x={CX} y={CY - 8} textAnchor="middle" fontSize="9" letterSpacing="2" fill="#5b5b68">THE DESK</text>
-      <text x={CX} y={CY + 10} textAnchor="middle" className="font-mono" fontSize="15" fill="#cfcfd6">
+      <text x={CX} y={CY - 8} textAnchor="middle" fontSize="10.5" letterSpacing="2.5" fill="#5b5b68">THE DESK</text>
+      <text x={CX} y={CY + 10} textAnchor="middle" className="font-mono" fontSize="20" fill="#cfcfd6">
         {notes.length}
       </text>
-      <text x={CX} y={CY + 24} textAnchor="middle" fontSize="8.5" fill="#5b5b68">
+      <text x={CX} y={CY + 24} textAnchor="middle" fontSize="10" fill="#5b5b68">
         {notes.length === 1 ? 'note' : 'notes'}
       </text>
       {/* one tick per note, gold when it's actionable */}
@@ -245,7 +245,7 @@ export default function TheOffice({ onAnalyze, onExit }) {
 
           {/* a line from each analyst to the desk; live only while they're talking */}
           {agents.map((a, i) => {
-            const h = pt(i, DESK_R - 52);
+            const h = pt(i, DESK_R - 86);
             const on = talking.includes(a.id);
             return (
               <line

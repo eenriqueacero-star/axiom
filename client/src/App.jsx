@@ -73,7 +73,7 @@ export default function App() {
           {tab('scorecard', 'Scorecard')}
         </div>
       </header>
-      <main className="mx-auto max-w-3xl px-4 py-6">
+      <main className={`mx-auto px-4 py-6 ${view === 'floor' && roomView ? 'max-w-6xl' : 'max-w-3xl'}`}>
         {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
         {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
         {view === 'floor' && (
