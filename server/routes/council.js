@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { verifyToken } from '../lib/auth.js';
 import { db } from '../lib/firebase.js';
 import { AGENTS } from '../agents/definitions.js';
-import { runCouncil } from '../lib/council.js';
+import { runCouncil, positionEconomics } from '../lib/council.js';
 import { aggregate } from '../lib/scorecard.js';
 import { callAgentChat } from '../lib/groq.js';
 import { priceFacts } from '../lib/metrics.js';
@@ -12,6 +12,7 @@ import { diagnose } from '../lib/strategy.js';
 import { buildFloorLive } from '../lib/floorLive.js';
 import { buildStances } from '../lib/stances.js';
 import { topDiscoveries } from '../lib/discovery.js';
+import { scoutHoldingsForUser } from '../jobs/scoutJob.js';
 import { relevantMemos, memoBlock, saveMemo } from '../lib/memos.js';
 import { markUserActivity } from '../lib/budget.js';
 
@@ -166,6 +167,20 @@ router.get('/stances', async (req, res) => {
   }
 });
 
+// "Review the book" — run the full council on every holding that's unrated or
+// stale (>20h), so the user never has to convene names one at a time. Fire and
+// forget: returns immediately, the client polls /stances as verdicts land.
+const reviewing = new Set();
+router.post('/review', async (req, res) => {
+  markUserActivity();
+  if (reviewing.has(req.uid)) return res.json({ started: false, alreadyRunning: true });
+  reviewing.add(req.uid);
+  scoutHoldingsForUser(req.uid, { force: !!req.body?.force })
+    .catch((err) => console.error('[review] failed:', err.message))
+    .finally(() => reviewing.delete(req.uid));
+  res.json({ started: true });
+});
+
 // The latest stored council run for one ticker — the "why" behind its stance
 // badge. Firestore read only; returns { found: false } when it's never been run.
 router.get('/analysis/:ticker', async (req, res) => {
@@ -224,10 +239,16 @@ router.post('/agent/:id/chat', async (req, res) => {
       if (d.ready) {
         const topSectors = d.sectors.slice(0, 3).map(s => `${s.name} ${Math.round(s.pct * 100)}%`).join(', ');
         const held = t && d.names.find(n => n.ticker === t);
-        context += `\n\nSCALE: dollar figures below are EXACT US dollars. This is a small personal brokerage account, not a fund — never rescale into thousands, millions or billions, and never write "B" or "M".`;
-        context += `\n\nTHE INVESTOR'S PORTFOLIO ($${Math.round(d.total).toLocaleString('en-US')} in total): Core/Satellite ${Math.round(d.sleeve.corePct * 100)}/${Math.round(d.sleeve.satellitePct * 100)} (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100}). Sectors: ${topSectors}.`;
-        if (held) context += ` They currently hold ${(held.pct * 100).toFixed(1)}% in ${t}.`;
-        else if (t) context += ` They do NOT currently hold ${t}.`;
+        const econ = t ? positionEconomics(portfolio, t) : null;
+        context += `\n\nSCALE: dollar figures below are EXACT US dollars. This is the firm's real book, run for family accounts — small, not a fund. Never rescale into thousands, millions or billions, and never write "B" or "M".`;
+        context += `\n\nTHE FIRM'S BOOK ($${Math.round(d.total).toLocaleString('en-US')} under management): Core/Satellite ${Math.round(d.sleeve.corePct * 100)}/${Math.round(d.sleeve.satellitePct * 100)} (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100}). Sectors: ${topSectors}.`;
+        if (held && econ?.avgCost != null) {
+          context += ` The firm holds ${econ.shares} sh of ${t} (${(held.pct * 100).toFixed(1)}% of the book) at $${econ.avgCost.toFixed(2)} avg cost — currently ${econ.unreal >= 0 ? 'up' : 'down'} ${Math.abs(econ.unrealPct * 100).toFixed(0)}%.`;
+        } else if (held) {
+          context += ` The firm holds ${(held.pct * 100).toFixed(1)}% in ${t}.`;
+        } else if (t) {
+          context += ` The firm does NOT hold ${t} — treat it as a candidate the firm might underwrite.`;
+        }
         if (d.flags.length) context += ` Rulebook flags: ${d.flags.map(f => f.msg).join(' | ')}`;
       }
     }

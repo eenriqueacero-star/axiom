@@ -12,6 +12,27 @@ import { getPortfolio } from './portfolio.js';
 
 const STALE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 
+/** The firm's aggregate position in one name: shares, avg cost, unrealised P&L. */
+function positionEconomics(portfolio, sym) {
+  let shares = 0, cost = 0, value = 0;
+  for (const a of portfolio?.accounts || []) {
+    for (const p of a.positions || []) {
+      if (p.ticker !== sym) continue;
+      shares += p.shares || 0;
+      value += p.value || 0;
+      cost += (p.costBasis || 0) * (p.shares || 0);
+    }
+  }
+  if (shares <= 0) return null;
+  const known = cost > 0;
+  return {
+    shares, value,
+    avgCost: known ? cost / shares : null,
+    unreal: known ? value - cost : null,
+    unrealPct: known ? (value - cost) / cost : null,
+  };
+}
+
 // The current rulebook vocabulary. Old analyses carry legacy verdicts
 // (BUY/SKIP/WATCH) from before the council rework — ignore those and let the
 // badge prompt a fresh run instead of showing a stance the rulebook can't mean.
@@ -61,9 +82,10 @@ export async function buildStances(uid) {
   const now = Date.now();
   const stances = {};
   for (const t of tickers) {
+    const econ = positionEconomics(portfolio, t);
     const r = latest.get(t);
     if (!r || !VERDICTS.has(r.verdict)) {
-      stances[t] = { verdict: null, analyzed: false };
+      stances[t] = { verdict: null, analyzed: false, econ };
       continue;
     }
     stances[t] = {
@@ -77,6 +99,7 @@ export async function buildStances(uid) {
       stale: now - (r.ts || 0) > STALE_MS,
       broken: !!r.computed?.broken,
       downtrend: !!r.computed?.downtrend,
+      econ,
       analyzed: true,
     };
   }

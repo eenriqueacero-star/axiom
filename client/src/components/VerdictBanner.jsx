@@ -64,8 +64,19 @@ export default function VerdictBanner({ analysis }) {
       )}
       {analysis.holdings && (
         <p className="text-xs text-haze mt-2">
-          You hold {(analysis.holdings.positionPct * 100).toFixed(1)}% in {analysis.ticker}
-          {' · '}{analysis.holdings.sector} sector {(analysis.holdings.sectorPct * 100).toFixed(0)}%
+          {analysis.holdings.econ?.avgCost != null ? (
+            <>
+              The firm holds {analysis.holdings.econ.shares} sh @ ${analysis.holdings.econ.avgCost.toFixed(2)} avg
+              {' · '}
+              <span className={analysis.holdings.econ.unreal >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                {analysis.holdings.econ.unreal >= 0 ? '+' : '−'}{Math.abs(analysis.holdings.econ.unrealPct * 100).toFixed(0)}%
+              </span>
+              {' · '}
+            </>
+          ) : (
+            <>Position {(analysis.holdings.positionPct * 100).toFixed(1)}% · </>
+          )}
+          {analysis.holdings.sector} sector {(analysis.holdings.sectorPct * 100).toFixed(0)}%
           {analysis.holdings.breachIfAdd ? ' (at cap)' : ''}
         </p>
       )}

@@ -3,6 +3,20 @@
 > **STATUS: DRAFT — pending user approval.** Nothing here is wired into the app yet.
 > This is the skeleton. The council agents are the judgment layer that executes it.
 
+## The mandate
+
+Axiom is run as an **investment company** managing real capital across three
+family accounts. Every holding is a live position with real money at risk; every
+ticker the council reviews is a candidate the firm may underwrite. Two goals, in
+strict order: **(1) protect capital** — avoid permanent loss and avoidable
+mistakes; **(2) compound it** as fast as the risk sensibly allows. The council
+decides what the firm owns, at what size, and when that changes.
+
+A position being **underwater is not a reason to sell** — the thesis is what's
+judged, not the entry price (see §5). It *is* a reason to stop adding to a broken
+name, and a green light to average down into a sound one that's gone cheap.
+The council sees the firm's real cost basis and unrealised P&L on every name.
+
 ---
 
 ## 0. What this is for

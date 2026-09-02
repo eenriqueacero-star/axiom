@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount, renameAccount,
-  getStances, getLatestAnalysis, getAgents, getDca,
+  getStances, getLatestAnalysis, getAgents, getDca, reviewHoldings,
 } from '../api';
 import BrokerLink from './BrokerLink';
 import StrategyCheck from './StrategyCheck';
@@ -34,7 +34,7 @@ const UNRATED = '#565661';
  * The signature: your money segmented by how much of it the council stands
  * behind. One glance = where the book sits with the strategy.
  */
-function ConvictionStrip({ rows, total }) {
+function ConvictionStrip({ rows, total, onReview, reviewing }) {
   const buckets = useMemo(() => {
     const b = { HIGH: 0, MEDIUM: 0, LOW: 0, SPECULATIVE: 0, unrated: 0 };
     for (const r of rows) b[r.tier && b[r.tier] !== undefined ? r.tier : 'unrated'] += r.value;
@@ -42,12 +42,13 @@ function ConvictionStrip({ rows, total }) {
   }, [rows]);
 
   const flags = useMemo(() => {
-    let trim = 0, exit = 0;
+    let trim = 0, exit = 0, needsReview = 0;
     for (const r of rows) {
       if (r.verdict === 'TRIM') trim++;
       if (r.verdict === 'EXIT') exit++;
+      if (!r.analyzed || r.stale) needsReview++;
     }
-    return { trim, exit };
+    return { trim, exit, needsReview };
   }, [rows]);
 
   if (!total) return null;
@@ -60,9 +61,20 @@ function ConvictionStrip({ rows, total }) {
 
   return (
     <div className="mt-5">
-      <div className="flex items-baseline justify-between mb-1.5">
+      <div className="flex items-center justify-between mb-1.5 gap-3">
         <p className="text-[10px] uppercase tracking-[0.2em] text-haze">The council’s read</p>
-        <p className="text-[11px] font-mono text-ink-600">{Math.round(rated * 100)}% of the book rated</p>
+        <div className="flex items-center gap-3">
+          <p className="text-[11px] font-mono text-ink-600">{Math.round(rated * 100)}% rated</p>
+          <button
+            onClick={onReview}
+            disabled={reviewing}
+            className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 disabled:text-haze disabled:cursor-default"
+          >
+            {reviewing
+              ? 'Reviewing the book…'
+              : flags.needsReview > 0 ? `Review ${flags.needsReview} name${flags.needsReview > 1 ? 's' : ''}` : 'Re-review the book'}
+          </button>
+        </div>
       </div>
       <div className="flex h-3 w-full gap-px overflow-hidden rounded-md bg-ink-800">
         {segs.map((s) => (
@@ -178,7 +190,21 @@ const FLAGS = [
   ['concentrationBlock', 'Already at cap', '#e0a33a'],
 ];
 
-function DecisionDetail({ ticker, a, agents, onFull }) {
+function PositionLine({ econ }) {
+  if (!econ || econ.avgCost == null) return null;
+  const up = econ.unreal >= 0;
+  return (
+    <p className="text-[11px] font-mono text-haze">
+      <span className="uppercase tracking-wider text-[10px] text-ink-600">position </span>
+      {econ.shares} sh @ ${econ.avgCost.toFixed(2)} avg ·{' '}
+      <span className={up ? 'text-emerald-400' : 'text-[#f0685f]'}>
+        {up ? '+' : '−'}{Math.abs(econ.unrealPct * 100).toFixed(0)}% ({up ? '+' : '−'}{money(Math.abs(econ.unreal))})
+      </span>
+    </p>
+  );
+}
+
+function DecisionDetail({ ticker, a, econ, agents, onFull }) {
   if (a === undefined) {
     return <div className="px-4 pb-3 pl-6 text-[11px] text-haze animate-pulse">Loading the council’s notes…</div>;
   }
@@ -209,6 +235,8 @@ function DecisionDetail({ ticker, a, agents, onFull }) {
       {t && a.tierReasons?.length > 0 && (
         <p className="text-[10px] text-ink-600 font-mono -mt-1.5">{a.tierReasons.join('  ·  ')}</p>
       )}
+
+      <PositionLine econ={econ || a.holdings?.econ} />
 
       {a.headline && <p className="text-sm text-neutral-100 font-medium">{stripMd(a.headline)}</p>}
       {a.rationale && <p className="text-xs text-neutral-400 leading-relaxed">{stripMd(a.rationale)}</p>}
@@ -348,13 +376,33 @@ export default function Portfolio({ onAnalyze }) {
   const [nameDraft, setNameDraft] = useState('');
   const [confirmDel, setConfirmDel] = useState(null);
   const [delBusy, setDelBusy] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const pollRef = useRef(null);
 
   const load = () => getPortfolio().then(setData).catch((e) => setErr(e.message));
+  const loadStances = () =>
+    getStances().then((r) => { setStances(r.stances || {}); return r; }).catch(() => null);
   useEffect(() => { load(); }, []);
-  useEffect(() => {
-    getStances().then((r) => setStances(r.stances || {})).catch(() => {});
-    getAgents().then(setAgents).catch(() => {});
-  }, []);
+  useEffect(() => { loadStances(); getAgents().then(setAgents).catch(() => {}); }, []);
+  useEffect(() => () => clearInterval(pollRef.current), []);
+
+  // "Review the book" — kick off a server-side council pass over every holding,
+  // then poll the stances as verdicts land in Firestore.
+  const reviewBook = async () => {
+    if (reviewing) return;
+    setReviewing(true);
+    try { await reviewHoldings(); } catch (e) { setErr(e.message); setReviewing(false); return; }
+    const started = Date.now();
+    clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      const r = await loadStances();
+      const done = r && r.counts && (r.counts.none || 0) === 0;
+      if (done || Date.now() - started > 4 * 60 * 1000) {
+        clearInterval(pollRef.current);
+        setReviewing(false);
+      }
+    }, 12000);
+  };
 
   const toggleDetail = (ticker) => {
     setExpanded((cur) => (cur === ticker ? null : ticker));
@@ -404,11 +452,16 @@ export default function Portfolio({ onAnalyze }) {
 
   // every position, flattened, for the conviction strip
   const allRows = data.accounts.flatMap((acct) =>
-    (acct.positions || []).map((p) => ({
-      value: p.value || 0,
-      tier: stances[p.ticker]?.tier || null,
-      verdict: stances[p.ticker]?.analyzed ? stances[p.ticker]?.verdict : null,
-    })),
+    (acct.positions || []).map((p) => {
+      const s = stances[p.ticker];
+      return {
+        value: p.value || 0,
+        tier: s?.tier || null,
+        verdict: s?.analyzed ? s?.verdict : null,
+        analyzed: !!s?.analyzed,
+        stale: !!s?.stale,
+      };
+    }),
   );
 
   return (
@@ -426,7 +479,7 @@ export default function Portfolio({ onAnalyze }) {
           )}
         </div>
         {hasValue
-          ? <ConvictionStrip rows={allRows} total={totals.value} />
+          ? <ConvictionStrip rows={allRows} total={totals.value} onReview={reviewBook} reviewing={reviewing} />
           : <p className="mt-3 text-xs text-haze">Link a broker or paste your positions to see real values and the council’s read.</p>}
       </header>
 
@@ -516,6 +569,7 @@ export default function Portfolio({ onAnalyze }) {
                         <DecisionDetail
                           ticker={p.ticker}
                           a={analyses[p.ticker]}
+                          econ={stances[p.ticker]?.econ}
                           agents={agents}
                           onFull={() => onAnalyze(p.ticker)}
                         />

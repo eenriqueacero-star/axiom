@@ -90,6 +90,18 @@ Real lever = stock SELECTION + holding + low turnover. So:
     `users/{uid}/analyses` (`scoutHoldingsForUser` in `jobs/scoutJob.js`) — before
     this the scout only wrote a global `scoutResults` collection nothing read, so
     stance badges only ever populated for manually-convened tickers.
+  - [x] Slice 5f: **the firm's mandate + cost basis** (2026-09-02). PROTOCOLS now
+    opens with "you are the investment committee of Axiom managing real capital —
+    protect capital first, compound it fastest second." `buildHoldingsContext`
+    feeds the firm's actual position per name — shares, avg cost, unrealised P&L —
+    into every agent prompt + the synth (`positionEconomics()`); rule added that
+    being underwater is not a sell reason but does gate averaging-down. Agent chat
+    context + `buildStances` + VerdictBanner + the Portfolio DecisionDetail all
+    carry the position economics now.
+  - [x] Slice 5g: **"Review the book"** — `POST /api/council/review` fire-and-forget
+    runs the full council on every unrated/stale holding; the Portfolio conviction
+    strip has a "Review N names" button that kicks it off and polls `/stances` as
+    verdicts land. Plus the daily 9:05 scout already does this pass automatically.
   - Still open: backtest the rulebook vs QQQ on the quant service, autonomous
     nightly agent debate → idea cards.
 

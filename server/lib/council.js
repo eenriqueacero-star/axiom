@@ -62,8 +62,31 @@ export async function fetchLiveData(ticker) {
 
 const FALLBACK = { checks: {}, note: 'No response', headline: 'No response', error: true };
 
+/** Aggregate the firm's position in one name across every account: shares, avg cost, unrealised P&L. */
+export function positionEconomics(portfolio, sym) {
+  let shares = 0, cost = 0, value = 0;
+  for (const a of portfolio.accounts || []) {
+    for (const p of a.positions || []) {
+      if (p.ticker !== sym) continue;
+      shares += p.shares || 0;
+      value += p.value || 0;
+      cost += (p.costBasis || 0) * (p.shares || 0);
+    }
+  }
+  if (shares <= 0) return null;
+  const known = cost > 0;
+  return {
+    shares,
+    value,
+    cost: known ? cost : null,
+    avgCost: known ? cost / shares : null,
+    unreal: known ? value - cost : null,
+    unrealPct: known ? (value - cost) / cost : null,
+  };
+}
+
 /**
- * Build the "here's what you already own" context for a council run.
+ * Build the "here's what the firm already owns" context for a council run.
  * Returns null when there's no uid or no portfolio yet.
  */
 async function buildHoldingsContext(uid, sym) {
@@ -72,6 +95,8 @@ async function buildHoldingsContext(uid, sym) {
   try { portfolio = await getPortfolio(uid); } catch { return null; }
   const d = diagnose(portfolio);
   if (!d.ready) return null;
+
+  const econ = positionEconomics(portfolio, sym);
 
   const sector = sectorOf(sym);
   const sleeve = sleeveOf(sym);
@@ -87,11 +112,30 @@ async function buildHoldingsContext(uid, sym) {
   const breachIfAdd = breachSector || breachName;
 
   const lines = [
-    `HOLDINGS CONTEXT (the investor's actual portfolio, $${Math.round(d.total).toLocaleString()}):`,
-    `- ${sym}: currently ${(positionPct * 100).toFixed(1)}% of the portfolio (${sleeve} sleeve; cap ${(nameCap * 100).toFixed(0)}%)`,
-    `- ${sector} sector: currently ${(sectorPct * 100).toFixed(0)}% of the portfolio (cap ${CAPS.sector * 100}%)`,
-    `- Core/Satellite mix: ${(d.sleeve.corePct * 100).toFixed(0)}% / ${(d.sleeve.satellitePct * 100).toFixed(0)}% (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100})`,
+    `HOLDINGS CONTEXT — the firm's actual book, $${Math.round(d.total).toLocaleString()} under management:`,
   ];
+
+  if (econ) {
+    if (econ.avgCost != null) {
+      const dir = econ.unreal >= 0 ? 'UP' : 'DOWN';
+      lines.push(
+        `- THE FIRM ALREADY OWNS ${sym}: ${econ.shares} sh at $${econ.avgCost.toFixed(2)} average cost. `
+        + `Position is ${dir} ${Math.abs(econ.unrealPct * 100).toFixed(0)}% `
+        + `(${econ.unreal >= 0 ? '+' : '-'}$${Math.abs(econ.unreal).toLocaleString(undefined, { maximumFractionDigits: 0 })} unrealised). `
+        + `Underwater is not a sell reason on its own — judge the thesis. If the thesis holds and the name is cheap, averaging down is on the table; if it's broken, stop adding.`,
+      );
+    } else {
+      lines.push(`- THE FIRM ALREADY OWNS ${sym}: ${econ.shares} sh (cost basis not recorded).`);
+    }
+  } else {
+    lines.push(`- The firm does NOT own ${sym} yet — you are underwriting it as a new position.`);
+  }
+
+  lines.push(
+    `- ${sym} weight: ${(positionPct * 100).toFixed(1)}% of the book (${sleeve} sleeve; cap ${(nameCap * 100).toFixed(0)}%)`,
+    `- ${sector} sector: ${(sectorPct * 100).toFixed(0)}% of the book (cap ${CAPS.sector * 100}%)`,
+    `- Core/Satellite mix: ${(d.sleeve.corePct * 100).toFixed(0)}% / ${(d.sleeve.satellitePct * 100).toFixed(0)}% (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100})`,
+  );
   if (d.flags.length) lines.push(`- Rulebook flags: ${d.flags.map(f => f.msg).join(' | ')}`);
 
   // The council's standing conviction tier on this name (from its last run) — so
@@ -111,7 +155,12 @@ async function buildHoldingsContext(uid, sym) {
       : `- ADDING ${sym} IS BLOCKED: the position is already at/over its ${(nameCap * 100).toFixed(0)}% cap.`);
   }
 
-  return { block: '\n' + lines.join('\n') + '\n', held: positionPct > 0, positionPct, sectorPct, sector, sleeve, breachIfAdd, breachSector, breachName };
+  return {
+    block: '\n' + lines.join('\n') + '\n',
+    held: positionPct > 0, positionPct, sectorPct, sector, sleeve,
+    breachIfAdd, breachSector, breachName,
+    econ,
+  };
 }
 
 // Positive-signal agents — their yes-checks build the score. VEGA is scored
@@ -249,7 +298,7 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
     uid ? relevantMemos(uid, { ticker: sym }).catch(() => []) : Promise.resolve([]),
   ]);
   const desk = memoBlock(memos);
-  const user = `Ticker: ${sym}. Judge it for Axiom's long-term basket (belongs / broken / entry / size).\n${liveDataBlock}${holdings?.block || ''}${desk}\nReturn ONLY the JSON.`;
+  const user = `${sym}: rule on it for the firm's book — does it belong, is the thesis broken, is the entry OK, can it be sized.\n${liveDataBlock}${holdings?.block || ''}${desk}\nReturn ONLY the JSON.`;
 
   const agents = {};
   for (let i = 0; i < AGENTS.length; i++) {
@@ -285,9 +334,10 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
     return `${ag.name} (${ag.role}): ${cs} — ${r.note || r.headline}`;
   }).join('\n');
 
-  const synthSys = `You are AXIOM, chair of THE COUNCIL, explaining a verdict on ${sym} to a sharp friend. ${PROTOCOLS}
+  const synthSys = `You are AXIOM, chair of THE COUNCIL, briefing the firm's partner on ${sym}. ${PROTOCOLS}
 The verdict and conviction are ALREADY DECIDED by the rulebook math below — your job is to explain WHY in plain language, not to change it.
-VERDICT MEANINGS: ADD = buy / add to this. HOLD = keep it, no action. TRIM = reduce the position. EXIT = sell out.
+VERDICT MEANINGS: ADD = buy / add to the position. HOLD = keep it, no action. TRIM = reduce it. EXIT = sell out.
+If the firm already holds this name, speak to the position we actually have — its size, its cost basis, whether we're up or down — and what this verdict means for it (add more / sit / cut). If we're underwater but the thesis holds, say plainly whether this is an averaging-down opportunity or a wait.
 Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences, direct and casual, cite the checks that drove it>","catalyst":"<the single event most relevant, or null>"}`;
 
   let synth = { headline: '', rationale: '', catalyst: null };
@@ -325,6 +375,7 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
       held: holdings.held, positionPct: holdings.positionPct,
       sector: holdings.sector, sectorPct: holdings.sectorPct,
       sleeve: holdings.sleeve, breachIfAdd: holdings.breachIfAdd,
+      econ: holdings.econ || null,
     },
     ...synth,
     ts: Date.now(),
