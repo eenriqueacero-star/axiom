@@ -45,6 +45,7 @@ export const getKeyStatus = (force = false) =>
 
 export const getMarketNews = () => request('/signals/market');
 export const getTickerNews = (ticker) => request(`/signals/${ticker.toUpperCase()}`);
+export const getHoldingsSignals = () => request('/signals/holdings');
 
 export const getScorecard = () => request('/scorecard');
 

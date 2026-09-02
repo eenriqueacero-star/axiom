@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount, renameAccount,
-  getStances, getLatestAnalysis, getAgents, getDca, reviewHoldings,
+  getStances, getLatestAnalysis, getAgents, getDca, reviewHoldings, getHoldingsSignals,
 } from '../api';
 import BrokerLink from './BrokerLink';
 import StrategyCheck from './StrategyCheck';
@@ -156,6 +156,19 @@ function Movers({ positions }) {
 
 /* --------------------------------------------------------------- verdict chip */
 
+/** A dot when the scanner flagged material news on this holding (last 48h). */
+function NewsDot({ items }) {
+  if (!items?.length) return null;
+  const thesis = items.some((s) => s.thesis);
+  return (
+    <span
+      title={items.slice(0, 4).map((s) => `• ${s.headline}`).join('\n')}
+      className="shrink-0 h-1.5 w-1.5 rounded-full"
+      style={{ background: thesis ? '#e0a33a' : '#7c8db5' }}
+    />
+  );
+}
+
 function VerdictChip({ s, open, onClick }) {
   if (!s || !s.analyzed || !s.verdict) {
     return (
@@ -232,7 +245,7 @@ function FundamentalsLine({ f }) {
   );
 }
 
-function DecisionDetail({ ticker, a, econ, agents, onFull }) {
+function DecisionDetail({ ticker, a, econ, signals, agents, onFull }) {
   if (a === undefined) {
     return <div className="px-4 pb-3 pl-6 text-[11px] text-haze animate-pulse">Loading the council’s notes…</div>;
   }
@@ -267,6 +280,7 @@ function DecisionDetail({ ticker, a, econ, agents, onFull }) {
 
       <PositionLine econ={econ || a.holdings?.econ} />
       <FundamentalsLine f={a.fundamentals} />
+      <NewsFlags items={signals} />
 
       {a.headline && <p className="text-sm text-neutral-100 font-medium">{stripMd(a.headline)}</p>}
       {a.rationale && <p className="text-xs text-neutral-400 leading-relaxed">{stripMd(a.rationale)}</p>}
@@ -310,7 +324,7 @@ function DecisionDetail({ ticker, a, econ, agents, onFull }) {
 
 /* ------------------------------------------------------------------ holding row */
 
-function Holding({ p, weight, stance, isOpen, linked, editing, draft, setDraft, onToggle, onEdit, onSaveShares, onRemove, detail }) {
+function Holding({ p, weight, stance, signals, isOpen, linked, editing, draft, setDraft, onToggle, onEdit, onSaveShares, onRemove, detail }) {
   const tier = stance?.tier ? tierStyle(stance.tier) : null;
   const railColor = tier ? tier.fg : UNRATED;
 
@@ -324,8 +338,8 @@ function Holding({ p, weight, stance, isOpen, linked, editing, draft, setDraft, 
 
       <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 pl-5">
         <div className="w-[58px] shrink-0">
-          <button onClick={onToggle} className="font-mono text-sm text-neutral-100 hover:text-indigo-300 block text-left leading-tight">
-            {p.ticker}
+          <button onClick={onToggle} className="font-mono text-sm text-neutral-100 hover:text-indigo-300 flex items-center gap-1 text-left leading-tight">
+            {p.ticker}<NewsDot items={signals} />
           </button>
           <span className="font-mono text-[10px] text-ink-600">{p.shares} sh</span>
         </div>
@@ -382,11 +396,33 @@ function Holding({ p, weight, stance, isOpen, linked, editing, draft, setDraft, 
   );
 }
 
+/** Material headlines the scanner flagged — shown inside the expanded holding. */
+function NewsFlags({ items }) {
+  if (!items?.length) return null;
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-mono uppercase tracking-wider text-ink-600">Flagged news (48h)</p>
+      <ul className="space-y-1">
+        {items.slice(0, 4).map((s, i) => (
+          <li key={i} className="text-[11px] leading-snug">
+            <a href={s.url} target="_blank" rel="noreferrer noopener"
+              className={`${s.thesis ? 'text-[#e0a33a]' : 'text-neutral-400'} hover:text-neutral-200`}>
+              {s.headline}
+            </a>
+            <span className="text-ink-600"> · {s.source} · {ago(s.ts)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ main */
 
 export default function Portfolio({ onAnalyze }) {
   const [data, setData] = useState(null);
   const [stances, setStances] = useState({});
+  const [signals, setSignals] = useState({});
   const [agents, setAgents] = useState([]);
   const [expanded, setExpanded] = useState(null);
   const [analyses, setAnalyses] = useState({});
@@ -409,7 +445,11 @@ export default function Portfolio({ onAnalyze }) {
   const loadStances = () =>
     getStances().then((r) => { setStances(r.stances || {}); return r; }).catch(() => null);
   useEffect(() => { load(); }, []);
-  useEffect(() => { loadStances(); getAgents().then(setAgents).catch(() => {}); }, []);
+  useEffect(() => {
+    loadStances();
+    getAgents().then(setAgents).catch(() => {});
+    getHoldingsSignals().then((r) => setSignals(r.signals || {})).catch(() => {});
+  }, []);
   useEffect(() => () => clearInterval(pollRef.current), []);
 
   // "Review the book" — kick off a server-side council pass over every holding,
@@ -582,6 +622,7 @@ export default function Portfolio({ onAnalyze }) {
                       p={p}
                       weight={totals.value ? (p.value || 0) / totals.value : 0}
                       stance={stances[p.ticker]}
+                      signals={signals[p.ticker]}
                       isOpen={expanded === p.ticker}
                       linked={linked}
                       editing={editing === `${acct.id}:${p.ticker}`}
@@ -596,6 +637,7 @@ export default function Portfolio({ onAnalyze }) {
                           ticker={p.ticker}
                           a={analyses[p.ticker]}
                           econ={stances[p.ticker]?.econ}
+                          signals={signals[p.ticker]}
                           agents={agents}
                           onFull={() => onAnalyze(p.ticker)}
                         />

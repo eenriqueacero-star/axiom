@@ -327,13 +327,19 @@ content shown inside each 3D room.
 
 - [x] **News feed (v1, UI only)** — `server/lib/signals.js` marketNews + tickerNews via
   Finnhub; `/api/signals/*`; NewsPanel under the agent cards.
-- [ ] **CONNECT news → agents** ⭐ — the panel is standalone right now = cosmetic. Wire
-  `signals` into the council: pass recent ticker headlines into NOVA (catalyst) + VEGA
-  (bear case) agent context so verdicts cite real events; surface which headlines drove
-  the verdict; push-alert on material news for held tickers. Nothing is "done" until it
-  connects.
-- [ ] **Events service — remaining**: SEC EDGAR 8-K, Fed/econ/FDA calendars, persist to
-  Firestore `signals`, feed NOVA agent context, push alerts on holdings hits.
+- [x] **CONNECT news → agents** ⭐ — done in pieces:
+  - `fetchLiveData` feeds the last 7 days of ticker headlines into every council
+    run (LIVE DATA block); on a ≥5% day a "WHY IT'S MOVING" block goes to VEGA/NOVA.
+  - `lib/holdingsNews.js` `scanAllHoldingsNews` (30-min market-hours cron): scans
+    each holding's fresh headlines, flags material ones (acquire/guidance/fraud/
+    SEC/CEO/recall/…), pushes once (deduped via `users/{uid}/state/newsSeen`),
+    writes them to `users/{uid}/signals`, and re-convenes the council on
+    thesis-level events (acquisition, guidance cut, fraud, delisting…).
+  - `GET /api/signals/holdings` + Portfolio: a news dot on flagged holdings
+    (amber = thesis-level), the headlines in the expanded detail.
+- [ ] **Events service — remaining**: SEC EDGAR 8-K, Fed/econ/FDA calendars. The
+  `signals` collection + NOVA context + push-on-holdings-hit plumbing now exists;
+  this is just adding the extra feeds into `scanAllHoldingsNews`.
 - [ ] **Congressional trading tracker** — BLOCKED on data source. Free sources dead in
   2026 (old S3/github datasets gone; CongressInvests API rate-shared + 3mo stale).
   Decide: Disclosed Capitol free-tier signup, Quiver $25/mo, or defer.

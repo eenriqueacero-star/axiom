@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import { runDailyScout } from './scoutJob.js';
 import { runPortfolioAlerts, runMoveReview } from './alertJob.js';
+import { scanAllHoldingsNews } from '../lib/holdingsNews.js';
 import { scoreAllUsers } from '../lib/scorecard.js';
 import { calibrateAllUsers } from '../lib/calibration.js';
 import { deskTick } from './deskLoop.js';
@@ -12,11 +13,12 @@ export function initScheduler() {
     runDailyScout().catch(err => console.error('[scout] Error:', err.message));
   }, { timezone: 'America/New_York' });
 
-  // Portfolio alerts + big-mover re-review — every 30 min during market hours
+  // Portfolio alerts + big-mover re-review + holdings news — every 30 min, market hours
   cron.schedule('*/30 9-16 * * 1-5', () => {
-    console.log('[scheduler] Checking portfolio alerts + big movers...');
+    console.log('[scheduler] alerts / big movers / holdings news...');
     runPortfolioAlerts().catch(err => console.error('[alerts] Error:', err.message));
     runMoveReview().catch(err => console.error('[move-review] Error:', err.message));
+    scanAllHoldingsNews().catch(err => console.error('[holdings-news] Error:', err.message));
   }, { timezone: 'America/New_York' });
 
   // Verdict scorecard + agent calibration — 4:30 PM ET
