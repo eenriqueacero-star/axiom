@@ -111,11 +111,20 @@ export default function SystemStatus({ open, onClose }) {
         {keys && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-haze">Groq keys</span>
-              <span className={keys.live === keys.total ? 'text-emerald-400' : 'text-amber-400'}>
-                {keys.live}/{keys.total} live
+              <span className="text-haze">API keys</span>
+              <span className="font-mono text-[11px]">
+                <span className={keys.live === keys.total ? 'text-emerald-400' : keys.live ? 'text-amber-400' : 'text-red-400'}>
+                  Groq {keys.live}/{keys.total}
+                </span>
+                <span className="text-ink-600"> · </span>
+                <span className={!keys.nvidiaTotal ? 'text-ink-600' : (keys.nvidiaLive === keys.nvidiaTotal ? 'text-emerald-400' : keys.nvidiaLive ? 'text-amber-400' : 'text-red-400')}>
+                  NVIDIA {keys.nvidiaTotal ? `${keys.nvidiaLive}/${keys.nvidiaTotal}` : '—'}
+                </span>
               </span>
             </div>
+            <p className="text-[10px] text-haze">
+              Synthesis model: {keys.synthProvider === 'nvidia' ? 'NVIDIA (strong)' : 'Groq (gpt-oss-120b)'}
+            </p>
             <ul className="divide-y divide-ink-800 rounded-lg border hairline overflow-hidden">
               {keys.keys.map((k) => (
                 <li key={k.index} className="flex items-center justify-between px-3 py-2 text-xs">

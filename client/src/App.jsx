@@ -8,6 +8,7 @@ import Congress from './components/Congress';
 import TheFloor from './components/TheFloor';
 import TheOffice from './components/TheOffice';
 import SystemStatus from './components/SystemStatus';
+import KeyStatusPill from './components/KeyStatusPill';
 
 
 export default function App() {
@@ -57,11 +58,7 @@ export default function App() {
         <div className={`mx-auto ${shell} px-4 h-14 flex items-center justify-between`}>
           <div className="flex items-center gap-3">
             <span className="font-mono text-sm tracking-widest text-indigo-400">AXIOM</span>
-            <button
-              onClick={() => setStatusOpen(true)}
-              title="System status"
-              className="h-2 w-2 rounded-full bg-emerald-400 hover:ring-2 hover:ring-emerald-400/40"
-            />
+            <KeyStatusPill onOpen={() => setStatusOpen(true)} />
           </div>
           <button
             onClick={signOut}

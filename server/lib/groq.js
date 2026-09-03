@@ -12,10 +12,16 @@ const COMPOUND_CAP = 600;
 // (one or more, comma-separated) from build.nvidia.com.
 const NVIDIA_URL   = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const NVIDIA_MODEL = 'openai/gpt-oss-120b';
+// Stronger model for the judgment-heavy calls (AXIOM synthesis, the boss's
+// nightly assignments + brief). Free on NIM, slower than gpt-oss-120b.
+const NVIDIA_SYNTH_MODEL = process.env.NVIDIA_SYNTH_MODEL || 'nvidia/nemotron-3-super-120b-a12b';
 const nvidiaKeys = () =>
   (process.env.NVIDIA_API_KEY || '').split(',').map((s) => s.trim()).filter(Boolean);
+// Set SYNTH_PROVIDER=nvidia on the backend to route synthesis through the
+// strong model first (Groq stays the fallback). Default keeps Groq primary.
+const synthNvidiaFirst = () => process.env.SYNTH_PROVIDER === 'nvidia' && nvidiaKeys().length > 0;
 
-async function callNvidia(system, user, maxTokens, effort = 'low') {
+async function callNvidia(system, user, maxTokens, effort = 'low', model = NVIDIA_MODEL) {
   const keys = nvidiaKeys();
   if (!keys.length) throw Object.assign(new Error('no NVIDIA key'), { status: 0 });
   recordCall({ autonomous: !!callBase.autonomous });
@@ -25,7 +31,7 @@ async function callNvidia(system, user, maxTokens, effort = 'low') {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: NVIDIA_MODEL,
+          model,
           messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
           max_tokens: maxTokens, temperature: 0, top_p: 1,
           ...(effort ? { reasoning_effort: effort } : {}),
@@ -192,12 +198,10 @@ export async function callAgentChat({ system, messages, maxTokens = 600, effort 
 
 let _keyCache = { ts: 0, data: null };
 
-async function probeKey(apiKey, i) {
+async function probeKey(url, apiKey, i) {
   const started = Date.now();
   try {
-    const res = await fetch('https://api.groq.com/openai/v1/models', {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
     const ms = Date.now() - started;
     if (res.ok) return { index: i + 1, ok: true, status: res.status, ms };
     const body = await res.json().catch(() => ({}));
@@ -207,7 +211,7 @@ async function probeKey(apiKey, i) {
   }
 }
 
-// Checks every configured Groq key against the API. Cached for 60s.
+// Checks every configured Groq + NVIDIA key against its API. Cached for 60s.
 export async function checkGroqKeys({ force = false } = {}) {
   if (!force && _keyCache.data && Date.now() - _keyCache.ts < 60_000) return _keyCache.data;
 
@@ -216,20 +220,37 @@ export async function checkGroqKeys({ force = false } = {}) {
     'GROQ_API_KEY', 'GROQ_API_KEY_2', 'GROQ_API_KEY_3', 'GROQ_API_KEY_4', 'GROQ_API_KEY_5',
   ];
   const configured = slots.filter(s => process.env[s]);
-  const results = await Promise.all(keys.map((k, i) => probeKey(k, i)))
-    .then(rs => rs.map((r, i) => ({ ...r, name: configured[i] || `key ${i + 1}` })));
+  const results = await Promise.all(keys.map((k, i) => probeKey('https://api.groq.com/openai/v1/models', k, i)))
+    .then(rs => rs.map((r, i) => ({ ...r, provider: 'groq', name: configured[i] || `Groq ${i + 1}` })));
 
+  const nvKeys = nvidiaKeys();
+  const nvResults = await Promise.all(nvKeys.map((k, i) => probeKey(NVIDIA_URL.replace('/chat/completions', '/models'), k, i)))
+    .then(rs => rs.map((r, i) => ({ ...r, provider: 'nvidia', name: nvKeys.length > 1 ? `NVIDIA ${i + 1}` : 'NVIDIA' })));
+
+  const all = [...results, ...nvResults];
   const data = {
     total: keys.length,
     live: results.filter(r => r.ok).length,
+    nvidiaTotal: nvKeys.length,
+    nvidiaLive: nvResults.filter(r => r.ok).length,
+    synthProvider: synthNvidiaFirst() ? 'nvidia' : 'groq',
     checkedAt: Date.now(),
-    keys: results,
+    keys: all,
   };
   _keyCache = { ts: Date.now(), data };
   return data;
 }
 
 export async function callSynthesis({ system, user, maxTokens = 2000, effort = 'medium' }) {
+  // When SYNTH_PROVIDER=nvidia, try the strong NIM model before Groq.
+  if (synthNvidiaFirst()) {
+    try {
+      const text = await callNvidia(system, user, maxTokens, effort, NVIDIA_SYNTH_MODEL);
+      if (text) return text;
+    } catch (err) {
+      if (err.status !== 429 && err.status !== 0) console.warn('[synth] nvidia-first failed:', err.message);
+    }
+  }
   const keys = shuffled(getKeys());
   let lastErr;
   for (const key of keys) {
@@ -254,9 +275,10 @@ export async function callSynthesis({ system, user, maxTokens = 2000, effort = '
       }
     }
   }
-  // Every Groq key is rate-limited or failing — fall through to NVIDIA NIM.
+  // Every Groq key is rate-limited or failing — fall through to NVIDIA NIM
+  // (strong model — this is the synthesis path, quality matters here).
   try {
-    return await callNvidia(system, user, maxTokens, effort);
+    return await callNvidia(system, user, maxTokens, effort, NVIDIA_SYNTH_MODEL);
   } catch (err) {
     throw lastErr || err;
   }
