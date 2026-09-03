@@ -96,25 +96,37 @@ export async function runDailyScout() {
     await sleep(2000);
   }
 
-  // Notify subscribed users about strong ADD calls and any EXIT on a held name.
+  // Notify subscribed users. Discovery ideas are NOT one-push-each any more —
+  // that buried the phone in 15+ "AXIOM Scout: X — ADD" alerts at once. Instead:
+  // a single digest line for the new ideas, and an individual push only for an
+  // EXIT on a name actually held (that one's genuinely urgent).
   const held = new Set(Object.values(ACCOUNTS).flatMap(a => a.holdings));
-  const alerts = results.filter(r =>
-    (r.verdict === 'ADD' && r.conviction >= 7) ||
-    (r.verdict === 'EXIT' && held.has(r.ticker)),
-  );
-  if (alerts.length) {
+  const ideas = results
+    .filter(r => r.verdict === 'ADD' && r.conviction >= 8 && !held.has(r.ticker))
+    .sort((a, b) => (b.conviction || 0) - (a.conviction || 0));
+  const exits = results.filter(r => r.verdict === 'EXIT' && held.has(r.ticker));
+
+  if (ideas.length || exits.length) {
     const usersSnap = await db.collection('users').get();
     for (const userDoc of usersSnap.docs) {
-      for (const r of alerts) {
+      for (const r of exits) {
         await sendPush(userDoc.id, {
-          title: `AXIOM Scout: ${r.ticker} — ${r.verdict}`,
-          body: r.headline || `Conviction ${r.conviction}/10`,
+          title: `⚠️ AXIOM Scout: EXIT ${r.ticker}`,
+          body: r.headline || `The council would exit ${r.ticker}.`,
           data: { ticker: r.ticker, verdict: r.verdict },
+        }).catch(() => {});
+      }
+      if (ideas.length) {
+        const names = ideas.slice(0, 5).map(r => r.ticker).join(', ');
+        await sendPush(userDoc.id, {
+          title: `AXIOM Scout — ${ideas.length} idea${ideas.length > 1 ? 's' : ''} worth a look`,
+          body: `${names}${ideas.length > 5 ? ' …' : ''} — high-conviction ADD on names you don't own.`,
+          data: { path: '/?tab=floor' },
         }).catch(() => {});
       }
     }
   }
 
-  console.log(`[scout] Done. ${results.length} scanned, ${alerts.length} alerts.`);
+  console.log(`[scout] Done. ${results.length} scanned, ${ideas.length} ideas + ${exits.length} exits.`);
   return results;
 }
