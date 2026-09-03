@@ -14,13 +14,14 @@ import { db } from './firebase.js';
 import { sendPush } from '../routes/push.js';
 
 const FEED_CAP_QUERY = 20 * 3600_000;   // dedupe window: same key within 20h updates, doesn't restack
-const KINDS = ['news', 'filing', 'insider', 'congress', 'move', 'rating', 'scout', 'desk', 'opportunity'];
+const KINDS = ['news', 'filing', 'insider', 'congress', 'move', 'rating', 'scout', 'desk', 'opportunity', 'macro'];
 
 const DEFAULT_PREFS = {
   // 'push' → real-time when severity >= review; 'digest' → morning/close roundup only; 'off' → feed only
   kinds: {
     news: 'push', filing: 'push', insider: 'digest', congress: 'digest',
     move: 'push', rating: 'push', scout: 'digest', desk: 'push', opportunity: 'push',
+    macro: 'digest',
   },
   quietStart: 22,   // ET hour — non-critical pushes held until quietEnd
   quietEnd: 7,

@@ -93,6 +93,7 @@ export const deleteAccount = (accountId) =>
 export const renameAccount = (accountId, nickname) =>
   request(`/portfolio/${accountId}`, { method: 'PATCH', body: { nickname } });
 
+export const getMacro = () => request('/strategy/macro');
 export const getContributions = () => request('/strategy/contributions');
 export const setContributions = (body) => request('/strategy/contributions', { method: 'PUT', body });
 export const addContributionEntry = (body) => request('/strategy/contributions/entry', { method: 'POST', body });

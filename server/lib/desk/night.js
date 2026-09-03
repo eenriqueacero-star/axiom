@@ -18,6 +18,7 @@ import { diagnose } from '../strategy.js';
 import { priceFacts } from '../metrics.js';
 import { fundamentals, fmtCap } from '../fundamentals.js';
 import { contributionsBlock } from '../contributions.js';
+import { macroBlock } from '../macro.js';
 import { callAgent, callSynthesis, setAutonomous } from '../groq.js';
 import { extractJSON } from '../council.js';
 import { saveMemo, listMemos } from '../memos.js';
@@ -105,6 +106,9 @@ export async function firmContext(uid) {
 
   const contrib = await contributionsBlock(uid).catch(() => '');
   if (contrib) lines.push(contrib);
+
+  const macro = await macroBlock({ days: 14 }).catch(() => '');
+  if (macro) lines.push(macro);
 
   // latest verdict per ticker
   try {

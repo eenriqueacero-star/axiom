@@ -40,6 +40,7 @@ const NOTIF_KINDS = [
   ['news', 'News'], ['filing', 'Filings'], ['insider', 'Insider trades'],
   ['congress', 'Congress'], ['move', 'Big moves'], ['rating', 'Rating changes'],
   ['scout', 'Scout ideas'], ['desk', 'The desk'], ['opportunity', 'Opportunities'],
+  ['macro', 'Macro events'],
 ];
 const NEXT_MODE = { push: 'digest', digest: 'off', off: 'push' };
 const MODE_STYLE = {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getFloor, getDca, getDeskWork, getPlaybooks, runDeskNight, getDeskEvents, getVault, getOpportunities } from '../api';
+import { getFloor, getDca, getDeskWork, getPlaybooks, runDeskNight, getDeskEvents, getVault, getOpportunities, getMacro } from '../api';
 import { stanceStyle, verdictStyle, tierStyle, stripMd } from './stance';
 import { AgentPanel, AgentChat, rel } from './floor/shared';
 
@@ -222,6 +222,27 @@ function OpportunitiesCard({ onAnalyze }) {
   );
 }
 
+function MacroCard() {
+  const [ev, setEv] = useState(null);
+  useEffect(() => { getMacro().then((r) => setEv(r.events || [])).catch(() => setEv([])); }, []);
+  if (!ev?.length) return null;
+  const KIND = { fed: '#f0abfc', inflation: '#fbbf24', jobs: '#4ade80', growth: '#8b9cff', macro: '#9ca3af' };
+  return (
+    <div className="card p-4">
+      <p className="text-[11px] uppercase tracking-widest text-haze mb-2">Macro calendar</p>
+      <ul className="space-y-1">
+        {ev.slice(0, 5).map((e) => (
+          <li key={`${e.date}${e.event}`} className="flex items-center gap-2 text-[11px]">
+            <span className="font-mono text-haze w-20 shrink-0">{e.date.slice(5)}</span>
+            <span className="w-10 text-haze shrink-0">{e.daysOut === 0 ? 'today' : `${e.daysOut}d`}</span>
+            <span style={{ color: KIND[e.kind] || '#9ca3af' }} className="truncate">{e.event}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function DcaCard() {
   const [d, setD] = useState(null);
   const [err, setErr] = useState('');
@@ -332,6 +353,7 @@ export default function TheFloor({ onAnalyze }) {
       <LastNight />
       <EventDesk onAnalyze={onAnalyze} />
       <OpportunitiesCard onAnalyze={onAnalyze} />
+      <MacroCard />
       <DcaCard />
       <DiscoveryCard items={floor.discovery} onAnalyze={onAnalyze} />
 

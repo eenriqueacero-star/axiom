@@ -27,6 +27,7 @@ import { runDeskNightAll } from './deskNight.js';
 import { runWeekendReflection } from './weekendReflection.js';
 import { runNotifyDigest } from '../lib/notify.js';
 import { runBossSweepAll } from '../lib/desk/sweep.js';
+import { runMacroWatch } from '../lib/macro.js';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -95,6 +96,14 @@ const JOBS = [
     label: 'Overnight desk research',
     every: 18 * HOUR,
     run: () => runDeskNightAll(),
+  },
+  {
+    name: 'macro-watch',          // heads-up the day before a Fed decision / CPI / jobs report
+    label: 'Macro calendar watch',
+    every: 12 * HOUR,
+    when: () => { const e = etParts(); return e.hour >= 7 && e.hour <= 20; },
+    window: '7am–8pm ET',
+    run: () => runMacroWatch(),
   },
   {
     name: 'digest-am',            // morning roll-up of everything that landed feed-only overnight

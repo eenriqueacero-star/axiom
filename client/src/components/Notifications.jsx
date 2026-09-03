@@ -15,7 +15,7 @@ function rel(ts) {
 
 const KIND_ICON = {
   news: '📰', filing: '📄', insider: '👤', congress: '🏛️', move: '📈',
-  rating: '⚖️', scout: '🔭', desk: '🗒️', opportunity: '💡',
+  rating: '⚖️', scout: '🔭', desk: '🗒️', opportunity: '💡', macro: '🏦',
 };
 const SEV_DOT = { critical: 'bg-red-400', review: 'bg-amber-400', fyi: 'bg-ink-600' };
 
