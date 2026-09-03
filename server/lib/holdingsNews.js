@@ -9,6 +9,7 @@ import { getPortfolio } from './portfolio.js';
 import { tickerNews } from './signals.js';
 import { runCouncil } from './council.js';
 import { recentFilings, edgarConfigured } from './edgar.js';
+import { insiderActivity, insiderHeadline } from './insiders.js';
 import { sendPush } from '../routes/push.js';
 
 // Words that tend to mean a real change to the story, not noise.
@@ -112,6 +113,31 @@ export async function scanHoldingsNewsForUser(uid) {
         if (f.thesis) await maybeReview(uid, ticker, analysesCol, now, `the ${f.form}`);
       }
     }
+
+    // Insider (Form 4) cluster buying / selling — ping at most once a week per
+    // direction (activity isn't a discrete event, so bucket the seen-key by week).
+    try {
+      const ia = await insiderActivity(ticker, { days: 45 });
+      if (ia && (ia.clusterBuy || ia.clusterSell)) {
+        const wk = Math.floor(now / (7 * 864e5));
+        const key = `insider-${ia.clusterBuy ? 'buy' : 'sell'}-${ticker}-${wk}`;
+        if (!seen.has(key)) {
+          newlySeen.push(key);
+          alerted++;
+          const head = insiderHeadline(ia);
+          await sendPush(uid, {
+            title: `${ia.clusterBuy ? '🟢' : '🟠'} ${ticker} insiders`,
+            body: head.slice(0, 140),
+            data: { ticker },
+          }).catch(() => {});
+          await db.collection(`users/${uid}/signals`).add({
+            ticker, kind: 'insider', headline: head, url: '', source: 'SEC Form 4',
+            ts: now, material: true, thesis: false, seenAt: now,
+          }).catch(() => {});
+          if (ia.clusterBuy) await maybeReview(uid, ticker, analysesCol, now, 'insider buying');
+        }
+      }
+    } catch { /* non-fatal */ }
 
     await new Promise(r => setTimeout(r, 300));
   }
