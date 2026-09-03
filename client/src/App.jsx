@@ -47,19 +47,52 @@ export default function App() {
     }
   }, [user]);
 
-  // iOS standalone PWAs won't reliably navigate() an already-open client, so the
-  // service worker forwards the click target as a message instead.
+  // Notification routing. iOS standalone PWAs won't act on postMessage or
+  // navigate() while backgrounded — but when the PWA is brought forward the
+  // page becomes visible again, so we re-check a route the SW stashed in the
+  // Cache API on every resume. postMessage covers desktop/Android.
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return;
-    const onMsg = (e) => {
-      if (e.data?.type === 'axiom-nav' && e.data.path) {
-        const qs = e.data.path.includes('?') ? e.data.path.split('?')[1] : '';
-        applyDeepLink(qs);
-      }
+    if (!user) return;
+    let done = false;
+
+    const applyPath = (path) => {
+      if (!path) return;
+      const qs = path.includes('?') ? path.split('?')[1] : '';
+      applyDeepLink(qs);
     };
-    navigator.serviceWorker.addEventListener('message', onMsg);
-    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
-  }, []);
+
+    const consumePending = async () => {
+      if (done) return;
+      try {
+        const cache = await caches.open('axiom-nav');
+        const res = await cache.match('pending');
+        if (res) {
+          const path = await res.text();
+          await cache.delete('pending');
+          applyPath(path);
+        }
+      } catch { /* ignore */ }
+    };
+
+    const onMsg = (e) => {
+      if (e.data?.type === 'axiom-nav' && e.data.path) applyPath(e.data.path);
+    };
+    const onVis = () => { if (document.visibilityState === 'visible') consumePending(); };
+
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', onMsg);
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', consumePending);
+    window.addEventListener('pageshow', consumePending);
+    consumePending();
+
+    return () => {
+      done = true;
+      if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', onMsg);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('focus', consumePending);
+      window.removeEventListener('pageshow', consumePending);
+    };
+  }, [user]);
 
   // Poll for an unread ping from the boss.
   useEffect(() => {
