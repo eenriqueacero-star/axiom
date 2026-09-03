@@ -4,6 +4,7 @@ import Login from './components/Login';
 import Analyze from './components/Analyze';
 import Portfolio from './components/Portfolio';
 import Scorecard from './components/Scorecard';
+import Congress from './components/Congress';
 import TheFloor from './components/TheFloor';
 import TheOffice from './components/TheOffice';
 import SystemStatus from './components/SystemStatus';
@@ -47,7 +48,7 @@ export default function App() {
     </button>
   );
 
-  const wide = view === 'portfolio' || (view === 'floor' && roomView);
+  const wide = view === 'portfolio' || view === 'congress' || (view === 'floor' && roomView);
   const shell = view === 'floor' && roomView ? 'max-w-6xl' : wide ? 'max-w-5xl' : 'max-w-3xl';
 
   return (
@@ -73,6 +74,7 @@ export default function App() {
           {tab('portfolio', 'Portfolio')}
           {tab('analyze', 'Analyze')}
           {tab('floor', 'The Floor')}
+          {tab('congress', 'Congress')}
           {tab('scorecard', 'Scorecard')}
         </div>
       </header>
@@ -91,6 +93,7 @@ export default function App() {
               </div>
             )
         )}
+        {view === 'congress' && <Congress onAnalyze={goAnalyze} />}
         {view === 'scorecard' && <Scorecard />}
       </main>
 

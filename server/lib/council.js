@@ -7,6 +7,7 @@ import { getPortfolio } from './portfolio.js';
 import { diagnose, sectorOf, sleeveOf, CAPS, CORE_LIST } from './strategy.js';
 import { relevantMemos, memoBlock } from './memos.js';
 import { fundamentals, fundamentalsBlock } from './fundamentals.js';
+import { congressTrades, congressConfigured } from './congress/index.js';
 import { agentWeights } from './agentWeights.js';
 import { getCalibration } from './calibration.js';
 import { backtestVerdictLine } from './quant.js';
@@ -60,6 +61,22 @@ export async function fetchLiveData(ticker) {
 
   const { facts, block: factsBlock } = await priceFacts(ticker, price).catch(() => ({ facts: { available: false }, block: '' }));
 
+  // Congressional trades in this name — a NOVA/ATLAS signal when configured.
+  let congressBlock = '';
+  if (congressConfigured()) {
+    try {
+      const ct = await congressTrades({ ticker, days: 75 });
+      if (ct.length) {
+        const lines = ct.slice(0, 5).map(t =>
+          `- ${t.member}${t.party ? ` (${t.party})` : ''} ${t.chamber}: ${t.type.toUpperCase()} `
+          + `$${(t.amountLow || 0).toLocaleString()}–${(t.amountHigh || 0).toLocaleString()} on ${t.txDate}`,
+        ).join('\n');
+        const buys = ct.filter(t => t.type === 'buy').length;
+        congressBlock = `\nCONGRESSIONAL TRADES in ${ticker} (last 75 days, ${buys} buys / ${ct.length - buys} sells):\n${lines}\n`;
+      }
+    } catch { /* non-fatal */ }
+  }
+
   // On a big single-day move, pull the last ~2 days of headlines to the front so
   // VEGA and NOVA reason about WHY it moved, not just that it did.
   let moveBlock = '';
@@ -73,7 +90,7 @@ export async function fetchLiveData(ticker) {
       + (recent ? `The freshest headlines:\n${recent}\n` : `No news explains the move — treat a move with no news behind it as noise, not a thesis change.\n`);
   }
 
-  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${moveBlock}${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
+  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${moveBlock}${congressBlock}${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
   return { liveDataBlock, price, changePct, nextEarnings, news, facts };
 }
 

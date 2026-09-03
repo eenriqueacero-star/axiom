@@ -47,6 +47,11 @@ export const getMarketNews = () => request('/signals/market');
 export const getTickerNews = (ticker) => request(`/signals/${ticker.toUpperCase()}`);
 export const getHoldingsSignals = () => request('/signals/holdings');
 
+export const getCongress = (params = {}) => {
+  const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== '')).toString();
+  return request(`/congress${q ? `?${q}` : ''}`);
+};
+
 export const getScorecard = () => request('/scorecard');
 
 // Push notifications

@@ -2,15 +2,17 @@ import cron from 'node-cron';
 import { runDailyScout } from './scoutJob.js';
 import { runPortfolioAlerts, runMoveReview } from './alertJob.js';
 import { scanAllHoldingsNews } from '../lib/holdingsNews.js';
+import { scanCongressForHoldings } from '../lib/congress/scan.js';
 import { scoreAllUsers } from '../lib/scorecard.js';
 import { calibrateAllUsers } from '../lib/calibration.js';
 import { deskTick } from './deskLoop.js';
 
 export function initScheduler() {
-  // Daily scout scan — 9:05 AM ET (market open + 5 min)
+  // Daily scout scan + congressional trades — 9:05 AM ET
   cron.schedule('5 9 * * 1-5', () => {
     console.log('[scheduler] Running daily scout scan...');
     runDailyScout().catch(err => console.error('[scout] Error:', err.message));
+    scanCongressForHoldings().catch(err => console.error('[congress] Error:', err.message));
   }, { timezone: 'America/New_York' });
 
   // Portfolio alerts + big-mover re-review + holdings news — every 30 min, market hours
