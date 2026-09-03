@@ -222,6 +222,24 @@ export async function resolveThread(uid, id, outcome = 'archive') {
       tags: ['chat', 'event'],
     }).catch(() => {});
   }
+  // 'act' on an execution thread = the investor followed the verdict. Record it
+  // as a desk note so the council knows the position moved, and stamp the
+  // analysis so the scorecard can tell "acted on" from "ignored".
+  if (outcome === 'act' && t.seededDecision?.ticker) {
+    const d = t.seededDecision;
+    await saveMemo(uid, {
+      participants: ['axiom'],
+      topic: `Acted: ${d.verdict} ${d.ticker}`,
+      ticker: d.ticker,
+      conclusion: `The investor acted on the council's ${d.verdict} on ${d.ticker} (${d.mandate}). ${d.why || ''}`.slice(0, 300),
+      confidence: 0.9, actionable: false, tags: ['executed', 'decision'],
+      source: 'execution',
+    }).catch(() => {});
+    try {
+      const snap = await db.collection(`users/${uid}/analyses`).where('ticker', '==', d.ticker).orderBy('ts', 'desc').limit(1).get();
+      if (!snap.empty) await snap.docs[0].ref.set({ acted: true, actedAt: Date.now() }, { merge: true });
+    } catch { /* non-fatal */ }
+  }
   await doc.ref.set({ resolved: true, resolvedAt: Date.now(), outcome, updatedAt: Date.now() }, { merge: true }).catch(() => {});
   return { ok: true };
 }

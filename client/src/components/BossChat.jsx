@@ -85,8 +85,8 @@ function Thread({ id, agents, onBack }) {
     }
   };
 
-  const setAside = async () => {
-    await resolveBossThread(id, 'archive').catch(() => {});
+  const resolve = async (outcome) => {
+    await resolveBossThread(id, outcome).catch(() => {});
     onBack(true);
   };
 
@@ -96,9 +96,13 @@ function Thread({ id, agents, onBack }) {
     <div className="flex flex-col h-[60vh]">
       <div className="flex items-center justify-between pb-2 border-b hairline">
         <button onClick={() => onBack()} className="text-[11px] text-haze hover:text-neutral-200">← all chats</button>
-        {thread.seededEvent && !thread.resolved && (
-          <button onClick={setAside} className="text-[11px] text-haze hover:text-neutral-300">set aside →</button>
+        {!thread.resolved && thread.seededEvent && (
+          <button onClick={() => resolve('archive')} className="text-[11px] text-haze hover:text-neutral-300">set aside →</button>
         )}
+        {!thread.resolved && thread.seededDecision && (
+          <button onClick={() => resolve('act')} className="text-[11px] text-emerald-400 hover:text-emerald-300">mark done →</button>
+        )}
+        {thread.resolved && <span className="text-[11px] text-ink-600">{thread.outcome === 'act' ? 'marked done' : 'set aside'}</span>}
       </div>
 
       {thread.seededEvent && (

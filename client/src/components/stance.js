@@ -11,11 +11,9 @@ export const VERDICT = {
   HOLD:  { fg: '#c8922a', bg: 'rgba(200,146,42,0.14)', ring: 'rgba(200,146,42,0.4)' },
   TRIM:  { fg: '#e8922a', bg: 'rgba(232,146,42,0.14)', ring: 'rgba(232,146,42,0.4)' },
   EXIT:  { fg: '#e85c5c', bg: 'rgba(232,92,92,0.14)',  ring: 'rgba(232,92,92,0.4)' },
-  // legacy rows
-  BUY:   { fg: '#2fcb8a', bg: 'rgba(47,203,138,0.14)', ring: 'rgba(47,203,138,0.4)' },
-  WATCH: { fg: '#c8922a', bg: 'rgba(200,146,42,0.14)', ring: 'rgba(200,146,42,0.4)' },
-  SKIP:  { fg: '#e85c5c', bg: 'rgba(232,92,92,0.14)',  ring: 'rgba(232,92,92,0.4)' },
 };
+// Legacy verdicts on old Firestore docs → the closest current verb.
+const LEGACY_VERDICT = { BUY: 'ADD', WATCH: 'HOLD', SKIP: 'EXIT' };
 
 // Conviction tier — how strongly a name belongs in the long-term basket,
 // separate from the ADD/HOLD/TRIM/EXIT action. Set in code by the council.
@@ -28,8 +26,9 @@ export const TIER = {
 // Tier order, strongest → weakest. Used to sort and to lay out the conviction strip.
 export const TIER_ORDER = ['HIGH', 'MEDIUM', 'LOW', 'SPECULATIVE'];
 
+export const normalizeVerdict = (v) => LEGACY_VERDICT[v] || v;
 export const stanceStyle = (s) => STANCE[s] || STANCE.CAUTION;
-export const verdictStyle = (v) => VERDICT[v] || VERDICT.HOLD;
+export const verdictStyle = (v) => VERDICT[normalizeVerdict(v)] || VERDICT.HOLD;
 export const tierStyle = (t) => TIER[t] || null;
 
 // AXIOM sometimes wraps headlines/rationale in markdown. We render plain text,
@@ -37,8 +36,8 @@ export const tierStyle = (t) => TIER[t] || null;
 export const stripMd = (s) =>
   typeof s === 'string'
     ? s
-        .replace(/\*\*(.+?)\*\*/g, '$1')
-        .replace(/(?<!\*)\*(?!\*)([^*]+?)\*(?!\*)/g, '$1')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*([^*\n]+)\*/g, '$1')      // no lookbehind — Safari <16.4 SyntaxErrors on it
         .replace(/`([^`]+)`/g, '$1')
         .replace(/^\s*#{1,6}\s+/gm, '')
         .replace(/^\s*>\s?/gm, '')
