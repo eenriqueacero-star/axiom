@@ -112,6 +112,24 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
     it via shared `applyDeepLink`. NEEDS the user to fully close/reopen the PWA
     once for the new SW. UNVERIFIED on-device.
 
+15. **iOS notification routing** — SHIPPED (2026-09-03). iOS never fires
+    `notificationclick` for a backgrounded PWA (proven via on-device instrumented
+    log in System Status → "Notification routing"). So: the SW `push` handler
+    stashes the route (+ts) in the Cache API; the app consumes it on resume only
+    if <25s old (a real tap foregrounds in seconds) → the specific item.
+    Otherwise, on any app open, if notifications arrived since
+    `localStorage['axiom.lastSeenNotif']`, the alerts list auto-opens. Feed is
+    durable so nothing is ever lost. Modals now scroll (max-h + overflow).
+
+16. **FCF yield + market cap** — SHIPPED (2026-09-03). AXIOM ask #1.
+    `fundamentals.js` marketCapM + fcfYield (from Finnhub pfcfShareTTM), in
+    `fundamentalsBlock` + the boss's per-holding market table.
+
+17. **Notification coalescing** — SHIPPED (2026-09-03). `notifyBatch` now wired
+    into holdingsNews + move-review: critical items individual, >3 routine ones
+    → one summary. Rating flips (HOLD→TRIM etc.) on a held name now fire a
+    `rating` notification (was silent).
+
 14. **Contribution ledger** — SHIPPED (2026-09-03). AXIOM's ask #2.
     `lib/contributions.js`, `users/{uid}/state/contributions` = weeklyAmount +
     weekday + split[] + entries[{date,amount,direction,note,done}]. Feeds
