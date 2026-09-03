@@ -470,9 +470,9 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
 The verdict and conviction are ALREADY DECIDED by the rulebook math below — your job is to explain WHY in plain language, not to change it.
 VERDICT MEANINGS: ADD = buy / add to the position. HOLD = keep it, no action. TRIM = reduce it. EXIT = sell out.
 If the firm already holds this name, speak to the position we actually have — its size, its cost basis, whether we're up or down — and what this verdict means for it (add more / sit / cut). If we're underwater but the thesis holds, say plainly whether this is an averaging-down opportunity or a wait.
-Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences, direct and casual, cite the checks that drove it>","catalyst":"<the single event most relevant, or null>"}`;
+Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences, direct and casual, cite the checks that drove it>","catalyst":"<the single event most relevant, or null>","impact":"<1-2 sentences: given the firm's actual position (or that we don't hold it), what this means for the account in plain dollars — the downside if the thesis is wrong, the upside if it's right>"}`;
 
-  let synth = { headline: '', rationale: '', catalyst: null };
+  let synth = { headline: '', rationale: '', catalyst: null, impact: '' };
   try {
     const text = await callSynthesis({
       system: synthSys,
@@ -483,7 +483,7 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
         + `${computed.atCap && !computed.concentrationTrim ? 'The council likes this name and would ADD, but the sector/position is at its cap — so HOLD. Frame it as "we would buy more if we could". ' : ''}`
         + `${computed.downtrendExit ? 'EXIT is driven by a real downtrend PLUS weak fundamentals — not the chart alone. ' : ''}\n`
         + `Council checks:\n${checkLines}`,
-      maxTokens: 512,
+      maxTokens: 640,
     });
     synth = { ...synth, ...(extractJSON(text) || {}) };
   } catch { /* keep default */ }

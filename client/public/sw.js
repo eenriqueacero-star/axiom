@@ -29,7 +29,8 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const d = event.notification.data || {};
-  const path = d.path || (d.ticker ? `/?t=${encodeURIComponent(d.ticker)}` : '/');
+  const path = d.n ? `/?n=${encodeURIComponent(d.n)}`
+    : d.path || (d.ticker ? `/?t=${encodeURIComponent(d.ticker)}` : '/');
   const target = new URL(path, self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {

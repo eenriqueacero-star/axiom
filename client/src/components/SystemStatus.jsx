@@ -1,6 +1,69 @@
 import { useEffect, useState } from 'react';
-import { getHealth, getKeyStatus, getJobs, sendTestPush } from '../api';
+import { getHealth, getKeyStatus, getJobs, sendTestPush, getNotifyPrefs, setNotifyPrefs } from '../api';
 import { pushState, enablePush, disablePush } from '../lib/push';
+
+const NOTIF_KINDS = [
+  ['news', 'News'], ['filing', 'Filings'], ['insider', 'Insider trades'],
+  ['congress', 'Congress'], ['move', 'Big moves'], ['rating', 'Rating changes'],
+  ['scout', 'Scout ideas'], ['desk', 'The desk'], ['opportunity', 'Opportunities'],
+];
+const NEXT_MODE = { push: 'digest', digest: 'off', off: 'push' };
+const MODE_STYLE = {
+  push: 'bg-emerald-500/15 text-emerald-300',
+  digest: 'bg-amber-500/15 text-amber-300',
+  off: 'bg-ink-800 text-ink-500',
+};
+
+function NotifPrefs() {
+  const [prefs, setPrefs] = useState(null);
+  useEffect(() => { getNotifyPrefs().then(setPrefs).catch(() => {}); }, []);
+  if (!prefs) return null;
+
+  const cycle = (kind) => {
+    const next = { ...prefs, kinds: { ...prefs.kinds, [kind]: NEXT_MODE[prefs.kinds[kind] || 'push'] } };
+    setPrefs(next);
+    setNotifyPrefs({ kinds: { [kind]: next.kinds[kind] } }).catch(() => {});
+  };
+  const setQuiet = (field, val) => {
+    const v = Math.max(0, Math.min(23, Number(val) || 0));
+    const next = { ...prefs, [field]: v };
+    setPrefs(next);
+    setNotifyPrefs({ [field]: v }).catch(() => {});
+  };
+
+  return (
+    <div className="rounded-lg border hairline p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-neutral-300">What gets pushed</span>
+        <span className="text-[10px] text-haze">push · digest · off</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {NOTIF_KINDS.map(([k, label]) => (
+          <button key={k} onClick={() => cycle(k)}
+            className="flex items-center justify-between px-2 py-1 rounded text-[11px] bg-ink-900/50 hover:bg-ink-850">
+            <span className="text-neutral-300 truncate">{label}</span>
+            <span className={`ml-1 shrink-0 px-1.5 py-0.5 rounded text-[9px] font-mono ${MODE_STYLE[prefs.kinds[k] || 'push']}`}>
+              {prefs.kinds[k] || 'push'}
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 text-[11px] text-haze">
+        <span>Quiet hours (ET)</span>
+        <input type="number" min="0" max="23" value={prefs.quietStart}
+          onChange={(e) => setQuiet('quietStart', e.target.value)}
+          className="w-11 bg-ink-900 rounded px-1 py-0.5 text-neutral-200 text-center" />
+        <span>to</span>
+        <input type="number" min="0" max="23" value={prefs.quietEnd}
+          onChange={(e) => setQuiet('quietEnd', e.target.value)}
+          className="w-11 bg-ink-900 rounded px-1 py-0.5 text-neutral-200 text-center" />
+      </div>
+      <p className="text-[10px] text-haze leading-snug">
+        Critical alerts (an EXIT on a held name, a thesis-level filing) always push. “digest” items are rolled into a morning + close summary.
+      </p>
+    </div>
+  );
+}
 
 const dot = (ok) => (ok ? 'bg-emerald-400' : 'bg-red-400');
 
@@ -195,6 +258,8 @@ export default function SystemStatus({ open, onClose }) {
         )}
 
         <PushToggle />
+
+        <NotifPrefs />
 
         <JobsPanel data={jobs} />
 

@@ -10,6 +10,7 @@ import TheOffice from './components/TheOffice';
 import SystemStatus from './components/SystemStatus';
 import KeyStatusPill from './components/KeyStatusPill';
 import BossChat from './components/BossChat';
+import Notifications, { useNotifications } from './components/Notifications';
 import { getBossThreads } from './api';
 
 
@@ -19,6 +20,9 @@ export default function App() {
   const [bossOpen, setBossOpen] = useState(false);
   const [bossThreadId, setBossThreadId] = useState(null);
   const [bossUnread, setBossUnread] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifOpenId, setNotifOpenId] = useState(null);
+  const notifFeed = useNotifications();
   const [view, setView] = useState('portfolio'); // 'portfolio' | 'analyze'
   const [analyzeTicker, setAnalyzeTicker] = useState('');
   const [analyzeNonce, setAnalyzeNonce] = useState(0); // bumps to force a re-run on the same ticker
@@ -32,7 +36,9 @@ export default function App() {
     if (/^[A-Z.\-]{1,10}$/.test(t)) { setAnalyzeTicker(t); setAnalyzeNonce((n) => n + 1); setView('analyze'); }
     if (p.get('chat')) { setBossThreadId(p.get('chat')); setBossOpen(true); }
     if (p.get('tab') === 'floor') setView('floor');
-    if (p.get('chat') || p.get('tab') || p.get('t')) {
+    if (p.get('tab') === 'notifications') setNotifOpen(true);
+    if (p.get('n')) { setNotifOpenId(p.get('n')); }
+    if (p.get('chat') || p.get('tab') || p.get('t') || p.get('n')) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [user]);
@@ -69,6 +75,12 @@ export default function App() {
     setView('analyze');
   };
 
+  const onNotifDeepLink = (d) => {
+    if (d.analyze) goAnalyze(d.analyze);
+    else if (d.chat) { setBossThreadId(d.chat); setBossOpen(true); }
+    else if (d.tab) setView(d.tab);
+  };
+
   const tab = (id, label) => (
     <button
       onClick={() => setView(id)}
@@ -102,6 +114,18 @@ export default function App() {
             >
               boss
               {bossUnread && <span className="absolute -top-1 -right-2 h-1.5 w-1.5 rounded-full bg-indigo-400" />}
+            </button>
+            <button
+              onClick={() => setNotifOpen(true)}
+              title="Notifications"
+              className="relative text-[11px] text-haze hover:text-neutral-200"
+            >
+              alerts
+              {notifFeed.unread > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 min-w-[14px] h-[14px] px-1 rounded-full bg-red-500 text-white text-[9px] font-mono leading-[14px] text-center">
+                  {notifFeed.unread > 9 ? '9+' : notifFeed.unread}
+                </span>
+              )}
             </button>
           </div>
           <button
@@ -146,6 +170,13 @@ export default function App() {
 
       <SystemStatus open={statusOpen} onClose={() => setStatusOpen(false)} />
       <BossChat open={bossOpen} initialThreadId={bossThreadId} onClose={() => setBossOpen(false)} />
+      <Notifications
+        open={notifOpen}
+        openId={notifOpenId}
+        feed={notifFeed}
+        onClose={() => { setNotifOpen(false); setNotifOpenId(null); }}
+        onDeepLink={onNotifDeepLink}
+      />
     </div>
   );
 }

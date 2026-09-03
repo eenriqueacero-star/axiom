@@ -46,6 +46,12 @@ export const getKeyStatus = (force = false) =>
 // Scheduled-job health — running / failing / overdue + last error.
 export const getJobs = () => request('/status/jobs');
 
+// Notifications feed + preferences.
+export const getNotifications = (limit = 50) => request(`/notifications?limit=${limit}`);
+export const markNotificationsRead = (ids) => request('/notifications/read', { method: 'POST', body: { ids: ids ?? null } });
+export const getNotifyPrefs = () => request('/notifications/prefs');
+export const setNotifyPrefs = (prefs) => request('/notifications/prefs', { method: 'PUT', body: prefs });
+
 export const getMarketNews = () => request('/signals/market');
 export const getTickerNews = (ticker) => request(`/signals/${ticker.toUpperCase()}`);
 export const getHoldingsSignals = () => request('/signals/holdings');
