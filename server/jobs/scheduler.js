@@ -7,6 +7,7 @@ import { scoreAllUsers } from '../lib/scorecard.js';
 import { calibrateAllUsers } from '../lib/calibration.js';
 import { deskTick } from './deskLoop.js';
 import { runDeskNightAll } from './deskNight.js';
+import { runWeekendReflection } from './weekendReflection.js';
 
 export function initScheduler() {
   // Daily scout scan + congressional trades — 9:05 AM ET
@@ -58,5 +59,14 @@ export function initScheduler() {
       .catch(err => console.error('[desk-night] Error:', err.message));
   }, { timezone: 'America/New_York' });
 
-  console.log('[scheduler] Jobs registered: scout (9:05 ET), alerts + move-review (30min mkt hrs), scorecard (16:30 ET), desk (20min, budget-gated)');
+  // Weekend all-hands — every analyst reviews their work and rewrites their
+  // playbook. Saturday 10:00 AM ET, budget-gated.
+  cron.schedule('0 10 * * 6', () => {
+    console.log('[scheduler] Weekend all-hands reflection...');
+    runWeekendReflection()
+      .then(r => console.log(`[weekend-reflect] ${JSON.stringify(r)}`))
+      .catch(err => console.error('[weekend-reflect] Error:', err.message));
+  }, { timezone: 'America/New_York' });
+
+  console.log('[scheduler] Jobs registered: scout (9:05 ET), alerts + move-review (30min mkt hrs), scorecard (16:30 ET), desk (20min, budget-gated), weekend all-hands (Sat 10:00 ET)');
 }
