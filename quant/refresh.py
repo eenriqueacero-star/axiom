@@ -77,10 +77,11 @@ def main() -> None:
     else:
         head = f"The rules-only skeleton roughly matched QQQ ({edge:+.1f}%/yr)"
     verdict = (f"{head} over {yrs:.0f} years, max drawdown {dda:.0%} vs QQQ {ddq:.0%}. "
-               f"This is BEFORE the council's judgment overlay and before tax — the honest floor.")
+               f"Rules only, no council judgment, before tax and slippage. The satellite universe is "
+               f"large-cap tech/growth names that traded before 2009, so it's not cherry-picked, but "
+               f"monthly rebalancing this in a taxable account would give back a chunk of the edge.")
     if partial:
-        verdict += (f" (Partial universe — satellite pool reduced to {len(pool)}/{len(SATELLITE_POOL)} "
-                    f"names by a data-provider limit; the full number will be lower.)")
+        verdict += (f" (Partial data — satellite pool {len(pool)}/{len(SATELLITE_POOL)} names available.)")
 
     out = {
         "start": str(px.index[0].date()), "end": str(px.index[-1].date()),
@@ -90,7 +91,7 @@ def main() -> None:
         "verdict": verdict,
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(out, indent=2))
+    OUT.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(f"wrote {OUT}\n")
     print(df[["cagr", "vs_qqq_cagr", "max_drawdown", "sharpe", "years"]].to_string())
 

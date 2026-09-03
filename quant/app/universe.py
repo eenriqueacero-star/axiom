@@ -41,11 +41,21 @@ LIQUID_120 = sorted(set([
 # §1/§7 Core sleeve — quality compounders held for years. (Tiingo wants BRK-B.)
 CORE_LIST = ["MSFT", "GOOGL", "META", "AMZN", "COST", "V", "MA", "LLY", "UNH", "ISRG", "JPM", "BRK-B"]
 
-# Satellite sleeve — the growth / AI / semis pool the momentum sleeve rotates in.
+# Satellite sleeve universe — the pool the momentum sleeve rotates in.
+#
+# HONESTY: this must be a universe you could plausibly have picked from *at the
+# time*, not a hand-picked list of names that won. So it's the tech / semi /
+# growth-discretionary slice of LIQUID_120 — all names that traded before 2009.
+# It deliberately EXCLUDES the post-2009 momentum monsters (NVDA-as-we-know-it
+# aside, plus PLTR / MSTR / COIN / VRT / ARM / SMCI…) because owning those was
+# hindsight. The backtest question is "do the rules work on a fair universe",
+# not "what if you'd owned the winners".
 SATELLITE_POOL = sorted(set([
-    "NVDA", "AMD", "MU", "AVGO", "TSM", "ASML", "LRCX", "KLAC", "AMAT", "MRVL", "ARM", "SMCI",
-    "TSLA", "AAPL", "NFLX", "CRM", "NOW", "SNOW", "NET", "DDOG", "PANW", "CRWD", "PLTR",
-    "COIN", "MSTR", "SHOP", "UBER", "ABNB", "AXON", "VRT", "ANET", "CEG",
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "AMD", "MU", "AMAT", "LRCX", "KLAC",
+    "ADI", "QCOM", "TXN", "ADBE", "CRM", "NFLX", "INTU", "ACN", "ADSK", "MCHP",
+    "SWKS", "NTAP", "STX", "WDC", "GLW", "ORCL", "CSCO",
+    "TSLA",  # IPO'd 2010 — the one concession; it only becomes eligible once it has data
+    "BKNG", "MAR", "NKE", "SBUX", "TJX", "ROST", "ORLY", "AZO",
 ]))
 
 SPLIT_CORE = 0.50            # §1 Core/Satellite target
