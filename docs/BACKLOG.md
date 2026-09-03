@@ -130,6 +130,14 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
     → one summary. Rating flips (HOLD→TRIM etc.) on a held name now fire a
     `rating` notification (was silent).
 
+18. **Macro/econ calendar** — SHIPPED (2026-09-03). AXIOM ask #3 → **his data
+    letter is now fully answered.** `lib/macro.js` curated 2026 schedule (FOMC,
+    CPI, PCE, jobs, GDP; feeds are all paywalled) + optional Finnhub merge. In
+    council LIVE DATA + firmContext ("MACRO CALENDAR (next 14d)"). `macro-watch`
+    job → heads-up day before (Fed = review, CPI/jobs = fyi); `macro`
+    notification kind. `GET /api/strategy/macro` + Floor card. REFRESH YEARLY —
+    the 2026 dates are hardcoded/approximate.
+
 14. **Contribution ledger** — SHIPPED (2026-09-03). AXIOM's ask #2.
     `lib/contributions.js`, `users/{uid}/state/contributions` = weeklyAmount +
     weekday + split[] + entries[{date,amount,direction,note,done}]. Feeds
