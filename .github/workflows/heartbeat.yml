@@ -1,0 +1,26 @@
+name: heartbeat
+
+# Keeps the Render free-tier backend awake so the in-process scheduler
+# (server/jobs/heartbeat.js) actually runs. GitHub delays scheduled runs under
+# load, so we ping often and the /tick endpoint catches up anything overdue.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Wake backend and run due jobs
+        run: |
+          for i in 1 2 3; do
+            code=$(curl -s -o /tmp/out -w '%{http_code}' --max-time 60 https://axiom-u58i.onrender.com/tick || echo 000)
+            echo "attempt $i -> HTTP $code"
+            cat /tmp/out; echo
+            [ "$code" = "200" ] && exit 0
+            sleep 30
+          done
+          echo "backend did not return 200 after 3 attempts"
+          exit 1
