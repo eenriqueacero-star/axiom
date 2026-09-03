@@ -43,6 +43,9 @@ export async function getHealth() {
 export const getKeyStatus = (force = false) =>
   request(`/status/groq-keys${force ? '?force=1' : ''}`);
 
+// Scheduled-job health — running / failing / overdue + last error.
+export const getJobs = () => request('/status/jobs');
+
 export const getMarketNews = () => request('/signals/market');
 export const getTickerNews = (ticker) => request(`/signals/${ticker.toUpperCase()}`);
 export const getHoldingsSignals = () => request('/signals/holdings');
