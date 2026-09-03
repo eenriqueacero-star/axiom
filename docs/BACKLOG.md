@@ -101,8 +101,25 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 12. **Dev channel to the boss** — SHIPPED (2026-09-03). `routes/dev.js`:
     `POST /api/dev/boss`, `GET /api/dev/context`, `GET /api/dev/boss/:id`,
-    guarded by `x-dev-key` == `DEV_KEY` env (404s if unset).
-    **BLOCKED ON USER: set `DEV_KEY` in Render** to enable it.
+    `POST /api/dev/push-test`, `GET /api/dev/analyses` (+ `/purge`).
+    `x-dev-key` == `DEV_KEY` env (set in Render; value in the session/user's notes).
+    Verified P1 (boss reads SMAs/trend). Fixed day-move ×100 bug + purged a
+    corrupt `FLYNBIS` analysis doc.
+
+13. **iOS notification click** — FIXED (2026-09-03). An open iOS standalone PWA
+    ignores `client.navigate()`, so a tap just refocused the app. SW now
+    `postMessage({type:'axiom-nav', path})` to the live client; App.jsx applies
+    it via shared `applyDeepLink`. NEEDS the user to fully close/reopen the PWA
+    once for the new SW. UNVERIFIED on-device.
+
+14. **Contribution ledger** — SHIPPED (2026-09-03). AXIOM's ask #2.
+    `lib/contributions.js`, `users/{uid}/state/contributions` = weeklyAmount +
+    weekday + split[] + entries[{date,amount,direction,note,done}]. Feeds
+    `firmContext` ("Contribution schedule" block w/ 30d projected net cash) +
+    `dcaSuggestion` (source of truth for the amount, returns `contribution:{}`).
+    `GET/PUT /api/strategy/contributions`, `POST/DELETE .../entry`. Portfolio
+    right-rail "Contributions" card (editable); Floor DCA card shows the $ amount.
+    LEFT: no auto "done" marking when a deposit date passes; no reminder push.
 
 ---
 
