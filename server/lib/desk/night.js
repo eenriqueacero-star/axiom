@@ -15,6 +15,7 @@ import { AGENTS, AXIOM_CONVERSATIONAL, PROTOCOLS } from '../../agents/definition
 import { db } from '../firebase.js';
 import { getPortfolio } from '../portfolio.js';
 import { diagnose } from '../strategy.js';
+import { priceFacts } from '../metrics.js';
 import { callAgent, callSynthesis, setAutonomous } from '../groq.js';
 import { extractJSON } from '../council.js';
 import { saveMemo, listMemos } from '../memos.js';
@@ -26,6 +27,53 @@ const byId = Object.fromEntries(AGENTS.map((a) => [a.id, a]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const json = extractJSON;
 const today = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * A compact per-holding market-data table for the boss/desk context: current
+ * price, day move, trend vs the 50/200-day averages, 3/6/12-mo momentum, plus
+ * the firm's cash. Reuses the council's own priceFacts() (12h-cached Tiingo EOD)
+ * so chat and the nightly run see the same numbers.
+ */
+async function marketBlock(portfolio) {
+  const accts = portfolio?.accounts || [];
+  if (!accts.length) return '';
+
+  // one row per distinct held ticker, with its live quote
+  const held = new Map();
+  let cash = 0;
+  for (const a of accts) {
+    cash += a.cash || 0;
+    for (const p of a.positions || []) {
+      if (p.ticker && (p.shares || 0) > 0 && !held.has(p.ticker)) {
+        held.set(p.ticker, { price: p.price ?? null, changePct: p.changePct ?? null });
+      }
+    }
+  }
+  if (!held.size) return `Cash available: $${Math.round(cash)}.`;
+
+  const rows = await Promise.all(
+    [...held.entries()].map(async ([ticker, q]) => {
+      try {
+        const { facts } = await priceFacts(ticker, q.price);
+        if (!facts?.available) {
+          return `- ${ticker}: $${q.price?.toFixed?.(2) ?? '?'}${dayStr(q.changePct)} · not enough history for trend`;
+        }
+        const f = facts;
+        return `- ${ticker}: $${f.price}${dayStr(q.changePct)} · ${f.trend.toUpperCase()}`
+          + ` (50d $${f.sma50 ?? '?'} / 200d $${f.sma200 ?? '?'})`
+          + ` · mom 3m ${pctStr(f.ret3m)} 6m ${pctStr(f.ret6m)} 12m ${pctStr(f.ret12m)}`
+          + ` · ${pctStr(f.pctFromHigh52w)} from 52w high`;
+      } catch {
+        return `- ${ticker}: $${q.price?.toFixed?.(2) ?? '?'}${dayStr(q.changePct)}`;
+      }
+    }),
+  );
+
+  return `Market data (daily closes, ${new Date().toISOString().slice(0, 10)}):\n${rows.join('\n')}\nCash available: $${Math.round(cash)}.`;
+}
+
+const dayStr = (x) => (x == null ? '' : ` (${x >= 0 ? '+' : ''}${(x * 100).toFixed(1)}% today)`);
+const pctStr = (x) => (x == null ? 'n/a' : `${x >= 0 ? '+' : ''}${(x * 100).toFixed(1)}%`);
 
 export async function firmContext(uid) {
   const portfolio = await getPortfolio(uid).catch(() => null);
@@ -39,6 +87,11 @@ export async function firmContext(uid) {
   } else {
     lines.push('No holdings yet.');
   }
+
+  // Live market data — the same price/SMA/trend facts the council runs on, so
+  // the boss in chat isn't blind to what the nightly run already knows.
+  const mkt = await marketBlock(portfolio).catch(() => '');
+  if (mkt) lines.push(mkt);
 
   // latest verdict per ticker
   try {
