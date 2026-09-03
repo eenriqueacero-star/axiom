@@ -16,6 +16,7 @@ import { db } from '../firebase.js';
 import { getPortfolio } from '../portfolio.js';
 import { diagnose } from '../strategy.js';
 import { callAgent, callSynthesis, setAutonomous } from '../groq.js';
+import { extractJSON } from '../council.js';
 import { saveMemo, listMemos } from '../memos.js';
 import { getCalibration } from '../calibration.js';
 import { getPlaybook, getPlaybooks, playbookBlock } from './playbooks.js';
@@ -23,8 +24,19 @@ import { runReflection } from './reflect.js';
 
 const byId = Object.fromEntries(AGENTS.map((a) => [a.id, a]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const json = (t) => { try { const m = String(t).match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch { return null; } };
+const json = extractJSON;
 const today = () => new Date().toISOString().slice(0, 10);
+
+// If the boss's LLM call comes back unparseable, the night still runs on a
+// sensible default: each analyst digs into its own remit against the book.
+const FALLBACK_TASKS = {
+  quality: 'Pull the latest quarterly numbers for our two biggest holdings — is revenue growth and margin holding, or cracking?',
+  trend: 'Check the weekly chart structure on every holding: which are making higher lows, which are rolling over below the 200-day?',
+  catalyst: 'Build the 90-day catalyst calendar for the whole book — earnings dates, product launches, policy decisions.',
+  bear: 'Stress-test the thesis that the entire book is one correlated AI-capex bet. What breaks it, and what would the first sign look like?',
+  sector: 'Is the semiconductor demand cycle still expanding or has it peaked? Find the hard evidence either way.',
+  sizing: 'Given the concentration, what does a sane rebalance path look like — which names get trimmed first, to what weight, over how long?',
+};
 
 async function firmContext(uid) {
   const portfolio = await getPortfolio(uid).catch(() => null);
@@ -66,10 +78,36 @@ async function assign(context) {
 It's after hours. Give each of your six analysts ONE specific overnight assignment — real research that would sharpen the firm's edge. Anything is fair game: a filing to read, a supply-chain check, a policy calendar, a competitor teardown, a bear thesis to stress-test, a name outside the book worth underwriting. Make each task concrete and answerable by morning, and matched to that analyst's remit.
 Analysts:
 ${roster}
-Output ONLY raw JSON: {"focus":"<one line — the firm's biggest open question tonight>","assignments":[{"agentId":"quality","task":"..."},{"agentId":"trend","task":"..."},{"agentId":"catalyst","task":"..."},{"agentId":"bear","task":"..."},{"agentId":"sector","task":"..."},{"agentId":"sizing","task":"..."}]}`;
-  const text = await callSynthesis({ system, user: `FIRM STATE:\n${context}\n\nAssign tonight's work.`, maxTokens: 900 });
-  const parsed = json(text);
-  return parsed?.assignments?.length ? parsed : { focus: '', assignments: [] };
+Keep each task to one sentence. Output ONLY raw JSON, no other text:
+{"focus":"<the firm's biggest open question tonight>","assignments":[{"agentId":"quality","task":"..."},{"agentId":"trend","task":"..."},{"agentId":"catalyst","task":"..."},{"agentId":"bear","task":"..."},{"agentId":"sector","task":"..."},{"agentId":"sizing","task":"..."}]}`;
+
+  let parsed = null;
+  for (let attempt = 0; attempt < 2 && !parsed?.assignments?.length; attempt++) {
+    try {
+      const text = await callSynthesis({ system, user: `FIRM STATE:\n${context}\n\nAssign tonight's work. JSON only.`, maxTokens: 1800 });
+      parsed = json(text);
+      if (!parsed?.assignments?.length) console.warn('[desk-night] assign parse miss:', String(text).slice(0, 160));
+    } catch (e) {
+      console.error('[desk-night] assign call failed:', e.message);
+    }
+  }
+
+  if (parsed?.assignments?.length) {
+    // keep only real agent ids, fill any that the boss skipped
+    const seen = new Set();
+    const clean = parsed.assignments
+      .filter((a) => byId[a.agentId] && a.task && !seen.has(a.agentId) && seen.add(a.agentId))
+      .map((a) => ({ agentId: a.agentId, task: String(a.task).slice(0, 300) }));
+    for (const id of Object.keys(FALLBACK_TASKS)) {
+      if (!seen.has(id)) clean.push({ agentId: id, task: FALLBACK_TASKS[id] });
+    }
+    return { focus: parsed.focus || '', assignments: clean };
+  }
+
+  return {
+    focus: 'Standing review — the book is ~100% one theme.',
+    assignments: Object.entries(FALLBACK_TASKS).map(([agentId, task]) => ({ agentId, task })),
+  };
 }
 
 /* -------------------------------------------------------------- research */
@@ -111,9 +149,18 @@ async function brief(context, focus, findings) {
   const system = `You are AXIOM, the partner. ${AXIOM_CONVERSATIONAL}
 Your analysts worked overnight. Read their findings and write the morning brief for the firm: what changed, what matters, what to do about it. 3-5 sentences, direct.
 Then pull out the durable conclusions worth keeping as desk notes.
-Output ONLY raw JSON: {"brief":"<the morning brief>","notes":[{"ticker":"<or null>","conclusion":"<one sentence the council should carry forward>","confidence":<0-1>,"actionable":<bool>,"tags":["..."]}]}`;
-  const text = await callSynthesis({ system, user: `TONIGHT'S FOCUS: ${focus}\n\nFIRM STATE:\n${context}\n\nFINDINGS:\n${body}`, maxTokens: 1200 });
-  return json(text) || { brief: '', notes: [] };
+Output ONLY raw JSON: {"brief":"<the morning brief, 3-5 sentences>","notes":[{"ticker":"<or null>","conclusion":"<one sentence the council should carry forward>","confidence":<0-1>,"actionable":<bool>,"tags":["..."]}]}`;
+  const text = await callSynthesis({ system, user: `TONIGHT'S FOCUS: ${focus}\n\nFIRM STATE:\n${context}\n\nFINDINGS:\n${body}\n\nJSON only.`, maxTokens: 2000 });
+  const p = json(text);
+  if (p?.brief) return { brief: p.brief, notes: Array.isArray(p.notes) ? p.notes : [] };
+  // Parse failed — keep the findings as notes so the night isn't wasted.
+  return {
+    brief: String(text || '').replace(/[{}"[\]]/g, '').slice(0, 500) || 'The analysts reported back; see their findings below.',
+    notes: findings.filter((f) => f.actionable || f.confidence >= 0.6).map((f) => ({
+      ticker: f.ticker, conclusion: f.findings.split(/(?<=[.!?])\s/)[0].slice(0, 200),
+      confidence: f.confidence, actionable: f.actionable, tags: ['desk', f.agentName.toLowerCase()],
+    })),
+  };
 }
 
 /* --------------------------------------------------------------- the run */
