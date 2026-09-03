@@ -11,6 +11,23 @@ export const rel = (ts) => {
 };
 export const pctS = (n) => (n == null ? '—' : `${Math.round(n * 100)}%`);
 
+// Fixed roster look — for "joined the chat" tags in agent-to-agent exchanges.
+const LOOK = {
+  quality: { e: '🛡️', c: '#5b8def' }, trend: { e: '⚡', c: '#e0a33a' },
+  catalyst: { e: '🚀', c: '#e0685f' }, bear: { e: '🐻', c: '#c8922a' },
+  sector: { e: '🌐', c: '#48b98a' }, sizing: { e: '⚖️', c: '#8b9cff' },
+  axiom: { e: '◆', c: '#8b9cff' },
+};
+function ChatAvatar({ name, id, size = 16 }) {
+  const l = LOOK[id] || LOOK[String(name || '').toLowerCase()] || { e: '•', c: '#7c8db5' };
+  return (
+    <span className="inline-flex items-center justify-center rounded-full shrink-0"
+      style={{ width: size, height: size, background: `${l.c}22`, color: l.c, fontSize: size * 0.55 }}>
+      {l.e}
+    </span>
+  );
+}
+
 // The checks / track-record / recent-calls block for one agent. Shared by the
 // card Floor and the 3D room overlay.
 export function AgentPanel({ agent, data, onAnalyze, weight, calibration, playbook }) {
@@ -136,17 +153,20 @@ export function AgentChat({ agent }) {
             <div key={i}>
               {/* real colleague-to-colleague exchanges that happened to answer this */}
               {m.consulted?.map((c, j) => (
-                <div key={j} className="my-1.5 pl-2 border-l border-ink-700 space-y-0.5">
-                  <p className="text-[10px] text-ink-500">
-                    {c.fromName} → {c.toName}: <span className="text-haze">{c.question}</span>
-                  </p>
-                  <p className="text-[10px] text-neutral-400">
-                    <span className="text-ink-500">{c.toName}: </span>{c.answer}
-                  </p>
+                <div key={j} className="my-1.5 space-y-1">
+                  <div className="flex items-center gap-1.5 text-[10px] text-haze">
+                    <ChatAvatar name={c.toName} id={c.to} size={13} />
+                    <span style={{ color: (LOOK[c.to] || {}).c || '#7c8db5' }}>{c.toName}</span> joined the chat
+                  </div>
+                  <div className="pl-2 border-l border-ink-700 space-y-0.5">
+                    <p className="text-[10px] text-ink-500">{c.fromName}: <span className="text-haze">{c.question}</span></p>
+                    <p className="text-[10px] text-neutral-400"><span className="text-ink-500">{c.toName}: </span>{c.answer}</p>
+                  </div>
                 </div>
               ))}
               <p className={`text-[11px] ${m.role === 'user' ? 'text-neutral-300' : 'text-neutral-400'}`}>
-                <span className="text-ink-600">{m.role === 'user' ? 'you' : agent.name}: </span>
+                {m.role !== 'user' && <ChatAvatar name={agent.name} id={agent.id} size={13} />}
+                <span className="text-ink-600"> {m.role === 'user' ? 'you' : agent.name}: </span>
                 {m.content}
               </p>
             </div>

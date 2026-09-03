@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  getBossThreads, getBossThread, newBossThread, sendBossMessage, resolveBossThread,
+  getBossThreads, getBossThread, newBossThread, sendBossMessage, resolveBossThread, getAgents,
 } from '../api';
 
 function rel(ts) {
@@ -10,6 +10,21 @@ function rel(ts) {
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
+}
+
+const AXIOM_META = { id: 'axiom', name: 'AXIOM', emoji: '◆', color: '#8b9cff' };
+
+function Avatar({ meta, size = 22 }) {
+  const m = meta || { name: '?', emoji: '•', color: '#7c8db5' };
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded-full shrink-0 font-mono"
+      style={{ width: size, height: size, background: `${m.color}22`, color: m.color, fontSize: size * 0.5 }}
+      title={m.name}
+    >
+      {m.emoji || m.name[0]}
+    </span>
+  );
 }
 
 function ThreadList({ threads, onOpen, onNew }) {
@@ -44,11 +59,12 @@ function ThreadList({ threads, onOpen, onNew }) {
   );
 }
 
-function Thread({ id, onBack }) {
+function Thread({ id, agents, onBack }) {
   const [thread, setThread] = useState(null);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const endRef = useRef(null);
+  const metaFor = (agentId) => (agentId === 'axiom' ? AXIOM_META : agents[agentId]) || (agentId ? { name: agentId, emoji: '•', color: '#7c8db5' } : AXIOM_META);
 
   useEffect(() => { getBossThread(id).then((r) => setThread(r.thread)).catch(() => setThread(null)); }, [id]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [thread?.messages?.length, busy]);
@@ -104,25 +120,49 @@ function Thread({ id, onBack }) {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto py-3 space-y-3">
-        {(thread.messages || []).map((m, i) => (
-          m.role === 'consult' ? (
-            <div key={i} className="text-center">
-              <span className="inline-block text-[11px] text-haze bg-ink-900 rounded-full px-3 py-1 border hairline">
-                💬 {m.content}
-              </span>
-            </div>
-          ) : (
-            <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
-              <div className={`inline-block max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-snug text-left whitespace-pre-wrap ${
-                m.role === 'user' ? 'bg-indigo-500 text-white' : 'bg-ink-850 text-neutral-200'
-              }`}>
-                {m.content}
+      <div className="flex-1 overflow-y-auto py-3 space-y-2">
+        {(thread.messages || []).map((m, i) => {
+          if (m.role === 'user') {
+            return (
+              <div key={i} className="text-right">
+                <div className="inline-block max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-snug text-left bg-indigo-500 text-white whitespace-pre-wrap">
+                  {m.content}
+                </div>
+              </div>
+            );
+          }
+          if (m.role === 'consult') {
+            return (
+              <div key={i} className="text-center">
+                <span className="inline-block text-[11px] text-haze bg-ink-900 rounded-full px-3 py-1 border hairline">💬 {m.content}</span>
+              </div>
+            );
+          }
+          // assistant (boss) or agent (pulled in)
+          const meta = metaFor(m.agentId || 'axiom');
+          return (
+            <div key={i} className="space-y-1">
+              {m.joined && (
+                <div className="text-center py-1">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] text-haze bg-ink-900 rounded-full px-2.5 py-1 border hairline">
+                    <Avatar meta={meta} size={14} />
+                    <span className="font-mono" style={{ color: meta.color }}>{meta.name}</span> joined the chat
+                  </span>
+                </div>
+              )}
+              <div className="flex items-start gap-2">
+                <Avatar meta={meta} />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-mono mb-0.5" style={{ color: meta.color }}>{meta.name}</p>
+                  <div className="inline-block max-w-[92%] rounded-2xl px-3 py-2 text-[13px] leading-snug bg-ink-850 text-neutral-200 whitespace-pre-wrap">
+                    {m.content}
+                  </div>
+                </div>
               </div>
             </div>
-          )
-        ))}
-        {busy && <div className="text-[11px] text-haze animate-pulse">the boss is typing…</div>}
+          );
+        })}
+        {busy && <div className="text-[11px] text-haze animate-pulse pl-8">the desk is working…</div>}
         <div ref={endRef} />
       </div>
 
@@ -146,8 +186,10 @@ function Thread({ id, onBack }) {
 export default function BossChat({ open, initialThreadId, onClose }) {
   const [threads, setThreads] = useState([]);
   const [active, setActive] = useState(initialThreadId || null);
+  const [agents, setAgents] = useState({});
 
   const loadThreads = () => getBossThreads().then((r) => setThreads(r.threads || [])).catch(() => {});
+  useEffect(() => { getAgents().then((list) => setAgents(Object.fromEntries((list || []).map((a) => [a.id, a])))).catch(() => {}); }, []);
   useEffect(() => { if (open) { loadThreads(); setActive(initialThreadId || null); } }, [open, initialThreadId]);
 
   if (!open) return null;
@@ -164,7 +206,7 @@ export default function BossChat({ open, initialThreadId, onClose }) {
           <button onClick={onClose} className="text-haze hover:text-neutral-200 text-sm">✕</button>
         </div>
         {active ? (
-          <Thread id={active} onBack={(changed) => { setActive(null); if (changed) loadThreads(); }} />
+          <Thread id={active} agents={agents} onBack={(changed) => { setActive(null); if (changed) loadThreads(); }} />
         ) : (
           <ThreadList threads={threads} onOpen={setActive} onNew={openNew} />
         )}

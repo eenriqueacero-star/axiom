@@ -70,10 +70,12 @@ export async function createExecutionThread(uid, analysis) {
   const a = analysis || {};
   const id = `x-${Date.now()}`;
   const verb = { ADD: 'add to', TRIM: 'trim', EXIT: 'exit', HOLD: 'sit on' }[a.verdict] || 'act on';
-  const label = a.mandate === 'decision' ? 'a decision the rulebook forces' : 'a suggestion';
+  const c = a.computed || {};
+  const mandate = a.mandate || ((c.broken || c.downtrendExit || c.concentrationTrim) ? 'decision' : 'suggestion');
+  const label = mandate === 'decision' ? 'a decision the rulebook forces' : 'a suggestion';
   const econ = a.holdings?.econ;
   const posLine = econ?.shares != null
-    ? `We hold ${econ.shares} sh at $${(econ.avgCost || 0).toFixed(2)} avg, ${econ.unreal >= 0 ? 'up' : 'down'} ${Math.abs((econ.unrealPct || 0) * 100).toFixed(0)}% — about $${Math.round(econ.value || 0)}.`
+    ? `We hold ${econ.shares} sh at $${(econ.avgCost || 0).toFixed(2)} avg, ${econ.unreal >= 0 ? 'up' : 'down'} ${Math.abs((econ.unrealPct || 0) * 100).toFixed(0)}% — worth about $${Math.round(econ.value || 0)}.`
     : '';
   const opener = `So the council landed on **${a.verdict} ${a.ticker}** (${a.conviction}/10) — ${label}. ${a.headline || a.why || ''}\n${posLine}\nWant to talk through how we ${verb} it? I can bring in ZEN on sizing or anyone else you want.`;
 
@@ -82,10 +84,13 @@ export async function createExecutionThread(uid, analysis) {
     title: `${a.verdict} ${a.ticker} — how to proceed`,
     seededDecision: {
       ticker: a.ticker, verdict: a.verdict, conviction: a.conviction,
-      mandate: a.mandate || 'suggestion', why: a.why || a.headline || '',
+      mandate, why: a.why || (a.computed || {}).why || a.headline || '',
       rationale: a.rationale || '', tier: a.tier || null,
+      shares: econ?.shares ?? null, avgCost: econ?.avgCost ?? null,
+      value: econ?.value ?? null, price: a.price ?? null,
+      positionPct: a.holdings?.positionPct ?? null,
     },
-    messages: [{ role: 'assistant', content: opener, ts: Date.now() }],
+    messages: [{ role: 'assistant', agentId: 'axiom', name: 'AXIOM', content: opener, ts: Date.now() }],
     unread: false,
   };
   await col(uid).doc(id).set(doc).catch(() => {});
@@ -108,7 +113,12 @@ HOW TO TALK — you are a person, not a reporting function.
 - This is the person who pays the bills — be straight with them, including when you disagree.
 
 YOUR ANALYSTS: ${roster}. To pull one in for a specific question, emit ONE line of JSON: {"ask":"ZEN","question":"..."} and stop. You'll get their answer and can carry on. Use this for real sizing/timing/catalyst questions, not for small talk.
-${seededEvent ? `\nWHY THIS THREAD EXISTS — an event came in and you weren't sure it was worth putting the analysts on:\n"${seededEvent.headline}"${seededEvent.source ? ` (${seededEvent.source})` : ''}. You wanted the investor's read first. Pick it up naturally.\n` : ''}${dec ? `\nWHY THIS THREAD EXISTS — the investor hit "proceed" on a council ${dec.mandate === 'decision' ? 'DECISION' : 'suggestion'}: ${dec.verdict} ${dec.ticker} (${dec.conviction}/10). ${dec.why}\nThis conversation is about EXECUTION: how much (shares / dollars), which account, where the proceeds go (check the contribution/DCA pick), tax lots if it's a sell, and timing. Be concrete. When you land on a plan, lay it out as clear numbered steps. You are NOT placing trades — the investor executes at their broker.\n` : ''}
+${seededEvent ? `\nWHY THIS THREAD EXISTS — an event came in and you weren't sure it was worth putting the analysts on:\n"${seededEvent.headline}"${seededEvent.source ? ` (${seededEvent.source})` : ''}. You wanted the investor's read first. Pick it up naturally.\n` : ''}${dec ? `\nWHY THIS THREAD EXISTS — the investor hit "proceed" on a council ${dec.mandate === 'decision' ? 'DECISION' : 'suggestion'}: ${dec.verdict} ${dec.ticker} (${dec.conviction}/10). ${dec.why}
+THE ACTUAL POSITION — use THESE numbers, do not invent others: ${dec.shares != null
+  ? `the firm holds ${dec.shares} shares of ${dec.ticker} at $${(dec.avgCost || 0).toFixed(2)} avg cost, worth about $${Math.round(dec.value || 0)} — that is ${((dec.positionPct || 0) * 100).toFixed(1)}% of a $${Math.round((dec.value || 0) / (dec.positionPct || 1))} book. ${dec.ticker} trades near $${(dec.price || dec.avgCost || 0).toFixed(2)}.`
+  : `the firm does not currently hold ${dec.ticker}.`}
+This is a SMALL family account — every dollar figure is literal US dollars, typically two/three/four figures, NEVER thousands or millions. If you catch yourself writing "k" or "M" or a number over ~10,000, you have made an error — stop and recompute from the shares above.
+This conversation is about EXECUTION: how many shares to ${({ ADD: 'buy', TRIM: 'sell', EXIT: 'sell', HOLD: 'hold' }[dec.verdict] || 'trade')}, which account, where the proceeds go (check the contribution / DCA pick in the firm state), tax lots if it's a sell, and timing. Be concrete with real share counts and dollar amounts. Lay the plan out as numbered steps. You are NOT placing trades — the investor executes at their broker.\n` : ''}
 --- REFERENCE (use what's relevant) ---
 FIRM STATE:
 ${context}${vaultBlock(vault)}${memoLines ? `\n\nRECENT DESK NOTES:\n${memoLines}` : ''}`;
@@ -137,8 +147,10 @@ export async function postMessage(uid, id, userText) {
   ]);
 
   const system = bossSystem(context, thread, vault, memos);
-  const history = (thread.messages || []).slice(-12)
-    .map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.role === 'consult' ? `[${m.content}]` : m.content }));
+  const history = (thread.messages || []).slice(-12).map((m) => ({
+    role: m.role === 'user' ? 'user' : 'assistant',
+    content: m.role === 'agent' ? `${m.name} said: ${m.content}` : m.content,
+  }));
   history.push({ role: 'user', content: String(userText).slice(0, 4000) });
 
   const consulted = [];
@@ -150,7 +162,7 @@ export async function postMessage(uid, id, userText) {
       if (!ask) break;
       const answer = await askAnalyst(ask.id, ask.question, context);
       if (!answer) break;
-      consulted.push({ name: ask.name, question: ask.question, answer });
+      consulted.push({ id: ask.id, name: ask.name, question: ask.question, answer });
       reply = await callAgentChat({
         system,
         messages: [
@@ -164,11 +176,14 @@ export async function postMessage(uid, id, userText) {
   } catch (e) {
     reply = `Can't get to that right now — ${e.message}. Try me again in a minute.`;
   }
+  if (!reply || parseConsult(reply)) reply = "Let me come back to you on that — give me a sec and ask again.";
 
   const now = Date.now();
   const appended = [{ role: 'user', content: String(userText).slice(0, 4000), ts: now }];
-  for (const c of consulted) appended.push({ role: 'consult', name: c.name, content: `${c.name}: ${c.answer}`, ts: now });
-  appended.push({ role: 'assistant', content: reply, ts: now + 1 });
+  consulted.forEach((c, i) => appended.push({
+    role: 'agent', agentId: c.id, name: c.name, content: c.answer, joined: true, ts: now + i,
+  }));
+  appended.push({ role: 'assistant', agentId: 'axiom', name: 'AXIOM', content: reply, ts: now + 10 });
   const messages = [...(thread.messages || []), ...appended].slice(-MSG_CAP);
   await ref.set({ messages, updatedAt: now, unread: false }, { merge: true }).catch(() => {});
   return { reply, messages, consulted };

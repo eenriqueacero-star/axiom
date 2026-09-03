@@ -172,7 +172,7 @@ async function openBossThread(uid, signal, opener) {
     updatedAt: Date.now(),
     title: signal.ticker ? `${signal.ticker} — let's talk` : "Let's talk",
     seededEvent: { ticker: signal.ticker || null, headline: signal.headline, url: signal.url || '', source: signal.source || '' },
-    messages: [{ role: 'assistant', content: text, ts: Date.now() }],
+    messages: [{ role: 'assistant', agentId: 'axiom', name: 'AXIOM', content: text, ts: Date.now() }],
     unread: true,
   }).catch(() => {});
 
