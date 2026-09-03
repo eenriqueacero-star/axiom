@@ -55,6 +55,16 @@ router.post('/unsubscribe', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Fire a test notification to the caller's own devices — confirms the pipe works.
+router.post('/test', async (req, res) => {
+  const n = await sendPush(req.uid, {
+    title: 'Axiom notifications are on',
+    body: 'This is a test. Real alerts land here when news, a filing, or a big move hits your book.',
+    data: { path: '/' },
+  });
+  res.json({ ok: true, sent: n });
+});
+
 // How many devices are registered — drives the toggle state in the UI.
 router.get('/status', async (req, res) => {
   if (!pushReady) return res.json({ configured: false, devices: 0 });

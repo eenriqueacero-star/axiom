@@ -65,6 +65,7 @@ export const subscribePush = (subscription) =>
 export const unsubscribePush = (endpoint) =>
   request('/push/unsubscribe', { method: 'POST', body: { endpoint } });
 export const getPushStatus = () => request('/push/status');
+export const sendTestPush = () => request('/push/test', { method: 'POST', body: {} });
 export const getBacktest = () => request('/quant/backtest');
 export const getQuantStatus = () => request('/quant/status');
 export const getQuantHoldings = () => request('/quant/holdings-now');

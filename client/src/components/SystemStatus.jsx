@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getHealth, getKeyStatus } from '../api';
+import { getHealth, getKeyStatus, sendTestPush } from '../api';
 import { pushState, enablePush, disablePush } from '../lib/push';
 
 const dot = (ok) => (ok ? 'bg-emerald-400' : 'bg-red-400');
@@ -14,8 +14,19 @@ const PUSH_COPY = {
 function PushToggle() {
   const [state, setState] = useState(null); // on | off | denied | unsupported
   const [busy, setBusy] = useState(false);
+  const [testMsg, setTestMsg] = useState('');
 
   useEffect(() => { pushState().then(setState); }, []);
+
+  const test = async () => {
+    setTestMsg('sending…');
+    try {
+      const { sent } = await sendTestPush();
+      setTestMsg(sent > 0 ? `sent to ${sent} device${sent > 1 ? 's' : ''} — check your notifications` : 'no devices registered — turn it off and on again');
+    } catch (e) {
+      setTestMsg(`failed: ${e.message}`);
+    }
+  };
 
   const toggle = async () => {
     setBusy(true);
@@ -48,6 +59,12 @@ function PushToggle() {
         )}
       </div>
       <p className="text-[11px] text-haze leading-snug">{PUSH_COPY[state]}</p>
+      {state === 'on' && (
+        <div className="flex items-center gap-2">
+          <button onClick={test} className="text-[11px] text-indigo-400 hover:text-indigo-300">Send a test</button>
+          {testMsg && <span className="text-[10px] text-haze">{testMsg}</span>}
+        </div>
+      )}
     </div>
   );
 }
