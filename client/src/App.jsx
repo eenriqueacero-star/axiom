@@ -87,7 +87,10 @@ export default function App() {
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-10 backdrop-blur bg-ink-950/80 border-b hairline">
+      <header
+        className="sticky top-0 z-10 backdrop-blur bg-ink-950/80 border-b hairline"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         <div className={`mx-auto ${shell} px-4 h-14 flex items-center justify-between`}>
           <div className="flex items-center gap-3">
             <span className="font-mono text-sm tracking-widest text-indigo-400">AXIOM</span>
