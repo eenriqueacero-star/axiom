@@ -118,5 +118,23 @@
       "vs_qqq_cagr": 0.0422
     }
   ],
-  "verdict": "The rules-only skeleton beat QQQ by +4.2%/yr over 13 years, max drawdown -29% vs QQQ -35%. Rules only, no council judgment, before tax and slippage. The satellite universe is large-cap tech/growth names that traded before 2009, so it's not cherry-picked, but monthly rebalancing this in a taxable account would give back a chunk of the edge."
+  "verdict": "The rules-only skeleton beat QQQ by +4.2%/yr over 13 years, max drawdown -29% vs QQQ -35%. Rules only, no council judgment, before tax and slippage. The satellite universe is large-cap tech/growth names that traded before 2009, so it's not cherry-picked, but monthly rebalancing this in a taxable account would give back a chunk of the edge.",
+  "rulesHoldNow": {
+    "asOf": "2025-08-01",
+    "weights": {
+      "AMD": 0.08,
+      "INTU": 0.08,
+      "STX": 0.08,
+      "WDC": 0.08,
+      "NVDA": 0.08,
+      "ORCL": 0.08,
+      "JPM": 0.0417,
+      "AMZN": 0.0417,
+      "GOOGL": 0.0417,
+      "MSFT": 0.0417,
+      "META": 0.0417,
+      "MA": 0.0417,
+      "V": 0.0417
+    }
+  }
 }

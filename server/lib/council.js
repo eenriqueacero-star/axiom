@@ -381,7 +381,7 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
     uid ? agentWeights(uid).catch(() => ({ weights: {} })) : Promise.resolve({ weights: {} }),
     uid ? getCalibration(uid).catch(() => ({ notes: {} })) : Promise.resolve({ notes: {} }),
   ]);
-  const btLine = await backtestVerdictLine().catch(() => '');
+  const btLine = await backtestVerdictLine(sym).catch(() => '');
   const desk = memoBlock(memos);
   const fundBlock = fundamentalsBlock(fund);
   const user = `${sym}: rule on it for the firm's book — does it belong, is the thesis broken, is the entry OK, can it be sized.\n${liveDataBlock}${fundBlock}${holdings?.block || ''}${desk}\nReturn ONLY the JSON.`;

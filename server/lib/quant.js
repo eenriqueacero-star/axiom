@@ -71,11 +71,22 @@ export async function quantStatus() {
   }
 }
 
-/** One-line verdict for the council's context, or '' when the service isn't up. */
-export async function backtestVerdictLine() {
-  if (!quantReady()) return '';
+/**
+ * Context line for a council run: the backtest verdict + whether the mechanical
+ * momentum rules currently hold THIS ticker (a cross-check on the LLM judgment).
+ */
+export async function backtestVerdictLine(sym = null) {
   try {
     const bt = await backtest();
-    return bt?.verdict ? `\nBACKTEST (rules-only skeleton of this rulebook, no LLM): ${bt.verdict}\n` : '';
+    if (!bt?.verdict) return '';
+    let line = `\nBACKTEST (rules-only skeleton of this rulebook, no LLM): ${bt.verdict}\n`;
+    const held = bt.rulesHoldNow?.weights;
+    if (sym && held) {
+      const s = String(sym).toUpperCase();
+      line += held[s]
+        ? `MECHANICAL RULES: the momentum sleeve currently holds ${s} (${(held[s] * 100).toFixed(0)}%) — the rules agree it belongs.\n`
+        : `MECHANICAL RULES: the momentum sleeve does NOT currently hold ${s} — the rules would have rotated out. Weigh this against the thesis.\n`;
+    }
+    return line;
   } catch { return ''; }
 }

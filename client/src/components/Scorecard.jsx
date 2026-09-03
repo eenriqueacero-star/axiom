@@ -63,6 +63,24 @@ function StrategyBacktest() {
               {bt.generatedAt ? ` · refreshed ${bt.generatedAt}` : ''}
               {bt.partialUniverse ? ' · partial universe — full number pending' : ''}
             </p>
+
+            {bt.rulesHoldNow?.weights && (
+              <div className="mt-3 pt-3 border-t hairline">
+                <p className="text-[10px] uppercase tracking-wide text-haze mb-1.5">
+                  What the mechanical rules would hold now
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(bt.rulesHoldNow.weights).map(([t, w]) => (
+                    <span key={t} className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-ink-800 text-neutral-300">
+                      {t} <span className="text-ink-600">{(w * 100).toFixed(0)}%</span>
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[10px] text-ink-600">
+                  A momentum cross-check — names here you don’t own may be worth a look; names you hold that aren’t here are a yellow flag.
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>

@@ -83,12 +83,20 @@ def main() -> None:
     if partial:
         verdict += (f" (Partial data — satellite pool {len(pool)}/{len(SATELLITE_POOL)} names available.)")
 
+    # What the mechanical 50/50 sleeve would hold today — a momentum cross-check
+    # for the council: names it's rotating INTO that you don't own may be worth a
+    # look; names it's rotating OUT of that you hold are a yellow flag.
+    axiom_w = cands[axiom]
+    last = axiom_w.iloc[-1]
+    holds_now = {t: round(float(w), 4) for t, w in last[last > 0].sort_values(ascending=False).items()}
+
     out = {
         "start": str(px.index[0].date()), "end": str(px.index[-1].date()),
         "years": round(yrs, 1), "generatedAt": datetime.date.today().isoformat(),
         "partialUniverse": partial, "coreNames": core, "satelliteNames": pool,
         "rows": df.reset_index().to_dict(orient="records"),
         "verdict": verdict,
+        "rulesHoldNow": {"asOf": str(axiom_w.index[-1].date()), "weights": holds_now},
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(out, indent=2), encoding="utf-8")
