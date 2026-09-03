@@ -8,7 +8,7 @@ import { db } from '../lib/firebase.js';
 import { runDeskNight } from '../lib/desk/night.js';
 import { canSpendAutonomous, noteDialogue } from '../lib/budget.js';
 
-const CALLS_PER_NIGHT = 10;
+const CALLS_PER_NIGHT = 14;
 
 export async function runDeskNightAll() {
   const gate = canSpendAutonomous(CALLS_PER_NIGHT);

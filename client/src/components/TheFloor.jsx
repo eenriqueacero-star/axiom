@@ -73,6 +73,18 @@ function LastNight() {
               </li>
             ))}
           </ul>
+          {work.reflection && (
+            <div className="border-t hairline pt-2 text-[11px] leading-snug">
+              <p className="text-neutral-300">
+                <span className="font-mono">{work.reflection.agentName}</span> sharpened their playbook
+                <span className="text-ink-600"> → v{work.reflection.version}</span>
+              </p>
+              {work.reflection.research && <p className="text-neutral-400 mt-0.5">Found: {stripMd(work.reflection.research)}</p>}
+              {work.reflection.bossFeedback && (
+                <p className="text-haze mt-0.5">AXIOM: {stripMd(work.reflection.bossFeedback)}</p>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

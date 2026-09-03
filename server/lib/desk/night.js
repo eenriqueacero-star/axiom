@@ -205,11 +205,13 @@ export async function runDeskNight(uid, { reflect = true } = {}) {
       }).catch(() => {});
     }
 
-    // One analyst reflects on and rewrites its own playbook (rotating).
+    // One analyst reflects on and rewrites its own playbook (rotating): it
+    // researches its craft, reports to the boss, and revises with his feedback.
     let reflection = null;
     if (reflect) {
       const rotate = AGENTS[new Date().getDate() % AGENTS.length];
       reflection = await runReflection(uid, rotate.id, context).catch(() => null);
+      if (reflection) await stamp({ reflection });
     }
 
     console.log(`[desk-night] ${uid.slice(0, 6)}… — ${findings.length} findings, ${(b.notes || []).length} notes${reflection ? `, ${reflection.agentId} playbook v${reflection.version}` : ''}`);

@@ -12,7 +12,7 @@ import { canSpendAutonomous, noteDialogue } from '../lib/budget.js';
 import { setAutonomous } from '../lib/groq.js';
 import { sendPush } from '../routes/push.js';
 
-const CALLS_PER_USER = 14;
+const CALLS_PER_USER = 22;  // ~3 calls/agent (research → boss opinion → finalise)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function runWeekendReflection() {
@@ -30,7 +30,7 @@ export async function runWeekendReflection() {
       const ctx = await firmContext(uid).catch(() => '');
       const revised = [];
       for (const ag of AGENTS) {
-        if (!canSpendAutonomous(3).ok) break;
+        if (!canSpendAutonomous(4).ok) break;
         try {
           const r = await runReflection(uid, ag.id, ctx);
           if (r) revised.push(r);
