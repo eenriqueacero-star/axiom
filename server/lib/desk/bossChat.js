@@ -112,7 +112,7 @@ HOW TO TALK — you are a person, not a reporting function.
 - When you do give a take, 2-4 sentences, grounded in the data below. If you don't know, say so.
 - This is the person who pays the bills — be straight with them, including when you disagree.
 
-YOUR ANALYSTS: ${roster}. To pull one in for a specific question, emit ONE line of JSON: {"ask":"ZEN","question":"..."} and stop. You'll get their answer and can carry on. Use this for real sizing/timing/catalyst questions, not for small talk.
+YOUR ANALYSTS: ${roster}. You can mostly answer from your own knowledge and the data below — do that. ONLY when you genuinely need a specific number or call that's squarely another analyst's job (e.g. ZEN for an exact position size), pull them in: emit ONE line — {"ask":"ZEN","question":"..."} — and nothing else. You'll get their answer, then you MUST reply to the investor in plain prose (no more JSON). Don't chain more than one or two of these.
 ${seededEvent ? `\nWHY THIS THREAD EXISTS — an event came in and you weren't sure it was worth putting the analysts on:\n"${seededEvent.headline}"${seededEvent.source ? ` (${seededEvent.source})` : ''}. You wanted the investor's read first. Pick it up naturally.\n` : ''}${dec ? `\nWHY THIS THREAD EXISTS — the investor hit "proceed" on a council ${dec.mandate === 'decision' ? 'DECISION' : 'suggestion'}: ${dec.verdict} ${dec.ticker} (${dec.conviction}/10). ${dec.why}
 THE ACTUAL POSITION — use THESE numbers, do not invent others: ${dec.shares != null
   ? `the firm holds ${dec.shares} shares of ${dec.ticker} at $${(dec.avgCost || 0).toFixed(2)} avg cost, worth about $${Math.round(dec.value || 0)} — that is ${((dec.positionPct || 0) * 100).toFixed(1)}% of a $${Math.round((dec.value || 0) / (dec.positionPct || 1))} book. ${dec.ticker} trades near $${(dec.price || dec.avgCost || 0).toFixed(2)}.`
@@ -153,30 +153,41 @@ export async function postMessage(uid, id, userText) {
   }));
   history.push({ role: 'user', content: String(userText).slice(0, 4000) });
 
+  const stripAsk = (t) => String(t || '').replace(/\{[^{}]*"ask"\s*:\s*"[^"]+"[^{}]*\}/g, '').trim();
+
   const consulted = [];
+  const convo = [...history];
   let reply = '';
   try {
-    reply = await callAgentChat({ system, messages: history, maxTokens: 600 });
-    for (let hop = 0; hop < 2; hop++) {
+    reply = await callAgentChat({ system, messages: convo, maxTokens: 600 });
+    for (let hop = 0; hop < 3; hop++) {
       const ask = parseConsult(reply);
       if (!ask) break;
-      const answer = await askAnalyst(ask.id, ask.question, context);
-      if (!answer) break;
+      const answer = (await askAnalyst(ask.id, ask.question, context))
+        || `(couldn't reach ${ask.name} — answer from what you know)`;
       consulted.push({ id: ask.id, name: ask.name, question: ask.question, answer });
-      reply = await callAgentChat({
-        system,
-        messages: [
-          ...history,
-          { role: 'assistant', content: `[asked ${ask.name}: ${ask.question}]` },
-          { role: 'user', content: `${ask.name} says: "${answer}"\nNow answer me — tell me what ${ask.name} said and what you make of it. No JSON.` },
-        ],
-        maxTokens: 600,
-      });
+      convo.push({ role: 'assistant', content: `[I asked ${ask.name}: ${ask.question}]` });
+      convo.push({ role: 'user', content: `${ask.name}: "${answer}"\n\nNow give ME your answer in plain prose — what this means for the plan. Do NOT output any JSON or ask anyone else.` });
+      reply = await callAgentChat({ system, messages: convo, maxTokens: 600 });
     }
   } catch (e) {
     reply = `Can't get to that right now — ${e.message}. Try me again in a minute.`;
   }
-  if (!reply || parseConsult(reply)) reply = "Let me come back to you on that — give me a sec and ask again.";
+  // Never surface raw {"ask":...} JSON. If that's all there is, force one clean pass.
+  if (parseConsult(reply) || !stripAsk(reply)) {
+    const bare = stripAsk(reply);
+    if (bare) reply = bare;
+    else {
+      try {
+        reply = await callAgentChat({
+          system,
+          messages: [...convo, { role: 'user', content: 'Answer me now in plain prose — no JSON, no asking anyone. Use what you have.' }],
+          maxTokens: 500,
+        });
+        reply = stripAsk(reply) || "Here's where I land: let's keep it simple and I'll walk you through it — ask me the specific number you want.";
+      } catch { reply = "Give me one more second — ask me again."; }
+    }
+  }
 
   const now = Date.now();
   const appended = [{ role: 'user', content: String(userText).slice(0, 4000), ts: now }];
