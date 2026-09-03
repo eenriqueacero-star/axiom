@@ -25,9 +25,11 @@ const findTicker = (text) => {
 };
 
 const SCHEDULE = [
+  { job: 'The Desk — nightly run', cadence: 'Every night 2:10 AM ET', does: 'The boss assigns each analyst overnight research; findings become desk notes; one analyst rewrites its own playbook.' },
   { job: 'Daily scout scan', cadence: 'Weekdays 9:05 AM ET', does: 'Runs the full council on every holding + the discovery pool; pushes ADD/EXIT alerts.' },
   { job: 'Big-mover re-review', cadence: 'Every 30 min, market hours', does: 'Any holding down/up 8%+ on the day gets a fresh council run and a push with the new verdict.' },
-  { job: 'Verdict scorecard', cadence: 'Weekdays 4:30 PM ET', does: 'Scores past verdicts against what the stock actually did.' },
+  { job: 'Holdings news + congress', cadence: 'Every 30 min + daily', does: 'Material news and congressional trades in your names → push + fed to the council.' },
+  { job: 'Verdict scorecard', cadence: 'Weekdays 4:30 PM ET', does: 'Scores past verdicts, then recomputes agent weights + calibration notes.' },
 ];
 
 const MAX_CONSULTS = 2;

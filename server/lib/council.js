@@ -10,6 +10,7 @@ import { fundamentals, fundamentalsBlock } from './fundamentals.js';
 import { congressTrades, congressConfigured } from './congress/index.js';
 import { agentWeights } from './agentWeights.js';
 import { getCalibration } from './calibration.js';
+import { getPlaybooks, playbookBlock } from './desk/playbooks.js';
 import { backtestVerdictLine } from './quant.js';
 import { db } from './firebase.js';
 
@@ -398,6 +399,7 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
     uid ? agentWeights(uid).catch(() => ({ weights: {} })) : Promise.resolve({ weights: {} }),
     uid ? getCalibration(uid).catch(() => ({ notes: {} })) : Promise.resolve({ notes: {} }),
   ]);
+  const playbooks = uid ? await getPlaybooks(uid, AGENTS.map(a => a.id)).catch(() => ({})) : {};
   const btLine = await backtestVerdictLine(sym).catch(() => '');
   const desk = memoBlock(memos);
   const fundBlock = fundamentalsBlock(fund);
@@ -407,9 +409,9 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
   for (let i = 0; i < AGENTS.length; i++) {
     const ag = AGENTS[i];
     const calNote = cal?.notes?.[ag.id];
-    const system = calNote
-      ? `${ag.system}\n\nCALIBRATION (your own track record — adjust accordingly): ${calNote}`
-      : ag.system;
+    const system = ag.system
+      + playbookBlock(playbooks[ag.id])
+      + (calNote ? `\n\nCALIBRATION (your own track record — adjust accordingly): ${calNote}` : '');
     try {
       const { text } = await callAgent({ system, user, agentIndex: i });
       const parsed = extractJSON(text) || { ...FALLBACK };

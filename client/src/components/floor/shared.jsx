@@ -13,7 +13,7 @@ export const pctS = (n) => (n == null ? '—' : `${Math.round(n * 100)}%`);
 
 // The checks / track-record / recent-calls block for one agent. Shared by the
 // card Floor and the 3D room overlay.
-export function AgentPanel({ agent, data, onAnalyze, weight, calibration }) {
+export function AgentPanel({ agent, data, onAnalyze, weight, calibration, playbook }) {
   const hitRates = Object.entries(data?.stanceStats || {})
     .map(([st, v]) => ({ st, ...v }))
     .filter((v) => v.hitRate != null);
@@ -46,6 +46,22 @@ export function AgentPanel({ agent, data, onAnalyze, weight, calibration }) {
         <div className="rounded border border-amber-500/25 bg-amber-500/5 px-2.5 py-1.5">
           <p className="text-[10px] uppercase tracking-wide text-amber-400/90 mb-0.5">Calibration note</p>
           <p className="text-[11px] text-neutral-300 leading-snug">{calibration}</p>
+        </div>
+      )}
+
+      {playbook?.playbook && (
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-haze mb-1">
+            Playbook <span className="text-ink-600">v{playbook.version}</span>
+          </p>
+          <p className="text-[11px] text-neutral-400 leading-snug whitespace-pre-line">{playbook.playbook}</p>
+          {playbook.history?.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5">
+              {playbook.history.slice(-3).reverse().map((h, i) => (
+                <li key={i} className="text-[10px] text-ink-600">v{h.version + 1}: {h.note}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

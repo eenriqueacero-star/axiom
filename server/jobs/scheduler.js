@@ -6,6 +6,7 @@ import { scanCongressForHoldings } from '../lib/congress/scan.js';
 import { scoreAllUsers } from '../lib/scorecard.js';
 import { calibrateAllUsers } from '../lib/calibration.js';
 import { deskTick } from './deskLoop.js';
+import { runDeskNightAll } from './deskNight.js';
 
 export function initScheduler() {
   // Daily scout scan + congressional trades — 9:05 AM ET
@@ -39,6 +40,15 @@ export function initScheduler() {
     deskTick()
       .then(r => { if (r?.ok) console.log('[desk] conversation recorded'); })
       .catch(err => console.error('[desk] Error:', err.message));
+  }, { timezone: 'America/New_York' });
+
+  // The Desk nightly run — 2:10 AM ET. Boss assigns overnight research, analysts
+  // work it, boss files a brief, one analyst rewrites its own playbook.
+  cron.schedule('10 2 * * *', () => {
+    console.log('[scheduler] Desk nightly run...');
+    runDeskNightAll()
+      .then(r => console.log(`[desk-night] ${JSON.stringify(r)}`))
+      .catch(err => console.error('[desk-night] Error:', err.message));
   }, { timezone: 'America/New_York' });
 
   console.log('[scheduler] Jobs registered: scout (9:05 ET), alerts + move-review (30min mkt hrs), scorecard (16:30 ET), desk (20min, budget-gated)');

@@ -96,6 +96,9 @@ export const getFloorLive = () => request('/council/floor/live');
 // The desk — agent-to-agent conversations and the notes they leave behind.
 export const getDeskState = () => request('/desk/state');
 export const getDeskNotes = () => request('/desk/notes');
+export const getDeskWork = () => request('/desk/work');
+export const getPlaybooks = () => request('/desk/playbooks');
+export const runDeskNight = () => request('/desk/run-night', { method: 'POST', body: {} });
 export const getDeskNext = () => request('/desk/next');
 export const getDeskBudget = () => request('/desk/budget');
 export const convene = () => request('/desk/convene', { method: 'POST', body: {} });

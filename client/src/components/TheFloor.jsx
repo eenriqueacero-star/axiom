@@ -1,7 +1,75 @@
-import { useEffect, useState } from 'react';
-import { getFloor, getDca } from '../api';
+import { useEffect, useRef, useState } from 'react';
+import { getFloor, getDca, getDeskWork, getPlaybooks, runDeskNight } from '../api';
 import { stanceStyle, verdictStyle, tierStyle, stripMd } from './stance';
 import { AgentPanel, AgentChat, rel } from './floor/shared';
+
+const AGENT_NAME = { quality: 'SAGE', trend: 'REX', catalyst: 'NOVA', bear: 'VEGA', sector: 'ATLAS', sizing: 'ZEN' };
+
+/** Last night's desk run — the boss's brief + what each analyst was told to dig into. */
+function LastNight() {
+  const [work, setWork] = useState(undefined);
+  const [running, setRunning] = useState(false);
+  const [open, setOpen] = useState(null);
+  const poll = useRef(null);
+
+  const load = () => getDeskWork().then((r) => setWork(r.work || null)).catch(() => setWork(null));
+  useEffect(() => { load(); return () => clearInterval(poll.current); }, []);
+
+  const trigger = async () => {
+    setRunning(true);
+    try { await runDeskNight(); } catch { setRunning(false); return; }
+    const started = Date.now();
+    clearInterval(poll.current);
+    poll.current = setInterval(async () => {
+      await load();
+      if (Date.now() - started > 3 * 60 * 1000) { clearInterval(poll.current); setRunning(false); }
+    }, 12000);
+  };
+
+  if (work === undefined) return null;
+
+  return (
+    <div className="card p-4 space-y-3">
+      <div className="flex items-baseline justify-between">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-haze">Last night at the desk</p>
+        <button onClick={trigger} disabled={running}
+          className="text-[11px] font-medium text-indigo-400 hover:text-indigo-300 disabled:text-haze">
+          {running ? 'Working…' : 'Convene tonight'}
+        </button>
+      </div>
+
+      {!work ? (
+        <p className="text-[11px] text-haze">
+          The desk runs overnight (2 AM ET): the boss assigns each analyst research, they work it, and the findings
+          become desk notes the council carries forward. Hit “Convene tonight” to run it now.
+        </p>
+      ) : (
+        <>
+          <p className="text-[11px] text-ink-600">{work.date}{work.focus ? ` · focus: ${work.focus}` : ''}</p>
+          {work.brief && <p className="text-sm text-neutral-200 leading-relaxed">{stripMd(work.brief)}</p>}
+          <ul className="divide-y divide-ink-800/70">
+            {(work.findings || []).map((f, i) => (
+              <li key={i} className="py-2">
+                <button onClick={() => setOpen(open === i ? null : i)} className="w-full text-left">
+                  <span className="font-mono text-[11px] text-neutral-300">{f.agentName}</span>
+                  <span className="text-[11px] text-haze"> — {f.task}</span>
+                </button>
+                {open === i && (
+                  <div className="mt-1.5 text-[11px] text-neutral-400 leading-snug space-y-1">
+                    <p>{stripMd(f.findings)}</p>
+                    {f.sources?.length > 0 && (
+                      <p className="text-ink-600">sources: {f.sources.join(' · ')}</p>
+                    )}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
 
 /** Scout's best calls on names you don't own — the daily discovery sweep, ranked. */
 function DiscoveryCard({ items, onAnalyze }) {
@@ -71,7 +139,7 @@ function DcaCard() {
   );
 }
 
-function Room({ agent, data, weight, calibration, onAnalyze }) {
+function Room({ agent, data, weight, calibration, playbook, onAnalyze }) {
   const [open, setOpen] = useState(false);
   const last = data?.recent?.[0];
   const s = last ? stanceStyle(last.stance) : null;
@@ -99,7 +167,7 @@ function Room({ agent, data, weight, calibration, onAnalyze }) {
 
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t hairline pt-3">
-          <AgentPanel agent={agent} data={data} weight={weight} calibration={calibration} onAnalyze={onAnalyze} />
+          <AgentPanel agent={agent} data={data} weight={weight} calibration={calibration} playbook={playbook} onAnalyze={onAnalyze} />
           <AgentChat agent={agent} />
         </div>
       )}
@@ -109,9 +177,13 @@ function Room({ agent, data, weight, calibration, onAnalyze }) {
 
 export default function TheFloor({ onAnalyze }) {
   const [floor, setFloor] = useState(null);
+  const [playbooks, setPlaybooks] = useState({});
   const [err, setErr] = useState('');
 
-  useEffect(() => { getFloor().then(setFloor).catch((e) => setErr(e.message)); }, []);
+  useEffect(() => {
+    getFloor().then(setFloor).catch((e) => setErr(e.message));
+    getPlaybooks().then((r) => setPlaybooks(r.playbooks || {})).catch(() => {});
+  }, []);
 
   if (err) return <p className="text-xs text-red-400">{err}</p>;
   if (!floor) return <p className="text-xs text-haze animate-pulse">Loading the floor…</p>;
@@ -126,12 +198,14 @@ export default function TheFloor({ onAnalyze }) {
         </p>
       </div>
 
+      <LastNight />
       <DcaCard />
       <DiscoveryCard items={floor.discovery} onAnalyze={onAnalyze} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         {floor.agents.map((a) => (
-          <Room key={a.id} agent={a} data={floor.perAgent[a.id]} weight={floor.weights?.[a.id]} calibration={floor.calibration?.[a.id]} onAnalyze={onAnalyze} />
+          <Room key={a.id} agent={a} data={floor.perAgent[a.id]} weight={floor.weights?.[a.id]}
+            calibration={floor.calibration?.[a.id]} playbook={playbooks[a.id]} onAnalyze={onAnalyze} />
         ))}
       </div>
 
