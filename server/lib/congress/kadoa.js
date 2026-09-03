@@ -47,20 +47,30 @@ export async function pull({ ticker = null, days = 90 }) {
     });
   }
 
-  return rows.map((r) => ({
-    id: r.id,
-    member: r.filer_name || r.filer_id,
-    chamber: (r.chamber || '').replace(/^\w/, (c) => c.toUpperCase()),
-    party: r.party || '',
-    ticker: r.ticker,
-    assetName: r.asset_name || '',
-    type: r.transaction_type,
-    amountLow: r.amount_range_low ?? null,
-    amountHigh: r.amount_range_high ?? null,
-    amount: r.amount_range_label,
-    txDate: r.transaction_date,
-    filedDate: r.filing_date,
-    url: r.doc_url || '',
-    source: 'House Clerk / Senate eFD',
-  })).filter((r) => r.ticker);
+  return rows
+    // Congress only — drop the executive-branch OGE filings (Trump's blind-trust
+    // S&P rebalances etc), which otherwise bury the actual congressional signal.
+    .filter((r) => {
+      const ch = String(r.chamber || '').toLowerCase();
+      return (ch === 'house' || ch === 'senate')
+        && !String(r.filer_id || '').startsWith('oge_')
+        && (r.branch || 'congress') === 'congress';
+    })
+    .map((r) => ({
+      id: r.id,
+      member: r.filer_name || r.filer_id,
+      chamber: r.chamber.replace(/^\w/, (c) => c.toUpperCase()),
+      party: r.party || '',
+      ticker: r.ticker,
+      assetName: r.asset_name || '',
+      type: r.transaction_type,
+      amountLow: r.amount_range_low ?? null,
+      amountHigh: r.amount_range_high ?? null,
+      amount: r.amount_range_label,
+      txDate: r.transaction_date,
+      filedDate: r.filing_date,
+      url: r.doc_url || '',
+      source: 'House Clerk / Senate eFD',
+    }))
+    .filter((r) => r.ticker);
 }
