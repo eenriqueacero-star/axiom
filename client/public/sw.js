@@ -32,15 +32,17 @@ self.addEventListener('notificationclick', (event) => {
   const path = d.n ? `/?n=${encodeURIComponent(d.n)}`
     : d.path || (d.ticker ? `/?t=${encodeURIComponent(d.ticker)}` : '/');
   const target = new URL(path, self.location.origin).href;
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
-      for (const w of wins) {
-        if (w.url.startsWith(self.location.origin) && 'focus' in w) {
-          if ('navigate' in w) w.navigate(target).catch(() => {});
-          return w.focus();
-        }
-      }
-      return self.clients.openWindow(target);
-    }),
-  );
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const existing = wins.find((w) => w.url.startsWith(self.location.origin));
+    if (existing) {
+      // iOS standalone PWAs ignore navigate() on a live client — post the route
+      // and let the app handle it in-place. Try navigate() too for other browsers.
+      try { await existing.focus(); } catch (e) { /* ignore */ }
+      existing.postMessage({ type: 'axiom-nav', path });
+      if ('navigate' in existing) existing.navigate(target).catch(() => {});
+      return;
+    }
+    await self.clients.openWindow(target);
+  })());
 });

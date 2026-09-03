@@ -27,21 +27,39 @@ export default function App() {
   const [analyzeTicker, setAnalyzeTicker] = useState('');
   const [analyzeNonce, setAnalyzeNonce] = useState(0); // bumps to force a re-run on the same ticker
 
-  // Deep links from push notifications: ?t=<ticker> opens Analyze on it,
-  // ?chat=<id> opens the boss, ?tab=floor.
-  useEffect(() => {
-    if (!user) return;
-    const p = new URLSearchParams(window.location.search);
+  // Deep links from push notifications: ?n=<id> opens that notification,
+  // ?t=<ticker> opens Analyze, ?chat=<id> opens the boss, ?tab=floor|notifications.
+  const applyDeepLink = (search) => {
+    const p = new URLSearchParams(search || '');
     const t = (p.get('t') || '').toUpperCase();
     if (/^[A-Z.\-]{1,10}$/.test(t)) { setAnalyzeTicker(t); setAnalyzeNonce((n) => n + 1); setView('analyze'); }
     if (p.get('chat')) { setBossThreadId(p.get('chat')); setBossOpen(true); }
     if (p.get('tab') === 'floor') setView('floor');
     if (p.get('tab') === 'notifications') setNotifOpen(true);
-    if (p.get('n')) { setNotifOpenId(p.get('n')); }
-    if (p.get('chat') || p.get('tab') || p.get('t') || p.get('n')) {
+    if (p.get('n')) { setNotifOpen(true); setNotifOpenId(p.get('n')); }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    applyDeepLink(window.location.search);
+    if (window.location.search) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [user]);
+
+  // iOS standalone PWAs won't reliably navigate() an already-open client, so the
+  // service worker forwards the click target as a message instead.
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMsg = (e) => {
+      if (e.data?.type === 'axiom-nav' && e.data.path) {
+        const qs = e.data.path.includes('?') ? e.data.path.split('?')[1] : '';
+        applyDeepLink(qs);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
+  }, []);
 
   // Poll for an unread ping from the boss.
   useEffect(() => {
