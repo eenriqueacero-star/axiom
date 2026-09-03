@@ -127,9 +127,12 @@ ${context}${vaultBlock(vault)}${memoLines ? `\n\nRECENT DESK NOTES:\n${memoLines
 async function askAnalyst(agentId, question, context) {
   const ag = byId[agentId];
   if (!ag) return '';
-  const sys = `${ag.conversationalPrompt}\nYou are ${ag.name}, ${ag.role} at Axiom. ${PROTOCOLS}\nAXIOM (the partner) is asking you a direct question while working through a decision with the investor. Answer from your remit in 1-3 sentences, concrete, using the data below. This is colleague-to-colleague.\n\n${context}`;
+  const sys = `${ag.conversationalPrompt}\nYou are ${ag.name}, ${ag.role} at Axiom. ${PROTOCOLS}\nAXIOM (the partner) is asking you a direct question while working through a decision with the investor. Answer from your remit in 1-3 sentences, concrete, using the data below. This is colleague-to-colleague. Dollar figures are literal — this is a small family account, never write "k" or "M".\n\n${context}`;
   try {
-    return (await callAgentChat({ system: sys, messages: [{ role: 'user', content: question }], maxTokens: 220 })).trim();
+    // 'low' effort — a reasoning model on 'medium' burns the whole budget on
+    // chain-of-thought and returns nothing.
+    const t = (await callAgentChat({ system: sys, messages: [{ role: 'user', content: question }], maxTokens: 400, effort: 'low' })).trim();
+    return t;
   } catch { return ''; }
 }
 
@@ -163,11 +166,13 @@ export async function postMessage(uid, id, userText) {
     for (let hop = 0; hop < 3; hop++) {
       const ask = parseConsult(reply);
       if (!ask) break;
-      const answer = (await askAnalyst(ask.id, ask.question, context))
-        || `(couldn't reach ${ask.name} — answer from what you know)`;
-      consulted.push({ id: ask.id, name: ask.name, question: ask.question, answer });
+      const answer = await askAnalyst(ask.id, ask.question, context);
+      // Only record a real answer — no phantom "X joined" when the sub-call failed.
+      if (answer) consulted.push({ id: ask.id, name: ask.name, question: ask.question, answer });
       convo.push({ role: 'assistant', content: `[I asked ${ask.name}: ${ask.question}]` });
-      convo.push({ role: 'user', content: `${ask.name}: "${answer}"\n\nNow give ME your answer in plain prose — what this means for the plan. Do NOT output any JSON or ask anyone else.` });
+      convo.push({ role: 'user', content: answer
+        ? `${ask.name}: "${answer}"\n\nNow give ME your answer in plain prose — what this means for the plan. Do NOT output any JSON or ask anyone else.`
+        : `${ask.name} didn't get back in time. Answer me yourself, in plain prose, from what you know. No JSON.` });
       reply = await callAgentChat({ system, messages: convo, maxTokens: 600 });
     }
   } catch (e) {
