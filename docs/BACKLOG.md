@@ -13,6 +13,17 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
    at the desk" shows a brief + 6 analyst findings (status: done, not failed).** If
    it failed again, read the deskWork/{date} error + server logs.
 
+0b. **EVENT DESK — real-time boss triage + dispatch (user, 2026-09-03)** — needs a
+   design conversation, don't build blind. Vision: any new signal (news / senator
+   trade / insider cluster / 8-K) → sent to user AND the boss → boss reviews
+   immediately → if it might make money, dispatches the relevant agents to work
+   it *right now, any hour*. The scanners (holdingsNews, congress) already emit
+   `users/{uid}/signals`; what's missing is the boss-triage step + immediate
+   targeted `desk/research()` dispatch + an after-hours budget carve-out + storm
+   control. Full spec in `project_axiom_event_desk` memory. Open Qs: watchlist or
+   held-only? every material event or thesis-only? budget ceiling? ping-on-every
+   -event or ping-on-action?
+
 1. **Backtest the rulebook vs QQQ** — mostly DONE (2026-09-02), one step left.
    - [x] `axiom_5050` / `core_quality_hold` strategies (quant/app/strategies.py) —
      the mechanical rulebook skeleton, no LLM.
@@ -348,8 +359,14 @@ content shown inside each 3D room.
   (free, no key), wired into `scanHoldingsNewsForUser` (push + `kind:'filing'` signal
   + re-convene on thesis items) and into `council.js` LIVE DATA (14d 8-K block).
   Extra 5:20 PM ET scheduler sweep for after-close earnings 8-Ks.
+- [x] **Insider (Form 4) buy/sell signal** — DONE 2026-09-03 (commit 89ce628).
+  `server/lib/insiders.js` (Finnhub), cluster-buy / cluster-sell detection into
+  the council LIVE DATA + a push/signal on held names (cluster buy re-convenes).
 - [ ] **Events service — remaining**: Fed/econ calendar, FDA calendar (PDUFA dates).
-  Same pattern — new source feeding `scanAllHoldingsNews`.
+  Same pattern — new source feeding `scanAllHoldingsNews`. (FDA low value — no
+  biotech in the book; Fed rate-decision dates could feed ATLAS.)
+- [ ] **13F institutional-holdings changes** — which big funds added/trimmed your
+  names each quarter. Reuses `edgar.js` (13F-HR filings). Quarterly, lagged 45d.
 - [ ] **Congressional trading tracker** — BLOCKED on data source. Free sources dead in
   2026 (old S3/github datasets gone; CongressInvests API rate-shared + 3mo stale).
   Decide: Disclosed Capitol free-tier signup, Quiver $25/mo, or defer.
