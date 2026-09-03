@@ -13,16 +13,14 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
    at the desk" shows a brief + 6 analyst findings (status: done, not failed).** If
    it failed again, read the deskWork/{date} error + server logs.
 
-0b. **EVENT DESK — real-time boss triage + dispatch (user, 2026-09-03)** — needs a
-   design conversation, don't build blind. Vision: any new signal (news / senator
-   trade / insider cluster / 8-K) → sent to user AND the boss → boss reviews
-   immediately → if it might make money, dispatches the relevant agents to work
-   it *right now, any hour*. The scanners (holdingsNews, congress) already emit
-   `users/{uid}/signals`; what's missing is the boss-triage step + immediate
-   targeted `desk/research()` dispatch + an after-hours budget carve-out + storm
-   control. Full spec in `project_axiom_event_desk` memory. Open Qs: watchlist or
-   held-only? every material event or thesis-only? budget ceiling? ping-on-every
-   -event or ping-on-action?
+0b. **EVENT DESK — real-time boss triage + private chat (user, 2026-09-03)**
+   Phases 1-3 SHIPPED (commits after 89ce628). `lib/desk/triage.js` (act/talk/
+   archive), `vault.js`, `bossChat.js`, `canSpendEvent`, holdingsNews rewired to
+   hand thesis events to the boss, `/desk/{events,vault,chats*}` routes,
+   `BossChat.jsx` + header "boss" button + push deep links, weekend all-hands
+   reflection cron (Sat 10 ET). Full status in `project_axiom_event_desk` memory.
+   LEFT: surface `/desk/events` + `/desk/vault` on The Floor; LastNight panel
+   should filter out `kind:'event'` docs; tone audit; live end-to-end verify.
 
 1. **Backtest the rulebook vs QQQ** — mostly DONE (2026-09-02), one step left.
    - [x] `axiom_5050` / `core_quality_hold` strategies (quant/app/strategies.py) —
