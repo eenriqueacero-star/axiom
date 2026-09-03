@@ -9,6 +9,7 @@ import { Router } from 'express';
 import { db } from '../lib/firebase.js';
 import { firmContext } from '../lib/desk/night.js';
 import { createThread, postMessage, getThread } from '../lib/desk/bossChat.js';
+import { sendPush } from './push.js';
 
 const router = Router();
 
@@ -54,6 +55,55 @@ router.post('/boss', async (req, res) => {
       uid, threadId, reply: r.reply,
       consulted: (r.consulted || []).map((c) => ({ name: c.name, answer: c.answer })),
     });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Fire a test push to the user's devices.
+router.post('/push-test', async (req, res) => {
+  try {
+    const uid = await resolveUid(req.body?.uid);
+    const sent = await sendPush(uid, {
+      title: req.body?.title || 'Axiom — test',
+      body: req.body?.body || 'Notification pipe check. If you see this, push is working.',
+      data: { path: '/?tab=notifications' },
+    });
+    res.json({ uid, sent });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Inspect the analyses collection for junk tickers.
+router.get('/analyses', async (req, res) => {
+  try {
+    const uid = await resolveUid(req.query.uid);
+    const snap = await db.collection(`users/${uid}/analyses`).get();
+    const byTicker = {};
+    const suspect = [];
+    for (const d of snap.docs) {
+      const a = d.data();
+      const t = a.ticker || '(none)';
+      byTicker[t] = (byTicker[t] || 0) + 1;
+      if (!/^[A-Z][A-Z.\-]{0,5}$/.test(t)) {
+        suspect.push({ id: d.id, ticker: t, verdict: a.verdict, ts: a.ts, trigger: a.trigger || null });
+      }
+    }
+    res.json({ uid, total: snap.size, tickers: byTicker, suspect });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Delete specific analysis docs by id (after inspecting via GET /analyses).
+router.post('/analyses/purge', async (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  if (!ids.length) return res.status(400).json({ error: 'ids[] required' });
+  try {
+    const uid = await resolveUid(req.body?.uid);
+    await Promise.all(ids.map((id) => db.doc(`users/${uid}/analyses/${id}`).delete().catch(() => {})));
+    res.json({ uid, deleted: ids.length });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
