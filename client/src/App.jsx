@@ -24,6 +24,7 @@ export default function App() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifOpenId, setNotifOpenId] = useState(null);
   const [navToast, setNavToast] = useState('');
+  const [catchUpAt, setCatchUpAt] = useState(0);
   const notifFeed = useNotifications();
   const [view, setView] = useState('portfolio'); // 'portfolio' | 'analyze'
   const [analyzeTicker, setAnalyzeTicker] = useState('');
@@ -56,9 +57,11 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     let done = false;
+    let routedRecently = 0;
 
     const applyPath = (path, via) => {
       if (!path) return;
+      routedRecently = Date.now();
       navlog(`nav applied (${via}): ${path}`);
       setNavToast(`→ ${path}`);
       setTimeout(() => setNavToast(''), 4000);
@@ -68,6 +71,7 @@ export default function App() {
 
     const consumePending = async (via) => {
       if (done) return;
+      let routed = false;
       try {
         const cache = await caches.open('axiom-nav');
         const res = await cache.match('pending');
@@ -77,15 +81,22 @@ export default function App() {
           let path = raw, ts = Date.now();
           try { const o = JSON.parse(raw); path = o.path; ts = o.ts || ts; } catch { /* legacy plain string */ }
           const ageMs = Date.now() - ts;
-          if (ageMs > 3 * 60_000) {
-            navlog(`resume (${via}) — stale route ignored (${Math.round(ageMs / 1000)}s)`);
-          } else {
+          // A real notification tap foregrounds the app within seconds. Anything
+          // older is almost certainly a manual open (iOS gives us no tap signal),
+          // so we fall through to the "catch up on what's new" behaviour instead.
+          if (ageMs <= 25_000) {
             applyPath(path, via || 'cache');
+            routed = true;
+          } else {
+            navlog(`resume (${via}) — stale route, will catch up (${Math.round(ageMs / 1000)}s)`);
           }
         } else {
           navlog(`resume (${via}) — no pending nav`);
         }
       } catch (e) { navlog(`cache read failed: ${e.message}`); }
+      // Not a fresh deep-link (and none applied moments ago on this resume) →
+      // ask the feed effect to surface anything unread.
+      if (!routed && Date.now() - routedRecently > 3000) setCatchUpAt(Date.now());
     };
 
     const onMsg = (e) => {
@@ -109,6 +120,28 @@ export default function App() {
       window.removeEventListener('pageshow', onShow);
     };
   }, [user]);
+
+  // Returning to the app (not a fresh deep-link) — if notifications arrived while
+  // you were away, open the alerts list so you see what's new without hunting.
+  useEffect(() => {
+    if (!catchUpAt || !notifFeed.items.length) return;
+    if (Date.now() - catchUpAt > 8000) return;  // only right after a resume
+    let lastSeen = 0;
+    try { lastSeen = Number(localStorage.getItem('axiom.lastSeenNotif')) || 0; } catch { /* ignore */ }
+    const fresh = notifFeed.items.filter((n) => !n.read && (n.ts || 0) > lastSeen);
+    if (fresh.length) {
+      navlog(`catch-up: ${fresh.length} unread since last visit → opening list`);
+      setNotifOpen(true);
+    }
+    setCatchUpAt(0);
+  }, [catchUpAt, notifFeed.items]);
+
+  // Remember the newest notification the user has been shown.
+  useEffect(() => {
+    if (!notifOpen || !notifFeed.items.length) return;
+    const newest = Math.max(...notifFeed.items.map((n) => n.ts || 0));
+    try { localStorage.setItem('axiom.lastSeenNotif', String(newest)); } catch { /* ignore */ }
+  }, [notifOpen, notifFeed.items]);
 
   // Poll for an unread ping from the boss.
   useEffect(() => {
