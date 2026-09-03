@@ -1,6 +1,6 @@
 import { ACCOUNTS, DISCOVERY_POOL } from '../agents/definitions.js';
 import { db } from '../lib/firebase.js';
-import { sendPush } from '../routes/push.js';
+import { notify } from '../lib/notify.js';
 import { runCouncil } from '../lib/council.js';
 import { getPortfolio } from '../lib/portfolio.js';
 
@@ -109,20 +109,23 @@ export async function runDailyScout() {
   if (ideas.length || exits.length) {
     const usersSnap = await db.collection('users').get();
     for (const userDoc of usersSnap.docs) {
+      const uid = userDoc.id;
       for (const r of exits) {
-        await sendPush(userDoc.id, {
-          title: `⚠️ AXIOM Scout: EXIT ${r.ticker}`,
+        await notify(uid, {
+          kind: 'scout', severity: 'critical', ticker: r.ticker,
+          title: `Scout: EXIT ${r.ticker}`,
           body: r.headline || `The council would exit ${r.ticker}.`,
-          data: { ticker: r.ticker, verdict: r.verdict },
-        }).catch(() => {});
+        });
       }
       if (ideas.length) {
         const names = ideas.slice(0, 5).map(r => r.ticker).join(', ');
-        await sendPush(userDoc.id, {
-          title: `AXIOM Scout — ${ideas.length} idea${ideas.length > 1 ? 's' : ''} worth a look`,
+        await notify(uid, {
+          kind: 'scout', severity: 'fyi',
+          title: `Scout — ${ideas.length} idea${ideas.length > 1 ? 's' : ''} worth a look`,
           body: `${names}${ideas.length > 5 ? ' …' : ''} — high-conviction ADD on names you don't own.`,
-          data: { path: '/?tab=floor' },
-        }).catch(() => {});
+          path: '/?tab=floor',
+          dedupeKey: `scout-ideas:${new Date().toISOString().slice(0, 10)}`,
+        });
       }
     }
   }

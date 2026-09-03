@@ -25,6 +25,7 @@ import { calibrateAllUsers } from '../lib/calibration.js';
 import { deskTick } from './deskLoop.js';
 import { runDeskNightAll } from './deskNight.js';
 import { runWeekendReflection } from './weekendReflection.js';
+import { runNotifyDigest } from '../lib/notify.js';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -87,6 +88,22 @@ const JOBS = [
     label: 'Overnight desk research',
     every: 18 * HOUR,
     run: () => runDeskNightAll(),
+  },
+  {
+    name: 'digest-am',            // morning roll-up of everything that landed feed-only overnight
+    label: 'Morning notification digest',
+    every: 20 * HOUR,
+    when: () => { const e = etParts(); return e.isWeekday && e.hour >= 9 && e.hour < 12; },
+    window: 'weekday morning ET',
+    run: () => runNotifyDigest('morning brief'),
+  },
+  {
+    name: 'digest-pm',            // close roll-up
+    label: 'Close notification digest',
+    every: 20 * HOUR,
+    when: () => { const e = etParts(); return e.isWeekday && e.hour >= 16 && e.hour < 19; },
+    window: 'weekday close ET',
+    run: () => runNotifyDigest('close recap'),
   },
   {
     name: 'all-hands-reflect',    // all six analysts review + rewrite playbooks with the boss

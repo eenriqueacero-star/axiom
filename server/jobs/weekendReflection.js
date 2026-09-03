@@ -10,7 +10,7 @@ import { runReflection } from '../lib/desk/reflect.js';
 import { firmContext } from '../lib/desk/night.js';
 import { canSpendAutonomous, noteDialogue } from '../lib/budget.js';
 import { setAutonomous } from '../lib/groq.js';
-import { sendPush } from '../routes/push.js';
+import { notify } from '../lib/notify.js';
 
 const CALLS_PER_USER = 22;  // ~3 calls/agent (research → boss opinion → finalise)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -42,11 +42,12 @@ export async function runWeekendReflection() {
       if (revised.length) {
         noteDialogue();
         totalUsers++;
-        await sendPush(uid, {
+        await notify(uid, {
+          kind: 'desk', severity: 'fyi',
           title: 'The team sharpened up this weekend',
           body: `${revised.length} analyst${revised.length > 1 ? 's' : ''} rewrote their playbook: ${revised.map((r) => r.agentName).join(', ')}.`,
-          data: { path: '/?tab=floor' },
-        }).catch(() => {});
+          path: '/?tab=floor',
+        });
       }
       console.log(`[weekend-reflect] ${uid.slice(0, 6)}… — ${revised.length}/6 playbooks revised`);
     }

@@ -1,6 +1,6 @@
 import { ACCOUNTS } from '../agents/definitions.js';
 import { db } from '../lib/firebase.js';
-import { sendPush } from '../routes/push.js';
+import { notify } from '../lib/notify.js';
 import { getPortfolio } from '../lib/portfolio.js';
 import { runCouncil } from '../lib/council.js';
 
@@ -39,13 +39,16 @@ export async function runMoveReview() {
         if (latest && Date.now() - (latest.ts || 0) < REVIEW_COOLDOWN_MS) continue;
 
         const result = await runCouncil(ticker, { mode: 'scout', uid });
-        await col.add({ ...result, trigger: 'move' });
+        const added = await col.add({ ...result, trigger: 'move' });
         reviewed++;
-        await sendPush(uid, {
-          title: `${changePct >= 0 ? '📈' : '📉'} ${ticker} ${changePct >= 0 ? '+' : ''}${changePct.toFixed(1)}% — council re-reviewed`,
+        await notify(uid, {
+          kind: 'move',
+          severity: Math.abs(changePct) >= 12 ? 'critical' : 'review',
+          ticker,
+          title: `${ticker} ${changePct >= 0 ? '+' : ''}${changePct.toFixed(1)}% — council re-reviewed`,
           body: `${result.verdict} ${result.conviction}/10${result.headline ? ` · ${result.headline}` : ''}`,
-          data: { ticker, verdict: result.verdict },
-        }).catch(() => {});
+          refKind: 'analysis', refId: added?.id || null,
+        });
       } catch (err) {
         console.error(`[move-review] ${ticker}:`, err.message);
       }
@@ -109,12 +112,11 @@ export async function runPortfolioAlerts() {
       const absChange = Math.abs(changePct);
 
       if (absChange >= threshold) {
-        const dir = changePct > 0 ? '📈' : '📉';
-        await sendPush(uid, {
-          title: `${dir} ${ticker} alert — ${changePct > 0 ? '+' : ''}${changePct.toFixed(1)}%`,
+        await notify(uid, {
+          kind: 'move', severity: 'review', ticker,
+          title: `${ticker} alert — ${changePct > 0 ? '+' : ''}${changePct.toFixed(1)}%`,
           body: `${ticker} is ${changePct > 0 ? 'up' : 'down'} ${absChange.toFixed(1)}% from your cost basis of $${pos.cost.toFixed(2)}`,
-          data: { ticker, account },
-        }).catch(() => {});
+        });
 
         await alertDoc.ref.update({ lastNotified: Date.now() });
       }

@@ -5,7 +5,7 @@
  */
 import { db } from '../firebase.js';
 import { getPortfolio } from '../portfolio.js';
-import { sendPush } from '../../routes/push.js';
+import { notify } from '../notify.js';
 import { congressTrades, congressConfigured } from './index.js';
 
 const SEEN_CAP = 400;
@@ -46,18 +46,20 @@ export async function scanCongressForHoldings() {
       fresh.push(t.id);
       alerted++;
       const amt = t.amountLow ? `$${(t.amountLow / 1000).toFixed(0)}k–${(t.amountHigh / 1000).toFixed(0)}k` : '';
-      await sendPush(uid, {
-        title: `🏛️ ${t.member} ${t.type === 'buy' ? 'bought' : 'sold'} ${t.ticker}`,
-        body: `${t.chamber}${t.party ? ` · ${t.party}` : ''} · ${amt} · traded ${t.txDate}`,
-        data: { ticker: t.ticker },
-      }).catch(() => {});
-      await db.collection(`users/${uid}/signals`).add({
+      const sig = await db.collection(`users/${uid}/signals`).add({
         ticker: t.ticker, kind: 'congress',
         headline: `${t.member} (${t.chamber}) ${t.type === 'buy' ? 'bought' : 'sold'} ${t.ticker} — ${amt}`,
         url: t.url || '', source: t.source || 'Congress',
         ts: new Date(t.txDate).getTime() || Date.now(),
         material: true, thesis: false, seenAt: Date.now(),
-      }).catch(() => {});
+      }).catch(() => null);
+      await notify(uid, {
+        kind: 'congress', severity: 'fyi', ticker: t.ticker,
+        title: `${t.member} ${t.type === 'buy' ? 'bought' : 'sold'} ${t.ticker}`,
+        body: `${t.chamber}${t.party ? ` · ${t.party}` : ''} · ${amt} · traded ${t.txDate}`,
+        url: t.url || null,
+        refKind: sig ? 'signal' : null, refId: sig?.id || null,
+      });
     }
 
     if (fresh.length) {

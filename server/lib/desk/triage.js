@@ -21,7 +21,7 @@ import { callSynthesis, setAutonomous } from '../groq.js';
 import { canSpendEvent, noteEvent } from '../budget.js';
 import { extractJSON, runCouncil } from '../council.js';
 import { saveMemo, listMemos } from '../memos.js';
-import { sendPush } from '../../routes/push.js';
+import { notify } from '../notify.js';
 import { firmContext, research } from './night.js';
 import { saveToVault, listVault, vaultBlock } from './vault.js';
 
@@ -147,11 +147,13 @@ async function runEventJob(uid, signal, plan, context) {
 
   await stamp({ status: 'done', brief: review.brief, findings, finishedAt: Date.now() });
 
-  await sendPush(uid, {
+  await notify(uid, {
+    kind: 'desk', severity: 'review', ticker: signal.ticker || null,
     title: `${signal.ticker ? `${signal.ticker} — ` : ''}the desk looked into it`,
-    body: (review.brief || 'The team worked the event; see the desk.').slice(0, 160),
-    data: { ticker: signal.ticker || undefined, path: '/?tab=floor' },
-  }).catch(() => {});
+    body: (review.brief || 'The team worked the event; see the desk.').slice(0, 200),
+    refKind: 'deskWork', refId: id,
+    path: '/?tab=floor',
+  });
 
   if (review.reconvene && signal.ticker && TICKER_RE.test(signal.ticker) && canSpendEvent(8).ok) {
     try {
@@ -177,11 +179,13 @@ async function openBossThread(uid, signal, opener) {
     unread: true,
   }).catch(() => {});
 
-  await sendPush(uid, {
-    title: 'Hey, let’s talk',
-    body: signal.ticker ? `${signal.ticker}: ${signal.headline}`.slice(0, 140) : signal.headline.slice(0, 140),
-    data: { path: `/?chat=${threadId}`, ticker: signal.ticker || undefined },
-  }).catch(() => {});
+  await notify(uid, {
+    kind: 'desk', severity: 'review', ticker: signal.ticker || null,
+    title: 'The boss wants your read',
+    body: signal.ticker ? `${signal.ticker}: ${signal.headline}`.slice(0, 200) : signal.headline.slice(0, 200),
+    refKind: 'thread', refId: threadId,
+    path: `/?chat=${threadId}`,
+  });
   return threadId;
 }
 

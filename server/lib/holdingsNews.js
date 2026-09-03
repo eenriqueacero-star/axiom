@@ -12,7 +12,7 @@ import { tickerNews } from './signals.js';
 import { recentFilings, edgarConfigured } from './edgar.js';
 import { insiderActivity, insiderHeadline } from './insiders.js';
 import { triageSignal } from './desk/triage.js';
-import { sendPush } from '../routes/push.js';
+import { notify } from './notify.js';
 
 // Words that tend to mean a real change to the story, not noise.
 const MATERIAL = /\b(acqui|merger|buyout|takeover|to acquire|acquires|acquired|guidance|cuts? outlook|lowers? outlook|profit warning|downgrade[sd]?|upgrade[sd]?|SEC (?:probe|investigat|charge)|lawsuit|sued|fraud|accounting|restat|recall|bankrupt|chapter 11|CEO (?:steps down|resign|fired|out)|CFO (?:steps down|resign)|delist|short seller|halts? trading|data breach|antitrust|FTC|DOJ|tariff|export (?:ban|control)|earnings (?:beat|miss)|raises? guidance|record (?:revenue|quarter))\b/i;
@@ -45,7 +45,8 @@ export async function scanHoldingsNewsForUser(uid) {
   const toTriage = [];   // the serious events — handed to the boss after dedup is saved
 
   const signal = async (sig) => {
-    await db.collection(`users/${uid}/signals`).add({ ...sig, seenAt: now }).catch(() => {});
+    const ref = await db.collection(`users/${uid}/signals`).add({ ...sig, seenAt: now }).catch(() => null);
+    return ref?.id || null;
   };
 
   for (const ticker of tickers) {
@@ -61,12 +62,16 @@ export async function scanHoldingsNewsForUser(uid) {
       alerted++;
       const thesisLevel = THESIS.test(n.headline);
 
-      await sendPush(uid, {
-        title: `📰 ${ticker} — ${thesisLevel ? 'material news' : 'news'}`,
-        body: n.headline.slice(0, 140),
-        data: { ticker, url: n.url },
-      }).catch(() => {});
-      await signal({ ticker, kind: 'news', headline: n.headline, url: n.url || '', source: n.source || '', ts: n.ts || now, material: true, thesis: thesisLevel });
+      const sigId = await signal({ ticker, kind: 'news', headline: n.headline, url: n.url || '', source: n.source || '', ts: n.ts || now, material: true, thesis: thesisLevel });
+      await notify(uid, {
+        kind: 'news',
+        severity: thesisLevel ? 'critical' : 'review',
+        ticker,
+        title: `${ticker} — ${thesisLevel ? 'material news' : 'news'}`,
+        body: n.headline.slice(0, 200),
+        url: n.url || null,
+        refKind: sigId ? 'signal' : null, refId: sigId,
+      });
 
       if (thesisLevel) toTriage.push({ ticker, kind: 'news', headline: n.headline, url: n.url || '', source: n.source || 'news', thesis: true });
     }
@@ -81,12 +86,16 @@ export async function scanHoldingsNewsForUser(uid) {
         alerted++;
         const what = f.itemLabels.length ? f.itemLabels.join('; ') : 'a material event';
 
-        await sendPush(uid, {
-          title: `📄 ${ticker} filed an ${f.form}`,
-          body: `${ticker} ${what}`.slice(0, 140),
-          data: { ticker, url: f.url },
-        }).catch(() => {});
-        await signal({ ticker, kind: 'filing', headline: `${f.form}: ${ticker} ${what}`, url: f.url || '', source: 'SEC EDGAR', ts: f.filedAt || now, material: true, thesis: !!f.thesis });
+        const sigId = await signal({ ticker, kind: 'filing', headline: `${f.form}: ${ticker} ${what}`, url: f.url || '', source: 'SEC EDGAR', ts: f.filedAt || now, material: true, thesis: !!f.thesis });
+        await notify(uid, {
+          kind: 'filing',
+          severity: f.thesis ? 'critical' : 'review',
+          ticker,
+          title: `${ticker} filed an ${f.form}`,
+          body: `${ticker} ${what}`.slice(0, 200),
+          url: f.url || null,
+          refKind: sigId ? 'signal' : null, refId: sigId,
+        });
 
         if (f.thesis) toTriage.push({ ticker, kind: 'filing', headline: `${ticker} ${what} (${f.form})`, url: f.url || '', source: 'SEC EDGAR', thesis: true });
       }
@@ -102,12 +111,15 @@ export async function scanHoldingsNewsForUser(uid) {
           newlySeen.push(key);
           alerted++;
           const head = insiderHeadline(ia);
-          await sendPush(uid, {
-            title: `${ia.clusterBuy ? '🟢' : '🟠'} ${ticker} insiders`,
-            body: head.slice(0, 140),
-            data: { ticker },
-          }).catch(() => {});
-          await signal({ ticker, kind: 'insider', headline: head, url: '', source: 'SEC Form 4', ts: now, material: true, thesis: false });
+          const sigId = await signal({ ticker, kind: 'insider', headline: head, url: '', source: 'SEC Form 4', ts: now, material: true, thesis: false });
+          await notify(uid, {
+            kind: 'insider',
+            severity: 'review',
+            ticker,
+            title: `${ticker} insiders — ${ia.clusterBuy ? 'cluster buy' : 'cluster sell'}`,
+            body: head.slice(0, 200),
+            refKind: sigId ? 'signal' : null, refId: sigId,
+          });
           // A cluster buy is worth the boss's attention; heavy selling too.
           toTriage.push({ ticker, kind: 'insider', headline: head, url: '', source: 'SEC Form 4', thesis: ia.clusterBuy });
         }
