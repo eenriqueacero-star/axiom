@@ -11,6 +11,7 @@ import { listVault } from '../lib/desk/vault.js';
 import { listThreads, getThread, createThread, createExecutionThread, postMessage, resolveThread } from '../lib/desk/bossChat.js';
 import { db } from '../lib/firebase.js';
 import { triageSignal, listEventJobs } from '../lib/desk/triage.js';
+import { listOpportunities } from '../lib/desk/sweep.js';
 
 const router = Router();
 router.use(verifyToken);
@@ -90,6 +91,15 @@ router.get('/budget', (_req, res) => res.json(budgetStatus()));
 router.get('/events', async (req, res) => {
   try {
     res.json({ events: await listEventJobs(req.uid, 15) });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Opportunities the boss flagged sweeping the inbox — held names to act on + new names to buy.
+router.get('/opportunities', async (req, res) => {
+  try {
+    res.json({ opportunities: await listOpportunities(req.uid, 12) });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

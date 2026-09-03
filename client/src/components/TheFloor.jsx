@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getFloor, getDca, getDeskWork, getPlaybooks, runDeskNight, getDeskEvents, getVault } from '../api';
+import { getFloor, getDca, getDeskWork, getPlaybooks, runDeskNight, getDeskEvents, getVault, getOpportunities } from '../api';
 import { stanceStyle, verdictStyle, tierStyle, stripMd } from './stance';
 import { AgentPanel, AgentChat, rel } from './floor/shared';
 
@@ -190,6 +190,38 @@ function DiscoveryCard({ items, onAnalyze }) {
   );
 }
 
+function OpportunitiesCard({ onAnalyze }) {
+  const [opps, setOpps] = useState(null);
+  useEffect(() => { getOpportunities().then((r) => setOpps(r.opportunities || [])).catch(() => setOpps([])); }, []);
+  if (!opps?.length) return null;
+
+  const CALL = {
+    buy_new: { label: 'BUY', fg: '#4ade80' },
+    act_held: { label: 'ACT', fg: '#fbbf24' },
+    watch: { label: 'WATCH', fg: '#8b9cff' },
+  };
+  return (
+    <div className="card p-4">
+      <p className="text-[11px] uppercase tracking-widest text-haze mb-2">The boss sees an angle — from the inbox</p>
+      <ul className="space-y-1">
+        {opps.map((o) => {
+          const c = CALL[o.call] || CALL.watch;
+          return (
+            <li key={o.id}>
+              <button onClick={() => onAnalyze(o.ticker)} className="w-full flex items-center gap-2 text-left py-1 hover:bg-ink-850 rounded px-1">
+                <span className="font-mono text-sm text-neutral-200 w-14">{o.ticker}</span>
+                <span className="text-xs font-semibold shrink-0" style={{ color: c.fg }}>{c.label}{o.conviction ? ` ${o.conviction}/10` : ''}</span>
+                {o.held && <span className="text-[9px] font-mono text-haze shrink-0">HELD</span>}
+                <span className="text-[11px] text-haze truncate flex-1">{o.note}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function DcaCard() {
   const [d, setD] = useState(null);
   const [err, setErr] = useState('');
@@ -293,6 +325,7 @@ export default function TheFloor({ onAnalyze }) {
 
       <LastNight />
       <EventDesk onAnalyze={onAnalyze} />
+      <OpportunitiesCard onAnalyze={onAnalyze} />
       <DcaCard />
       <DiscoveryCard items={floor.discovery} onAnalyze={onAnalyze} />
 

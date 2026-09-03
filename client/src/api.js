@@ -115,6 +115,7 @@ export const convene = () => request('/desk/convene', { method: 'POST', body: {}
 
 // Event desk + private boss chat
 export const getDeskEvents = () => request('/desk/events');
+export const getOpportunities = () => request('/desk/opportunities');
 export const getVault = () => request('/desk/vault');
 export const getBossThreads = () => request('/desk/chats');
 export const getBossThread = (id) => request(`/desk/chats/${id}`);

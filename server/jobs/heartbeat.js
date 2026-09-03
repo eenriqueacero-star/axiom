@@ -26,6 +26,7 @@ import { deskTick } from './deskLoop.js';
 import { runDeskNightAll } from './deskNight.js';
 import { runWeekendReflection } from './weekendReflection.js';
 import { runNotifyDigest } from '../lib/notify.js';
+import { runBossSweepAll } from '../lib/desk/sweep.js';
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -76,6 +77,12 @@ const JOBS = [
     label: 'Scorecard + agent calibration',
     every: 12 * HOUR,
     run: async () => { await scoreAllUsers(); await calibrateAllUsers(); },
+  },
+  {
+    name: 'boss-sweep',           // the boss reviews every new notification for an angle (held or not)
+    label: 'Boss inbox sweep',
+    every: 35 * MIN,
+    run: () => runBossSweepAll(),
   },
   {
     name: 'desk-tick',            // the desk chats among itself (budget-gated, acts rarely)
