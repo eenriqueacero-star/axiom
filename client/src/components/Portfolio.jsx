@@ -336,44 +336,42 @@ function Holding({ p, weight, stance, signals, isOpen, linked, editing, draft, s
       {/* conviction rail */}
       <div className="absolute inset-y-0 left-0 w-[3px]" style={{ background: railColor }} />
 
-      <div className="relative flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 pl-5">
-        <div className="w-[58px] shrink-0">
-          <button onClick={onToggle} className="font-mono text-sm text-neutral-100 hover:text-indigo-300 flex items-center gap-1 text-left leading-tight">
-            {p.ticker}<NewsDot items={signals} />
-          </button>
-          <span className="font-mono text-[10px] text-ink-600">{p.shares} sh</span>
+      <div className="relative px-4 py-2.5 pl-5">
+        <div className="flex items-start gap-3">
+          {/* left: ticker, chip, meta, and the council's one-liner */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={onToggle} className="font-mono text-sm text-neutral-100 hover:text-indigo-300 flex items-center gap-1 leading-tight">
+                {p.ticker}<NewsDot items={signals} />
+              </button>
+              <VerdictChip s={stance} open={isOpen} onClick={onToggle} />
+            </div>
+            <p className="font-mono text-[10px] text-ink-600 mt-0.5">
+              {p.shares} sh · {wpct(weight)} of book
+            </p>
+            {stance?.analyzed && (stance.summary || stance.headline) && (
+              <button onClick={onToggle} className="block text-left mt-1 w-full">
+                <span className="text-[11px] text-haze line-clamp-1 hover:text-neutral-400">
+                  {stripMd(stance.summary || stance.headline || '')}
+                </span>
+              </button>
+            )}
+          </div>
+
+          {/* right: value + total return, then price + day move, stacked */}
+          <div className="shrink-0 text-right font-mono text-[11px] tabular-nums leading-tight">
+            <div className="text-neutral-200">{p.value ? money(p.value) : ''}</div>
+            {p.gainPct != null && <div className={tone(p.gainPct)}>{pct(p.gainPct)}</div>}
+            <div className="text-ink-600 mt-0.5">
+              {p.price != null ? `$${p.price.toFixed(2)}` : '—'}
+              {p.changePct != null && <span className={`ml-1 ${tone(p.changePct)}`}>{pctRaw(p.changePct)}</span>}
+            </div>
+          </div>
         </div>
 
-        <VerdictChip s={stance} open={isOpen} onClick={onToggle} />
-
-        {/* the council's one line, filling the row */}
-        <button onClick={onToggle} className="flex-1 min-w-0 text-left hidden md:block">
-          <span className="text-[11px] text-haze truncate block hover:text-neutral-400">
-            {stance?.analyzed ? stripMd(stance.summary || stance.headline || '') : ''}
-          </span>
-        </button>
-        <div className="flex-1 min-w-0 md:hidden" />
-
-        {/* price + day move */}
-        <div className="font-mono text-[11px] tabular-nums text-right w-[92px]">
-          <div className="text-neutral-400">{p.price != null ? `$${p.price.toFixed(2)}` : '—'}</div>
-          {p.changePct != null && <div className={tone(p.changePct)}>{pctRaw(p.changePct)}</div>}
-        </div>
-
-        {/* share of the book */}
-        <div className="hidden sm:block font-mono text-[11px] tabular-nums text-right w-[44px] text-haze">
-          {wpct(weight)}
-        </div>
-
-        {/* value + total return */}
-        <div className="font-mono text-[11px] tabular-nums text-right w-[84px]">
-          <div className="text-neutral-200">{p.value ? money(p.value) : ''}</div>
-          {p.gainPct != null && <div className={tone(p.gainPct)}>{pct(p.gainPct)}</div>}
-        </div>
-
-        {/* manual accounts: edit shares / remove, on their own line */}
+        {/* manual accounts: edit shares / remove */}
         {!linked && (
-          <div className="basis-full pl-[58px] text-[10px] font-mono text-ink-600">
+          <div className="text-[10px] font-mono text-ink-600 mt-1.5">
             {editing ? (
               <input
                 autoFocus value={draft}
