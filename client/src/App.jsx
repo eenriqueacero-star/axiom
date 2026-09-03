@@ -12,6 +12,7 @@ import KeyStatusPill from './components/KeyStatusPill';
 import BossChat from './components/BossChat';
 import Notifications, { useNotifications } from './components/Notifications';
 import { getBossThreads } from './api';
+import { navlog } from './lib/navdebug';
 
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
   const [bossUnread, setBossUnread] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifOpenId, setNotifOpenId] = useState(null);
+  const [navToast, setNavToast] = useState('');
   const notifFeed = useNotifications();
   const [view, setView] = useState('portfolio'); // 'portfolio' | 'analyze'
   const [analyzeTicker, setAnalyzeTicker] = useState('');
@@ -55,13 +57,16 @@ export default function App() {
     if (!user) return;
     let done = false;
 
-    const applyPath = (path) => {
+    const applyPath = (path, via) => {
       if (!path) return;
+      navlog(`nav applied (${via}): ${path}`);
+      setNavToast(`→ ${path}`);
+      setTimeout(() => setNavToast(''), 4000);
       const qs = path.includes('?') ? path.split('?')[1] : '';
       applyDeepLink(qs);
     };
 
-    const consumePending = async () => {
+    const consumePending = async (via) => {
       if (done) return;
       try {
         const cache = await caches.open('axiom-nav');
@@ -69,28 +74,32 @@ export default function App() {
         if (res) {
           const path = await res.text();
           await cache.delete('pending');
-          applyPath(path);
+          applyPath(path, via || 'cache');
+        } else {
+          navlog(`resume (${via}) — no pending nav`);
         }
-      } catch { /* ignore */ }
+      } catch (e) { navlog(`cache read failed: ${e.message}`); }
     };
 
     const onMsg = (e) => {
-      if (e.data?.type === 'axiom-nav' && e.data.path) applyPath(e.data.path);
+      if (e.data?.type === 'axiom-nav' && e.data.path) applyPath(e.data.path, 'message');
     };
-    const onVis = () => { if (document.visibilityState === 'visible') consumePending(); };
+    const onVis = () => { if (document.visibilityState === 'visible') consumePending('visibility'); };
 
+    const onFocus = () => consumePending('focus');
+    const onShow = () => consumePending('pageshow');
     if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', onMsg);
     document.addEventListener('visibilitychange', onVis);
-    window.addEventListener('focus', consumePending);
-    window.addEventListener('pageshow', consumePending);
-    consumePending();
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('pageshow', onShow);
+    consumePending('mount');
 
     return () => {
       done = true;
       if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', onMsg);
       document.removeEventListener('visibilitychange', onVis);
-      window.removeEventListener('focus', consumePending);
-      window.removeEventListener('pageshow', consumePending);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('pageshow', onShow);
     };
   }, [user]);
 
@@ -228,6 +237,13 @@ export default function App() {
         onClose={() => { setNotifOpen(false); setNotifOpenId(null); }}
         onDeepLink={onNotifDeepLink}
       />
+      {navToast && (
+        <div className="fixed bottom-4 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
+          <div className="bg-indigo-500 text-white text-[11px] font-mono px-3 py-1.5 rounded-full shadow-lg">
+            {navToast}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,40 @@
 import { useEffect, useState } from 'react';
 import { getHealth, getKeyStatus, getJobs, sendTestPush, getNotifyPrefs, setNotifyPrefs } from '../api';
 import { pushState, enablePush, disablePush } from '../lib/push';
+import { navlogRead, navlogClear, swReport } from '../lib/navdebug';
+
+function NavDebug() {
+  const [rep, setRep] = useState(null);
+  const [log, setLog] = useState([]);
+  const load = () => { swReport().then(setRep); setLog(navlogRead()); };
+  useEffect(() => { load(); }, []);
+
+  return (
+    <div className="rounded-lg border hairline p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-neutral-300">Notification routing</span>
+        <div className="flex gap-2">
+          <button onClick={load} className="text-[11px] text-indigo-400 hover:text-indigo-300">refresh</button>
+          <button onClick={() => { navlogClear(); setLog([]); }} className="text-[11px] text-haze hover:text-neutral-300">clear</button>
+        </div>
+      </div>
+      {rep && (
+        <div className="text-[10px] font-mono text-haze space-y-0.5">
+          <div>standalone: {String(rep.standalone)} · sw: {rep.supported ? 'yes' : 'no'}</div>
+          <div>controller: {rep.controller ? rep.controller.split('/').pop() : 'none'}</div>
+          <div>active: {rep.active ? rep.active.split('/').pop() : 'none'} · waiting: {String(rep.waiting)}</div>
+          <div>pending nav: {rep.pendingNav || 'none'}{rep.cacheError ? ` (err: ${rep.cacheError})` : ''}</div>
+        </div>
+      )}
+      {((rep?.swLog?.length || 0) + log.length) > 0 && (
+        <ul className="text-[10px] font-mono text-haze max-h-52 overflow-y-auto space-y-0.5 border-t border-ink-800 pt-1">
+          {(rep?.swLog || []).map((l, i) => <li key={`sw${i}`} className="text-amber-300/70">{l}</li>)}
+          {log.map((l, i) => <li key={i}>{l}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 const NOTIF_KINDS = [
   ['news', 'News'], ['filing', 'Filings'], ['insider', 'Insider trades'],
@@ -260,6 +294,8 @@ export default function SystemStatus({ open, onClose }) {
         <PushToggle />
 
         <NotifPrefs />
+
+        <NavDebug />
 
         <JobsPanel data={jobs} />
 
