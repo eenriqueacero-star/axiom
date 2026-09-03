@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from './AuthProvider';
 import Login from './components/Login';
 import Analyze from './components/Analyze';
@@ -9,13 +9,41 @@ import TheFloor from './components/TheFloor';
 import TheOffice from './components/TheOffice';
 import SystemStatus from './components/SystemStatus';
 import KeyStatusPill from './components/KeyStatusPill';
+import BossChat from './components/BossChat';
+import { getBossThreads } from './api';
 
 
 export default function App() {
   const { user, signOut } = useAuth();
   const [statusOpen, setStatusOpen] = useState(false);
+  const [bossOpen, setBossOpen] = useState(false);
+  const [bossThreadId, setBossThreadId] = useState(null);
+  const [bossUnread, setBossUnread] = useState(false);
   const [view, setView] = useState('portfolio'); // 'portfolio' | 'analyze'
   const [analyzeTicker, setAnalyzeTicker] = useState('');
+
+  // Deep links from push notifications: ?chat=<id> opens the boss, ?tab=floor.
+  useEffect(() => {
+    if (!user) return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('chat')) { setBossThreadId(p.get('chat')); setBossOpen(true); }
+    if (p.get('tab') === 'floor') setView('floor');
+    if (p.get('chat') || p.get('tab') || p.get('t')) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [user]);
+
+  // Poll for an unread ping from the boss.
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const check = () => getBossThreads()
+      .then((r) => { if (alive) setBossUnread((r.threads || []).some((t) => t.unread)); })
+      .catch(() => {});
+    check();
+    const id = setInterval(check, 90_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [user, bossOpen]);
   const [roomView, setRoomView] = useState(() => {
     try { return localStorage.getItem('axiom.roomView') !== '0'; } catch { return true; }
   });
@@ -59,6 +87,14 @@ export default function App() {
           <div className="flex items-center gap-3">
             <span className="font-mono text-sm tracking-widest text-indigo-400">AXIOM</span>
             <KeyStatusPill onOpen={() => setStatusOpen(true)} />
+            <button
+              onClick={() => { setBossThreadId(null); setBossOpen(true); }}
+              title="Talk to the boss"
+              className="relative text-[11px] text-haze hover:text-neutral-200"
+            >
+              boss
+              {bossUnread && <span className="absolute -top-1 -right-2 h-1.5 w-1.5 rounded-full bg-indigo-400" />}
+            </button>
           </div>
           <button
             onClick={signOut}
@@ -95,6 +131,7 @@ export default function App() {
       </main>
 
       <SystemStatus open={statusOpen} onClose={() => setStatusOpen(false)} />
+      <BossChat open={bossOpen} initialThreadId={bossThreadId} onClose={() => setBossOpen(false)} />
     </div>
   );
 }

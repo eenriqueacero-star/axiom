@@ -24,12 +24,18 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const d = event.notification.data || {};
+  const path = d.path || (d.ticker ? `/?t=${encodeURIComponent(d.ticker)}` : '/');
+  const target = new URL(path, self.location.origin).href;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
       for (const w of wins) {
-        if (w.url.startsWith(self.location.origin) && 'focus' in w) return w.focus();
+        if (w.url.startsWith(self.location.origin) && 'focus' in w) {
+          if ('navigate' in w) w.navigate(target).catch(() => {});
+          return w.focus();
+        }
       }
-      return self.clients.openWindow('/');
+      return self.clients.openWindow(target);
     }),
   );
 });

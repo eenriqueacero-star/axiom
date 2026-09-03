@@ -27,7 +27,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const json = extractJSON;
 const today = () => new Date().toISOString().slice(0, 10);
 
-async function firmContext(uid) {
+export async function firmContext(uid) {
   const portfolio = await getPortfolio(uid).catch(() => null);
   const d = diagnose(portfolio || {});
   const lines = [];
@@ -98,7 +98,7 @@ Keep each task to one sentence. Output ONLY raw JSON, no other text:
 
 /* -------------------------------------------------------------- research */
 
-async function research(uid, agentId, task, context) {
+export async function research(uid, agentId, task, context) {
   const ag = byId[agentId];
   if (!ag) return null;
   const pb = await getPlaybook(uid, agentId);
