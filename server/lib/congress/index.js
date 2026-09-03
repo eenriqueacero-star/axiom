@@ -3,15 +3,17 @@
  *
  * Free no-signup sources are all dead as of 2026. Set ONE of these and the
  * feature switches on:
+ *   UNUSUAL_WHALES_API_KEY — Unusual Whales (best: live, House + Senate, per-name)
+ *   QUIVER_API_KEY         — Quiver Quantitative ($25/mo, live)
  *   FMP_API_KEY            — Financial Modeling Prep (free tier: senate + house)
- *   QUIVER_API_KEY         — Quiver Quantitative ($25/mo, cleanest, live)
  *
- * With neither, congressConfigured() is false and the app hides the panel.
+ * With none, congressConfigured() is false and the app hides the panel.
  */
-import * as fmp from './fmp.js';
+import * as unusualwhales from './unusualwhales.js';
 import * as quiver from './quiver.js';
+import * as fmp from './fmp.js';
 
-const providers = [quiver, fmp];   // preference order
+const providers = [unusualwhales, quiver, fmp];   // preference order
 
 function active() {
   return providers.find((p) => p.ready());

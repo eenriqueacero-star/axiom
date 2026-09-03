@@ -41,8 +41,9 @@ export default function Congress({ onAnalyze }) {
           Every free no-signup source is dead in 2026. Add one API key to the backend and this fills in:
         </p>
         <ul className="text-xs space-y-1 pl-4 list-disc">
-          <li><span className="text-neutral-300">FMP_API_KEY</span> — Financial Modeling Prep, free tier, House + Senate</li>
-          <li><span className="text-neutral-300">QUIVER_API_KEY</span> — Quiver Quantitative, $25/mo, cleanest &amp; most current</li>
+          <li><span className="text-neutral-300">UNUSUAL_WHALES_API_KEY</span> — Unusual Whales, best coverage (live, House + Senate)</li>
+          <li><span className="text-neutral-300">QUIVER_API_KEY</span> — Quiver Quantitative, $25/mo</li>
+          <li><span className="text-neutral-300">FMP_API_KEY</span> — Financial Modeling Prep, free tier</li>
         </ul>
       </div>
     );
