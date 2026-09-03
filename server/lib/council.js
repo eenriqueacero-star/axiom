@@ -328,8 +328,13 @@ export function scoreCouncil(agents, holdings = null, facts = null, weights = {}
     why = `the position is ${overCapX.toFixed(1)}× its ${(nameCap * 100).toFixed(0)}% cap — trim to size`;
   }
 
+  // Decision vs suggestion. A DECISION is one the rulebook forces — a hard gate
+  // fired and there's no judgement left. Everything else the council SUGGESTS.
+  const forced = broken || downtrendExit || concentrationTrim;
+  const mandate = verdict === 'HOLD' ? 'suggestion' : (forced ? 'decision' : 'suggestion');
+
   return {
-    verdict, conviction, score, score100, why, thinData,
+    verdict, conviction, score, score100, why, thinData, mandate,
     broken, downtrend: rawDowntrend, downtrendExit, entryClear, structuralBear,
     concentrationBlock, concentrationTrim, atCap, overCapX: Math.round(overCapX * 100) / 100,
   };
@@ -490,6 +495,7 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
     agents,
     verdict: computed.verdict,
     conviction: computed.conviction,
+    mandate: computed.mandate,   // 'decision' (rulebook forces it) | 'suggestion'
     tier: tier.tier,
     tierScore: tier.tierScore,
     tierReasons: tier.tierReasons,

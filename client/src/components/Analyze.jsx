@@ -8,7 +8,7 @@ import VerdictBanner from './VerdictBanner';
 import NewsPanel from './NewsPanel';
 import { verdictStyle, tierStyle } from './stance';
 
-export default function Analyze({ initialTicker = '' }) {
+export default function Analyze({ initialTicker = '', onOpenBoss }) {
   const { user } = useAuth();
   const [agents, setAgents] = useState([]);
   const [ticker, setTicker] = useState(initialTicker);
@@ -103,7 +103,7 @@ export default function Analyze({ initialTicker = '' }) {
 
       {shown && (
         <div className="space-y-4">
-          <VerdictBanner analysis={shown} />
+          <VerdictBanner analysis={shown} onOpenBoss={onOpenBoss} />
           <div className="flex items-center justify-between text-xs text-haze">
             <span>
               {shown.cached ? 'Reused a recent run' : 'Fresh run'}

@@ -113,7 +113,12 @@ export default function App() {
       </header>
       <main className={`mx-auto px-4 py-6 ${shell}`}>
         {view === 'portfolio' && <Portfolio onAnalyze={goAnalyze} />}
-        {view === 'analyze' && <Analyze initialTicker={analyzeTicker} />}
+        {view === 'analyze' && (
+          <Analyze
+            initialTicker={analyzeTicker}
+            onOpenBoss={(threadId) => { setBossThreadId(threadId); setBossOpen(true); }}
+          />
+        )}
         {view === 'floor' && (
           roomView
             ? <TheOffice onAnalyze={goAnalyze} onExit={() => setRoom(false)} />

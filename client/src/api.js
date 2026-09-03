@@ -111,6 +111,7 @@ export const getBossThread = (id) => request(`/desk/chats/${id}`);
 export const newBossThread = (title) => request('/desk/chats', { method: 'POST', body: { title: title || 'Boss' } });
 export const sendBossMessage = (id, text) => request(`/desk/chats/${id}/message`, { method: 'POST', body: { text } });
 export const resolveBossThread = (id, outcome) => request(`/desk/chats/${id}/resolve`, { method: 'POST', body: { outcome } });
+export const startExecution = (ticker) => request('/desk/execute', { method: 'POST', body: { ticker } });
 export const chatAgent = (id, messages, ticker) =>
   request(`/council/agent/${id}/chat`, { method: 'POST', body: { messages, ticker } });
 export const getDca = () => request('/strategy/dca');

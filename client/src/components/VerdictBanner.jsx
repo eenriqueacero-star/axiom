@@ -1,10 +1,26 @@
+import { useState } from 'react';
 import { verdictStyle, tierStyle, stripMd } from './stance';
+import { startExecution } from '../api';
 
 const fmtPct = (n) => (n == null ? '—' : `${n >= 0 ? '+' : ''}${(n * 100).toFixed(0)}%`);
 
-export default function VerdictBanner({ analysis }) {
+export default function VerdictBanner({ analysis, onOpenBoss }) {
   const v = verdictStyle(analysis.verdict);
   const chg = analysis.changePct;
+  const [busy, setBusy] = useState(false);
+
+  const mandate = analysis.mandate
+    || ((analysis.computed?.broken || analysis.computed?.downtrendExit || analysis.computed?.concentrationTrim) ? 'decision' : 'suggestion');
+  const actionable = ['ADD', 'TRIM', 'EXIT'].includes(analysis.verdict);
+
+  const proceed = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await startExecution(analysis.ticker);
+      onOpenBoss?.(r.threadId);
+    } catch { /* ignore */ } finally { setBusy(false); }
+  };
 
   return (
     <div
@@ -27,12 +43,19 @@ export default function VerdictBanner({ analysis }) {
             </span>
           )}
         </div>
-        <span
-          className="text-sm font-bold tracking-wide"
-          style={{ color: v.fg }}
-        >
-          {analysis.verdict} · {analysis.conviction}/10
-        </span>
+        <div className="flex items-center gap-2">
+          <span
+            className="text-[9px] font-mono font-semibold uppercase tracking-[0.15em] px-1.5 py-0.5 rounded"
+            style={mandate === 'decision'
+              ? { color: '#f0685f', background: '#f0685f22' }
+              : { color: '#7c8db5', background: '#7c8db522' }}
+          >
+            {mandate}
+          </span>
+          <span className="text-sm font-bold tracking-wide" style={{ color: v.fg }}>
+            {analysis.verdict} · {analysis.conviction}/10
+          </span>
+        </div>
       </div>
       {tierStyle(analysis.tier) && (
         <p className="text-[11px] font-mono uppercase tracking-wider mt-0.5" style={{ color: tierStyle(analysis.tier).fg }}>
@@ -92,6 +115,16 @@ export default function VerdictBanner({ analysis }) {
       )}
       {analysis.nextEarnings && (
         <p className="text-xs text-haze mt-1">Next earnings: {analysis.nextEarnings}</p>
+      )}
+      {actionable && (
+        <button
+          onClick={proceed}
+          disabled={busy}
+          className="mt-4 h-9 px-4 rounded-lg text-xs font-semibold disabled:opacity-50"
+          style={{ background: v.fg, color: '#0b0d12' }}
+        >
+          {busy ? 'Opening…' : `Proceed with this ${mandate} →`}
+        </button>
       )}
     </div>
   );

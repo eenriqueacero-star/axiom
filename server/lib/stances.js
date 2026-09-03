@@ -91,6 +91,7 @@ export async function buildStances(uid) {
     stances[t] = {
       verdict: r.verdict || null,
       conviction: r.conviction ?? null,
+      mandate: r.mandate || (r.computed?.broken || r.computed?.downtrendExit || r.computed?.concentrationTrim ? 'decision' : 'suggestion'),
       tier: r.tier || null,
       tierReasons: r.tierReasons || [],
       headline: r.headline || '',

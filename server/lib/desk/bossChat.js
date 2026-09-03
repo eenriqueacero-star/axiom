@@ -5,12 +5,25 @@
  * firm's book, the vault, and the desk notes.
  */
 import { db } from '../firebase.js';
-import { AXIOM_CONVERSATIONAL, PROTOCOLS } from '../../agents/definitions.js';
+import { AGENTS, AXIOM_CONVERSATIONAL, PROTOCOLS } from '../../agents/definitions.js';
 import { callAgentChat } from '../groq.js';
 import { markUserActivity } from '../budget.js';
 import { firmContext } from './night.js';
 import { listVault, vaultBlock, saveToVault } from './vault.js';
 import { listMemos } from '../memos.js';
+
+const byId = Object.fromEntries(AGENTS.map((a) => [a.id, a]));
+
+// The boss can pull a named analyst into the conversation, once or twice per turn.
+function parseConsult(text) {
+  const m = String(text || '').match(/\{[^{}]*"ask"\s*:\s*"[^"]+"[^{}]*\}/);
+  if (!m) return null;
+  let obj; try { obj = JSON.parse(m[0]); } catch { return null; }
+  const id = String(obj.ask || '').toLowerCase();
+  const target = AGENTS.find((a) => a.id === id || a.name.toLowerCase() === id);
+  const q = String(obj.question || '').trim();
+  return target && q ? { id: target.id, name: target.name, question: q.slice(0, 400) } : null;
+}
 
 const col = (uid) => db.collection(`users/${uid}/chats`);
 const MSG_CAP = 60;
@@ -48,8 +61,43 @@ export async function createThread(uid, { title = 'Boss', seededEvent = null } =
   return { id, ...doc };
 }
 
-function bossSystem(context, seededEvent, vault, memos) {
+/**
+ * Open a thread to work through HOW to act on a council verdict — which account,
+ * how many shares, where the money goes, timing. Seeded with the decision and
+ * the boss's opening take.
+ */
+export async function createExecutionThread(uid, analysis) {
+  const a = analysis || {};
+  const id = `x-${Date.now()}`;
+  const verb = { ADD: 'add to', TRIM: 'trim', EXIT: 'exit', HOLD: 'sit on' }[a.verdict] || 'act on';
+  const label = a.mandate === 'decision' ? 'a decision the rulebook forces' : 'a suggestion';
+  const econ = a.holdings?.econ;
+  const posLine = econ?.shares != null
+    ? `We hold ${econ.shares} sh at $${(econ.avgCost || 0).toFixed(2)} avg, ${econ.unreal >= 0 ? 'up' : 'down'} ${Math.abs((econ.unrealPct || 0) * 100).toFixed(0)}% — about $${Math.round(econ.value || 0)}.`
+    : '';
+  const opener = `So the council landed on **${a.verdict} ${a.ticker}** (${a.conviction}/10) — ${label}. ${a.headline || a.why || ''}\n${posLine}\nWant to talk through how we ${verb} it? I can bring in ZEN on sizing or anyone else you want.`;
+
+  const doc = {
+    kind: 'execution', createdAt: Date.now(), updatedAt: Date.now(),
+    title: `${a.verdict} ${a.ticker} — how to proceed`,
+    seededDecision: {
+      ticker: a.ticker, verdict: a.verdict, conviction: a.conviction,
+      mandate: a.mandate || 'suggestion', why: a.why || a.headline || '',
+      rationale: a.rationale || '', tier: a.tier || null,
+    },
+    messages: [{ role: 'assistant', content: opener, ts: Date.now() }],
+    unread: false,
+  };
+  await col(uid).doc(id).set(doc).catch(() => {});
+  return { id, ...doc };
+}
+
+function bossSystem(context, thread, vault, memos) {
   const memoLines = (memos || []).slice(0, 6).map((m) => `- ${m.ticker ? `[${m.ticker}] ` : ''}${m.conclusion}`).join('\n');
+  const seededEvent = thread?.seededEvent;
+  const dec = thread?.seededDecision;
+  const roster = AGENTS.map((a) => `${a.name} (${a.role})`).join(', ');
+
   return `${AXIOM_CONVERSATIONAL}
 You are AXIOM, the partner running this investment firm, talking privately with the investor who owns it. ${PROTOCOLS}
 
@@ -58,10 +106,21 @@ HOW TO TALK — you are a person, not a reporting function.
 - Don't open with a status report or dump analysis nobody asked for. Use the reference material only when it's relevant.
 - When you do give a take, 2-4 sentences, grounded in the data below. If you don't know, say so.
 - This is the person who pays the bills — be straight with them, including when you disagree.
-${seededEvent ? `\nWHY THIS THREAD EXISTS — an event came in and you weren't sure it was worth putting the analysts on:\n"${seededEvent.headline}"${seededEvent.source ? ` (${seededEvent.source})` : ''}. You wanted the investor's read before spending the team's time. Pick up that thread naturally.\n` : ''}
+
+YOUR ANALYSTS: ${roster}. To pull one in for a specific question, emit ONE line of JSON: {"ask":"ZEN","question":"..."} and stop. You'll get their answer and can carry on. Use this for real sizing/timing/catalyst questions, not for small talk.
+${seededEvent ? `\nWHY THIS THREAD EXISTS — an event came in and you weren't sure it was worth putting the analysts on:\n"${seededEvent.headline}"${seededEvent.source ? ` (${seededEvent.source})` : ''}. You wanted the investor's read first. Pick it up naturally.\n` : ''}${dec ? `\nWHY THIS THREAD EXISTS — the investor hit "proceed" on a council ${dec.mandate === 'decision' ? 'DECISION' : 'suggestion'}: ${dec.verdict} ${dec.ticker} (${dec.conviction}/10). ${dec.why}\nThis conversation is about EXECUTION: how much (shares / dollars), which account, where the proceeds go (check the contribution/DCA pick), tax lots if it's a sell, and timing. Be concrete. When you land on a plan, lay it out as clear numbered steps. You are NOT placing trades — the investor executes at their broker.\n` : ''}
 --- REFERENCE (use what's relevant) ---
 FIRM STATE:
 ${context}${vaultBlock(vault)}${memoLines ? `\n\nRECENT DESK NOTES:\n${memoLines}` : ''}`;
+}
+
+async function askAnalyst(agentId, question, context) {
+  const ag = byId[agentId];
+  if (!ag) return '';
+  const sys = `${ag.conversationalPrompt}\nYou are ${ag.name}, ${ag.role} at Axiom. ${PROTOCOLS}\nAXIOM (the partner) is asking you a direct question while working through a decision with the investor. Answer from your remit in 1-3 sentences, concrete, using the data below. This is colleague-to-colleague.\n\n${context}`;
+  try {
+    return (await callAgentChat({ system: sys, messages: [{ role: 'user', content: question }], maxTokens: 220 })).trim();
+  } catch { return ''; }
 }
 
 export async function postMessage(uid, id, userText) {
@@ -70,7 +129,6 @@ export async function postMessage(uid, id, userText) {
   const doc = await ref.get().catch(() => null);
   if (!doc?.exists) return null;
   const thread = doc.data();
-  const seededEvent = thread.seededEvent || null;
 
   const [context, vault, memos] = await Promise.all([
     firmContext(uid).catch(() => 'No firm state available.'),
@@ -78,24 +136,42 @@ export async function postMessage(uid, id, userText) {
     listMemos(uid, 6).catch(() => []),
   ]);
 
-  const history = (thread.messages || []).slice(-12).map((m) => ({ role: m.role, content: m.content }));
+  const system = bossSystem(context, thread, vault, memos);
+  const history = (thread.messages || []).slice(-12)
+    .map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.role === 'consult' ? `[${m.content}]` : m.content }));
   history.push({ role: 'user', content: String(userText).slice(0, 4000) });
 
+  const consulted = [];
   let reply = '';
   try {
-    reply = await callAgentChat({ system: bossSystem(context, seededEvent, vault, memos), messages: history, maxTokens: 600 });
+    reply = await callAgentChat({ system, messages: history, maxTokens: 600 });
+    for (let hop = 0; hop < 2; hop++) {
+      const ask = parseConsult(reply);
+      if (!ask) break;
+      const answer = await askAnalyst(ask.id, ask.question, context);
+      if (!answer) break;
+      consulted.push({ name: ask.name, question: ask.question, answer });
+      reply = await callAgentChat({
+        system,
+        messages: [
+          ...history,
+          { role: 'assistant', content: `[asked ${ask.name}: ${ask.question}]` },
+          { role: 'user', content: `${ask.name} says: "${answer}"\nNow answer me — tell me what ${ask.name} said and what you make of it. No JSON.` },
+        ],
+        maxTokens: 600,
+      });
+    }
   } catch (e) {
     reply = `Can't get to that right now — ${e.message}. Try me again in a minute.`;
   }
 
   const now = Date.now();
-  const messages = [
-    ...(thread.messages || []),
-    { role: 'user', content: String(userText).slice(0, 4000), ts: now },
-    { role: 'assistant', content: reply, ts: now + 1 },
-  ].slice(-MSG_CAP);
+  const appended = [{ role: 'user', content: String(userText).slice(0, 4000), ts: now }];
+  for (const c of consulted) appended.push({ role: 'consult', name: c.name, content: `${c.name}: ${c.answer}`, ts: now });
+  appended.push({ role: 'assistant', content: reply, ts: now + 1 });
+  const messages = [...(thread.messages || []), ...appended].slice(-MSG_CAP);
   await ref.set({ messages, updatedAt: now, unread: false }, { merge: true }).catch(() => {});
-  return { reply, messages };
+  return { reply, messages, consulted };
 }
 
 /** Close the thread. 'archive' files the event in the vault for later. */

@@ -95,16 +95,32 @@ function Thread({ id, onBack }) {
           )}
         </div>
       )}
+      {thread.seededDecision && (
+        <div className="mt-2 rounded-lg border hairline p-2.5 text-[11px]">
+          <span className="font-mono text-[9px] uppercase tracking-wider text-ink-600">{thread.seededDecision.mandate}</span>{' '}
+          <span className="text-neutral-200 font-semibold">{thread.seededDecision.verdict} {thread.seededDecision.ticker}</span>
+          <span className="text-ink-600"> · {thread.seededDecision.conviction}/10</span>
+          {thread.seededDecision.why && <p className="text-haze mt-0.5">{thread.seededDecision.why}</p>}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto py-3 space-y-3">
         {(thread.messages || []).map((m, i) => (
-          <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
-            <div className={`inline-block max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-snug text-left ${
-              m.role === 'user' ? 'bg-indigo-500 text-white' : 'bg-ink-850 text-neutral-200'
-            }`}>
-              {m.content}
+          m.role === 'consult' ? (
+            <div key={i} className="text-center">
+              <span className="inline-block text-[11px] text-haze bg-ink-900 rounded-full px-3 py-1 border hairline">
+                💬 {m.content}
+              </span>
             </div>
-          </div>
+          ) : (
+            <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
+              <div className={`inline-block max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-snug text-left whitespace-pre-wrap ${
+                m.role === 'user' ? 'bg-indigo-500 text-white' : 'bg-ink-850 text-neutral-200'
+              }`}>
+                {m.content}
+              </div>
+            </div>
+          )
         ))}
         {busy && <div className="text-[11px] text-haze animate-pulse">the boss is typing…</div>}
         <div ref={endRef} />

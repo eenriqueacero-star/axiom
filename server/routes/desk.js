@@ -8,7 +8,8 @@ import { runDeskNight, lastDeskWork } from '../lib/desk/night.js';
 import { getPlaybooks } from '../lib/desk/playbooks.js';
 import { markUserActivity } from '../lib/budget.js';
 import { listVault } from '../lib/desk/vault.js';
-import { listThreads, getThread, createThread, postMessage, resolveThread } from '../lib/desk/bossChat.js';
+import { listThreads, getThread, createThread, createExecutionThread, postMessage, resolveThread } from '../lib/desk/bossChat.js';
+import { db } from '../lib/firebase.js';
 import { triageSignal, listEventJobs } from '../lib/desk/triage.js';
 
 const router = Router();
@@ -137,6 +138,22 @@ router.post('/chats/:id/message', async (req, res) => {
     const r = await postMessage(req.uid, req.params.id, text);
     if (!r) return res.status(404).json({ error: 'no such thread' });
     res.json(r);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// "Proceed" on a council verdict — open an execution thread with the boss.
+router.post('/execute', async (req, res) => {
+  const ticker = String(req.body?.ticker || '').toUpperCase();
+  if (!/^[A-Z.\-]{1,10}$/.test(ticker)) return res.status(400).json({ error: 'bad ticker' });
+  markUserActivity();
+  try {
+    const snap = await db.collection(`users/${req.uid}/analyses`).where('ticker', '==', ticker).get();
+    const latest = snap.docs.map((d) => d.data()).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+    if (!latest) return res.status(404).json({ error: 'no analysis for that name yet' });
+    const thread = await createExecutionThread(req.uid, latest);
+    res.json({ threadId: thread.id });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
