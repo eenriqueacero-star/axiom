@@ -8,6 +8,7 @@ export default function VerdictBanner({ analysis, onOpenBoss }) {
   const v = verdictStyle(analysis.verdict);
   const chg = analysis.changePct;
   const [busy, setBusy] = useState(false);
+  const [proceedErr, setProceedErr] = useState('');
 
   const mandate = analysis.mandate
     || ((analysis.computed?.broken || analysis.computed?.downtrendExit || analysis.computed?.concentrationTrim) ? 'decision' : 'suggestion');
@@ -16,10 +17,15 @@ export default function VerdictBanner({ analysis, onOpenBoss }) {
   const proceed = async () => {
     if (busy) return;
     setBusy(true);
+    setProceedErr('');
     try {
       const r = await startExecution(analysis.ticker);
       onOpenBoss?.(r.threadId);
-    } catch { /* ignore */ } finally { setBusy(false); }
+    } catch (e) {
+      setProceedErr(e.message === 'no analysis for that name yet'
+        ? 'Run the council on this name first, then try again.'
+        : `Couldn't open the desk: ${e.message}`);
+    } finally { setBusy(false); }
   };
 
   return (
@@ -90,21 +96,26 @@ export default function VerdictBanner({ analysis, onOpenBoss }) {
           </div>
         );
       })()}
-      {analysis.holdings && (
+      {analysis.holdings?.held && (
         <p className="text-xs text-haze mt-2">
           {analysis.holdings.econ?.avgCost != null ? (
             <>
               The firm holds {analysis.holdings.econ.shares} sh @ ${analysis.holdings.econ.avgCost.toFixed(2)} avg
-              {' · '}
-              <span className={analysis.holdings.econ.unreal >= 0 ? 'text-emerald-400' : 'text-red-400'}>
-                {analysis.holdings.econ.unreal >= 0 ? '+' : '−'}{Math.abs(analysis.holdings.econ.unrealPct * 100).toFixed(0)}%
-              </span>
-              {' · '}
+              {analysis.holdings.econ.unrealPct != null && (
+                <>
+                  {' · '}
+                  <span className={analysis.holdings.econ.unreal >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+                    {analysis.holdings.econ.unreal >= 0 ? '+' : '−'}{Math.abs(analysis.holdings.econ.unrealPct * 100).toFixed(0)}%
+                  </span>
+                </>
+              )}
             </>
-          ) : (
-            <>Position {(analysis.holdings.positionPct * 100).toFixed(1)}% · </>
+          ) : analysis.holdings.positionPct != null ? (
+            <>Position {(analysis.holdings.positionPct * 100).toFixed(1)}%</>
+          ) : null}
+          {analysis.holdings.sector && (
+            <> · {analysis.holdings.sector} sector{analysis.holdings.sectorPct != null ? ` ${(analysis.holdings.sectorPct * 100).toFixed(0)}%` : ''}</>
           )}
-          {analysis.holdings.sector} sector {(analysis.holdings.sectorPct * 100).toFixed(0)}%
           {analysis.holdings.breachIfAdd ? ' (at cap)' : ''}
         </p>
       )}
@@ -117,14 +128,17 @@ export default function VerdictBanner({ analysis, onOpenBoss }) {
         <p className="text-xs text-haze mt-1">Next earnings: {analysis.nextEarnings}</p>
       )}
       {actionable && (
-        <button
-          onClick={proceed}
-          disabled={busy}
-          className="mt-4 h-9 px-4 rounded-lg text-xs font-semibold disabled:opacity-50"
-          style={{ background: v.fg, color: '#0b0d12' }}
-        >
-          {busy ? 'Opening…' : `Proceed with this ${mandate} →`}
-        </button>
+        <div className="mt-4">
+          <button
+            onClick={proceed}
+            disabled={busy}
+            className="h-9 px-4 rounded-lg text-xs font-semibold disabled:opacity-50"
+            style={{ background: v.fg, color: '#0b0d12' }}
+          >
+            {busy ? 'Opening…' : `Proceed with this ${mandate} →`}
+          </button>
+          {proceedErr && <p className="text-[11px] text-[#f0685f] mt-1.5">{proceedErr}</p>}
+        </div>
       )}
     </div>
   );

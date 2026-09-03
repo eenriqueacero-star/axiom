@@ -21,11 +21,15 @@ export default function App() {
   const [bossUnread, setBossUnread] = useState(false);
   const [view, setView] = useState('portfolio'); // 'portfolio' | 'analyze'
   const [analyzeTicker, setAnalyzeTicker] = useState('');
+  const [analyzeNonce, setAnalyzeNonce] = useState(0); // bumps to force a re-run on the same ticker
 
-  // Deep links from push notifications: ?chat=<id> opens the boss, ?tab=floor.
+  // Deep links from push notifications: ?t=<ticker> opens Analyze on it,
+  // ?chat=<id> opens the boss, ?tab=floor.
   useEffect(() => {
     if (!user) return;
     const p = new URLSearchParams(window.location.search);
+    const t = (p.get('t') || '').toUpperCase();
+    if (/^[A-Z.\-]{1,10}$/.test(t)) { setAnalyzeTicker(t); setAnalyzeNonce((n) => n + 1); setView('analyze'); }
     if (p.get('chat')) { setBossThreadId(p.get('chat')); setBossOpen(true); }
     if (p.get('tab') === 'floor') setView('floor');
     if (p.get('chat') || p.get('tab') || p.get('t')) {
@@ -61,6 +65,7 @@ export default function App() {
 
   const goAnalyze = (ticker) => {
     setAnalyzeTicker(ticker || '');
+    setAnalyzeNonce((n) => n + 1);   // re-run even if it's the same ticker as last time
     setView('analyze');
   };
 
@@ -116,6 +121,7 @@ export default function App() {
         {view === 'analyze' && (
           <Analyze
             initialTicker={analyzeTicker}
+            runNonce={analyzeNonce}
             onOpenBoss={(threadId) => { setBossThreadId(threadId); setBossOpen(true); }}
           />
         )}

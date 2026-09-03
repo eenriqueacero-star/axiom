@@ -8,7 +8,7 @@ import VerdictBanner from './VerdictBanner';
 import NewsPanel from './NewsPanel';
 import { verdictStyle, tierStyle } from './stance';
 
-export default function Analyze({ initialTicker = '', onOpenBoss }) {
+export default function Analyze({ initialTicker = '', runNonce = 0, onOpenBoss }) {
   const { user } = useAuth();
   const [agents, setAgents] = useState([]);
   const [ticker, setTicker] = useState(initialTicker);
@@ -21,7 +21,8 @@ export default function Analyze({ initialTicker = '', onOpenBoss }) {
     getAgents().then(setAgents).catch(() => setError('Could not load agents'));
   }, []);
 
-  // Auto-run when arriving from a Portfolio ticker tap.
+  // Auto-run when arriving from a Portfolio ticker tap. `runNonce` bumps on
+  // every tap so the same ticker re-runs instead of showing a stale result.
   useEffect(() => {
     if (initialTicker && /^[A-Z.\-]{1,10}$/.test(initialTicker)) {
       setTicker(initialTicker);
@@ -34,7 +35,7 @@ export default function Analyze({ initialTicker = '', onOpenBoss }) {
         .finally(() => setRunning(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTicker]);
+  }, [initialTicker, runNonce]);
 
   // Realtime history — updates live across every signed-in device.
   useEffect(() => {

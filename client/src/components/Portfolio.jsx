@@ -480,15 +480,26 @@ export default function Portfolio({ onAnalyze }) {
     }
   };
 
+  // Enter and blur both fire the handler (Enter unmounts the input → blur). A
+  // ref-latch makes the second call a no-op so we don't double-write.
+  const submitLatch = useRef(false);
   const saveShares = async (acct, ticker) => {
+    if (submitLatch.current) return;
+    submitLatch.current = true;
     setEditing(null);
-    try { setData(await setHolding(acct, ticker, { shares: Number(draft) || 0 })); } catch (e) { setErr(e.message); }
+    try { setData(await setHolding(acct, ticker, { shares: Number(draft) || 0 })); }
+    catch (e) { setErr(e.message); }
+    finally { submitLatch.current = false; }
   };
   const doAdd = async (acct) => {
+    if (submitLatch.current) return;
+    submitLatch.current = true;
     const t = newTicker.toUpperCase().trim();
     setAdding(null); setNewTicker('');
-    if (!/^[A-Z.\-]{1,10}$/.test(t)) return;
-    try { setData(await addTicker(acct, t)); } catch (e) { setErr(e.message); }
+    try {
+      if (/^[A-Z.\-]{1,10}$/.test(t)) setData(await addTicker(acct, t));
+    } catch (e) { setErr(e.message); }
+    finally { submitLatch.current = false; }
   };
   const doRemove = async (acct, ticker) => {
     try { setData(await removeTicker(acct, ticker)); } catch (e) { setErr(e.message); }
