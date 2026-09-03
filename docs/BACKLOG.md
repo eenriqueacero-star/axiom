@@ -6,6 +6,13 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 ## 🔜 Up next (2026-09-02) — don't lose these
 
+0. **CHECK THE DESK (2026-09-03+)** — NVIDIA strong model is now wired for synth +
+   the boss's overnight assign/brief (commit f2b6af9, SYNTH_PROVIDER=nvidia live on
+   Render, verified GROQ 4/4 · NV 1/1 ★). The 2:10 AM ET cron should now complete a
+   full run. **Open The Floor tab the morning of 2026-09-03 and confirm "Last night
+   at the desk" shows a brief + 6 analyst findings (status: done, not failed).** If
+   it failed again, read the deskWork/{date} error + server logs.
+
 1. **Backtest the rulebook vs QQQ** — mostly DONE (2026-09-02), one step left.
    - [x] `axiom_5050` / `core_quality_hold` strategies (quant/app/strategies.py) —
      the mechanical rulebook skeleton, no LLM.
