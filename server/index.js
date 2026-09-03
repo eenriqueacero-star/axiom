@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { initScheduler } from './jobs/scheduler.js';
+import { runDueJobs } from './jobs/heartbeat.js';
 import { firebaseReady } from './lib/firebase.js';
 
 const app = express();
@@ -52,14 +53,23 @@ app.use('/api/strategy',  strategyRoute);
 app.use('/api/quant',     quantRoute);
 app.use('/api/congress',  congressRoute);
 
-app.get('/health', (_, res) => res.json({
-  ok: true,
-  ts: Date.now(),
-  firebase: firebaseReady,
-  push: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
-  groq: Boolean(process.env.GROQ_API_KEY),
-  broker: Boolean(process.env.SNAPTRADE_CLIENT_ID && process.env.SNAPTRADE_CONSUMER_KEY),
-}));
+app.get('/health', (_, res) => {
+  runDueJobs('health').catch(() => {});   // an uptime pinger on /health keeps the schedule alive
+  res.json({
+    ok: true,
+    ts: Date.now(),
+    firebase: firebaseReady,
+    push: Boolean(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY),
+    groq: Boolean(process.env.GROQ_API_KEY),
+    broker: Boolean(process.env.SNAPTRADE_CLIENT_ID && process.env.SNAPTRADE_CONSUMER_KEY),
+  });
+});
+
+// Dedicated wake/heartbeat endpoint for an external uptime pinger.
+app.get('/tick', async (_, res) => {
+  const r = await runDueJobs('tick').catch((e) => ({ error: e.message }));
+  res.json({ ok: true, ts: Date.now(), ...r });
+});
 
 // Global error handler — never leak a stack trace, never crash the process.
 app.use((err, _req, res, _next) => {
