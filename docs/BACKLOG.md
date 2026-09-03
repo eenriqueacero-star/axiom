@@ -19,8 +19,10 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
    hand thesis events to the boss, `/desk/{events,vault,chats*}` routes,
    `BossChat.jsx` + header "boss" button + push deep links, weekend all-hands
    reflection cron (Sat 10 ET). Full status in `project_axiom_event_desk` memory.
-   LEFT: surface `/desk/events` + `/desk/vault` on The Floor; LastNight panel
-   should filter out `kind:'event'` docs; tone audit; live end-to-end verify.
+   Event Desk panel on The Floor (card view) + vault list SHIPPED; LastNight now
+   nightly-only. Suggestion/Decision + Proceed→execution chat + agent join
+   notices/avatars all verified live. LEFT: surface the desk on TheOffice (3D
+   view) too — currently only in the card view; tone audit; watchlist scope.
 
 1. **Backtest the rulebook vs QQQ** — mostly DONE (2026-09-02), one step left.
    - [x] `axiom_5050` / `core_quality_hold` strategies (quant/app/strategies.py) —
