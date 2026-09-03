@@ -93,8 +93,8 @@ function Detail({ n, onClose, onDeepLink }) {
 
   if (!n) return null;
   return (
-    <div className="fixed inset-0 z-40 bg-black/60 flex items-start justify-center p-4" onClick={onClose}>
-      <div className="card w-full max-w-md mt-12 p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-40 bg-black/60 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div className="card w-full max-w-md my-8 p-5 space-y-3 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <span>{KIND_ICON[n.kind] || '•'}</span>
@@ -184,8 +184,8 @@ export default function Notifications({ open, onClose, onDeepLink, openId, feed 
   return (
     <>
       {open && (
-      <div className="fixed inset-0 z-30 bg-black/50 flex items-start justify-center p-4" onClick={onClose}>
-        <div className="card w-full max-w-md mt-12 p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <div className="fixed inset-0 z-30 bg-black/50 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
+        <div className="card w-full max-w-md my-8 p-5 space-y-3 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between">
             <h2 className="font-mono text-xs tracking-widest text-haze">NOTIFICATIONS</h2>
             <div className="flex items-center gap-3">

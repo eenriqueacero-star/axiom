@@ -264,9 +264,9 @@ export default function SystemStatus({ open, onClose }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-20 bg-black/50 flex items-start justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-20 bg-black/50 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
       <div
-        className="card w-full max-w-md mt-16 p-5 space-y-4"
+        className="card w-full max-w-md my-8 p-5 space-y-4 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">

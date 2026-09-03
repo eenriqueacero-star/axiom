@@ -23,22 +23,42 @@ self.addEventListener('activate', (e) => e.waitUntil((async () => {
   }
 })()));
 
+function routeFor(d) {
+  if (!d) return null;
+  if (d.n) return `/?n=${encodeURIComponent(d.n)}`;
+  if (d.path) return d.path;
+  if (d.ticker) return `/?t=${encodeURIComponent(d.ticker)}`;
+  return null;
+}
+
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; }
   catch { data = { title: 'Axiom', body: event.data ? event.data.text() : '' }; }
 
   const title = data.title || 'Axiom';
-  event.waitUntil(
-    self.registration.showNotification(title, {
+  const route = routeFor(data.data);
+
+  event.waitUntil((async () => {
+    // iOS never fires notificationclick for a backgrounded PWA — it just
+    // foregrounds the app. So stash the route HERE, on the push itself, with a
+    // timestamp; the app reads it on its next resume and only honours it if fresh.
+    if (route) {
+      try {
+        const cache = await caches.open(NAV_CACHE);
+        await cache.put('pending', new Response(JSON.stringify({ path: route, ts: Date.now() }), { headers: { 'content-type': 'application/json' } }));
+        await swlog(`push stashed route ${route}`);
+      } catch (e) { await swlog(`push cache write failed: ${e.message}`); }
+    }
+    await self.registration.showNotification(title, {
       body: data.body || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',
       tag: (data.data && data.data.ticker) || 'axiom',
       renotify: true,
       data: data.data || {},
-    }),
-  );
+    });
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -52,7 +72,7 @@ self.addEventListener('notificationclick', (event) => {
     await swlog(`click → ${path}`);
     try {
       const cache = await caches.open(NAV_CACHE);
-      await cache.put('pending', new Response(path, { headers: { 'content-type': 'text/plain' } }));
+      await cache.put('pending', new Response(JSON.stringify({ path, ts: Date.now() }), { headers: { 'content-type': 'application/json' } }));
       await swlog('wrote pending cache');
     } catch (e) { await swlog(`cache write failed: ${e.message}`); }
 

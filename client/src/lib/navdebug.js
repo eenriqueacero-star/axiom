@@ -31,7 +31,11 @@ export async function swReport() {
   try {
     const cache = await caches.open('axiom-nav');
     const res = await cache.match('pending');
-    out.pendingNav = res ? await res.text() : null;
+    if (res) {
+      const raw = await res.text();
+      try { const o = JSON.parse(raw); out.pendingNav = `${o.path} (${Math.round((Date.now() - (o.ts || 0)) / 1000)}s old)`; }
+      catch { out.pendingNav = raw; }
+    } else out.pendingNav = null;
     const sl = await cache.match('sw-log');
     out.swLog = sl ? JSON.parse(await sl.text()) : [];
   } catch (e) { out.cacheError = e.message; }

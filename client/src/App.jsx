@@ -72,9 +72,16 @@ export default function App() {
         const cache = await caches.open('axiom-nav');
         const res = await cache.match('pending');
         if (res) {
-          const path = await res.text();
+          const raw = await res.text();
           await cache.delete('pending');
-          applyPath(path, via || 'cache');
+          let path = raw, ts = Date.now();
+          try { const o = JSON.parse(raw); path = o.path; ts = o.ts || ts; } catch { /* legacy plain string */ }
+          const ageMs = Date.now() - ts;
+          if (ageMs > 3 * 60_000) {
+            navlog(`resume (${via}) — stale route ignored (${Math.round(ageMs / 1000)}s)`);
+          } else {
+            applyPath(path, via || 'cache');
+          }
         } else {
           navlog(`resume (${via}) — no pending nav`);
         }
