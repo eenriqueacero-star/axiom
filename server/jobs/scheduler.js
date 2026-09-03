@@ -24,6 +24,13 @@ export function initScheduler() {
     scanAllHoldingsNews().catch(err => console.error('[holdings-news] Error:', err.message));
   }, { timezone: 'America/New_York' });
 
+  // After-close sweep — earnings and other 8-Ks land 4:05–5:30 PM ET, after the
+  // last market-hours scan. One extra pass catches them the same day.
+  cron.schedule('20 17 * * 1-5', () => {
+    console.log('[scheduler] after-close holdings news + filings sweep...');
+    scanAllHoldingsNews().catch(err => console.error('[holdings-news] Error:', err.message));
+  }, { timezone: 'America/New_York' });
+
   // Verdict scorecard + agent calibration — 4:30 PM ET
   cron.schedule('30 16 * * 1-5', () => {
     console.log('[scheduler] Scoring verdicts + recomputing agent calibration...');

@@ -401,7 +401,7 @@ function NewsFlags({ items }) {
   if (!items?.length) return null;
   return (
     <div className="space-y-1">
-      <p className="text-[10px] font-mono uppercase tracking-wider text-ink-600">Flagged news (48h)</p>
+      <p className="text-[10px] font-mono uppercase tracking-wider text-ink-600">Flagged events (48h)</p>
       <ul className="space-y-1">
         {items.slice(0, 4).map((s, i) => (
           <li key={i} className="text-[11px] leading-snug">

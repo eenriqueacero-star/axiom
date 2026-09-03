@@ -28,7 +28,7 @@ router.get('/holdings', async (req, res) => {
       if (!s.ticker || (s.ts || 0) < cutoff) continue;
       (byTicker[s.ticker] ||= []).push({
         headline: s.headline, url: s.url || '', source: s.source || '',
-        ts: s.ts, thesis: !!s.thesis,
+        ts: s.ts, thesis: !!s.thesis, kind: s.kind || 'news',
       });
     }
     for (const t of Object.keys(byTicker)) byTicker[t].sort((a, b) => b.ts - a.ts);

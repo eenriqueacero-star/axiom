@@ -8,6 +8,7 @@ import { db } from './firebase.js';
 import { getPortfolio } from './portfolio.js';
 import { tickerNews } from './signals.js';
 import { runCouncil } from './council.js';
+import { recentFilings, edgarConfigured } from './edgar.js';
 import { sendPush } from '../routes/push.js';
 
 // Words that tend to mean a real change to the story, not noise.
@@ -18,6 +19,22 @@ const THESIS = /\b(acqui|merger|buyout|takeover|guidance|profit warning|SEC (?:p
 const RECENT_MS = 100 * 60 * 1000;      // one cron cycle + margin
 const REVIEW_COOLDOWN_MS = 4 * 60 * 60 * 1000;
 const SEEN_CAP = 250;
+
+/** Re-run the council on a thesis-level event, unless a run is already fresh. */
+async function maybeReview(uid, ticker, analysesCol, now, reason) {
+  try {
+    const snap = await analysesCol.where('ticker', '==', ticker).get();
+    const latest = snap.docs.map(d => d.data()).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+    if (latest && now - (latest.ts || 0) <= REVIEW_COOLDOWN_MS) return;
+    const result = await runCouncil(ticker, { mode: 'scout', uid });
+    await analysesCol.add(result);
+    await sendPush(uid, {
+      title: `${ticker} re-reviewed after ${reason}`,
+      body: `${result.verdict} ${result.conviction}/10${result.headline ? ` · ${result.headline}` : ''}`,
+      data: { ticker, verdict: result.verdict },
+    }).catch(() => {});
+  } catch { /* non-fatal */ }
+}
 
 function heldTickers(portfolio) {
   const s = new Set();
@@ -67,22 +84,35 @@ export async function scanHoldingsNewsForUser(uid) {
       }).catch(() => {});
 
       // Thesis-relevant + no fresh run → re-convene the council.
-      if (thesisLevel) {
-        try {
-          const snap = await analysesCol.where('ticker', '==', ticker).get();
-          const latest = snap.docs.map(d => d.data()).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
-          if (!latest || now - (latest.ts || 0) > REVIEW_COOLDOWN_MS) {
-            const result = await runCouncil(ticker, { mode: 'scout', uid });
-            await analysesCol.add(result);
-            await sendPush(uid, {
-              title: `${ticker} re-reviewed after the news`,
-              body: `${result.verdict} ${result.conviction}/10${result.headline ? ` · ${result.headline}` : ''}`,
-              data: { ticker, verdict: result.verdict },
-            }).catch(() => {});
-          }
-        } catch { /* non-fatal */ }
+      if (thesisLevel) await maybeReview(uid, ticker, analysesCol, now, 'the news');
+    }
+
+    // SEC 8-K filings — the company's own disclosure. Often leads the headlines.
+    if (edgarConfigured()) {
+      let filings = [];
+      try { filings = await recentFilings(ticker, { days: 2 }); } catch { filings = []; }
+      for (const f of filings) {
+        if (seen.has(f.accession)) continue;
+        newlySeen.push(f.accession);
+        alerted++;
+
+        const what = f.itemLabels.length ? f.itemLabels.join('; ') : 'a material event';
+        await sendPush(uid, {
+          title: `📄 ${ticker} filed an ${f.form}`,
+          body: `${ticker} ${what}`.slice(0, 140),
+          data: { ticker, url: f.url },
+        }).catch(() => {});
+        await db.collection(`users/${uid}/signals`).add({
+          ticker, kind: 'filing',
+          headline: `${f.form}: ${ticker} ${what}`,
+          url: f.url || '', source: 'SEC EDGAR',
+          ts: f.filedAt || now, material: true, thesis: !!f.thesis, seenAt: now,
+        }).catch(() => {});
+
+        if (f.thesis) await maybeReview(uid, ticker, analysesCol, now, `the ${f.form}`);
       }
     }
+
     await new Promise(r => setTimeout(r, 300));
   }
 

@@ -8,6 +8,7 @@ import { diagnose, sectorOf, sleeveOf, CAPS, CORE_LIST } from './strategy.js';
 import { relevantMemos, memoBlock } from './memos.js';
 import { fundamentals, fundamentalsBlock } from './fundamentals.js';
 import { congressTrades, congressConfigured } from './congress/index.js';
+import { recentFilings, edgarBlock } from './edgar.js';
 import { agentWeights } from './agentWeights.js';
 import { getCalibration } from './calibration.js';
 import { getPlaybooks, playbookBlock } from './desk/playbooks.js';
@@ -78,6 +79,13 @@ export async function fetchLiveData(ticker) {
     } catch { /* non-fatal */ }
   }
 
+  // SEC 8-K filings — the company's own disclosure of material events.
+  let filingsBlock = '';
+  try {
+    const filings = await recentFilings(ticker, { days: 14 });
+    filingsBlock = edgarBlock(filings, ticker);
+  } catch { /* non-fatal */ }
+
   // On a big single-day move, pull the last ~2 days of headlines to the front so
   // VEGA and NOVA reason about WHY it moved, not just that it did.
   let moveBlock = '';
@@ -91,7 +99,7 @@ export async function fetchLiveData(ticker) {
       + (recent ? `The freshest headlines:\n${recent}\n` : `No news explains the move — treat a move with no news behind it as noise, not a thesis change.\n`);
   }
 
-  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${moveBlock}${congressBlock}${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
+  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${moveBlock}${filingsBlock}${congressBlock}${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
   return { liveDataBlock, price, changePct, nextEarnings, news, facts };
 }
 
