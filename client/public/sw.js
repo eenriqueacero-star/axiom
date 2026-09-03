@@ -2,7 +2,11 @@
    the app needs the network anyway. */
 
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (e) => e.waitUntil((async () => {
+  await self.clients.claim();
+  // A new service worker took over — tell open PWAs to pull the fresh bundle.
+  for (const c of await self.clients.matchAll({ type: 'window' })) c.navigate(c.url).catch(() => {});
+})()));
 
 self.addEventListener('push', (event) => {
   let data = {};
