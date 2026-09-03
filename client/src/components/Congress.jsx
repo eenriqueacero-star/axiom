@@ -54,7 +54,8 @@ export default function Congress({ onAnalyze }) {
       <div>
         <h1 className="text-sm text-neutral-200">Congress</h1>
         <p className="text-[11px] text-haze">
-          Disclosed trades by members of Congress{data?.provider ? ` · via ${data.provider}` : ''}. Rows in your book are highlighted.
+          Disclosed trades by members of Congress, from the House Clerk &amp; Senate eFD filings
+          {data?.provider && data.provider !== 'kadoa' ? ` · via ${data.provider}` : ''}. Rows in your book are highlighted; the council sees these too.
         </p>
       </div>
 

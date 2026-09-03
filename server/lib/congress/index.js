@@ -1,19 +1,20 @@
 /**
  * Congressional trading disclosures — provider-agnostic.
  *
- * Free no-signup sources are all dead as of 2026. Set ONE of these and the
- * feature switches on:
- *   UNUSUAL_WHALES_API_KEY — Unusual Whales (best: live, House + Senate, per-name)
- *   QUIVER_API_KEY         — Quiver Quantitative ($25/mo, live)
- *   FMP_API_KEY            — Financial Modeling Prep (free tier: senate + house)
- *
- * With none, congressConfigured() is false and the app hides the panel.
+ * Default provider is `kadoa` — a free, no-key, daily-refreshed dataset built
+ * from the House Clerk + Senate eFD filings. Optional paid upgrades:
+ *   UNUSUAL_WHALES_API_KEY — Unusual Whales (live, per-name)
+ *   QUIVER_API_KEY         — Quiver Quantitative ($25/mo)
+ *   FMP_API_KEY            — Financial Modeling Prep (free tier)
+ * Set CONGRESS_KADOA=off to fall through to those.
  */
+import * as kadoa from './kadoa.js';
 import * as unusualwhales from './unusualwhales.js';
 import * as quiver from './quiver.js';
 import * as fmp from './fmp.js';
 
-const providers = [unusualwhales, quiver, fmp];   // preference order
+// A paid key, if set, wins over the free feed; else kadoa.
+const providers = [unusualwhales, quiver, fmp, kadoa];
 
 function active() {
   return providers.find((p) => p.ready());
