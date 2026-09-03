@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getFloor, getDca, getDeskWork, getPlaybooks, runDeskNight } from '../api';
+import { getFloor, getDca, getDeskWork, getPlaybooks, runDeskNight, getDeskEvents, getVault } from '../api';
 import { stanceStyle, verdictStyle, tierStyle, stripMd } from './stance';
 import { AgentPanel, AgentChat, rel } from './floor/shared';
 
@@ -74,6 +74,79 @@ function LastNight() {
             ))}
           </ul>
         </>
+      )}
+    </div>
+  );
+}
+
+/** The event desk — real-world events the boss triaged: acted on, or set aside. */
+function EventDesk({ onAnalyze }) {
+  const [events, setEvents] = useState(undefined);
+  const [vault, setVault] = useState([]);
+  const [open, setOpen] = useState(null);
+  const [showVault, setShowVault] = useState(false);
+
+  useEffect(() => {
+    getDeskEvents().then((r) => setEvents(r.events || [])).catch(() => setEvents([]));
+    getVault().then((r) => setVault(r.vault || [])).catch(() => {});
+  }, []);
+
+  if (events === undefined) return null;
+  if (!events.length && !vault.length) return null;
+
+  return (
+    <div className="card p-4 space-y-3">
+      <p className="text-[10px] uppercase tracking-[0.2em] text-haze">The event desk</p>
+
+      {events.length > 0 ? (
+        <ul className="divide-y divide-ink-800/70">
+          {events.map((e, i) => (
+            <li key={e.id || i} className="py-2">
+              <button onClick={() => setOpen(open === i ? null : i)} className="w-full text-left">
+                <div className="flex items-center gap-2">
+                  {e.ticker && (
+                    <button onClick={(ev) => { ev.stopPropagation(); onAnalyze(e.ticker); }}
+                      className="font-mono text-[11px] text-neutral-200 hover:text-indigo-400">{e.ticker}</button>
+                  )}
+                  <span className="text-[11px] text-haze truncate flex-1">{stripMd(e.event || '')}</span>
+                  {e.status && e.status !== 'done' && (
+                    <span className={`text-[10px] font-mono shrink-0 ${e.status === 'failed' ? 'text-[#f0685f]' : 'text-haze animate-pulse'}`}>{e.status}</span>
+                  )}
+                </div>
+              </button>
+              {open === i && (
+                <div className="mt-1.5 text-[11px] text-neutral-400 leading-snug space-y-1.5">
+                  {e.brief && <p className="text-neutral-300">{stripMd(e.brief)}</p>}
+                  {(e.findings || []).map((f, j) => (
+                    <p key={j}><span className="font-mono text-neutral-300">{f.agentName}</span>
+                      <span className="text-ink-600"> — {f.task}</span><br />{stripMd(f.findings)}</p>
+                  ))}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] text-haze">Nothing has needed the desk's attention lately.</p>
+      )}
+
+      {vault.length > 0 && (
+        <div className="border-t hairline pt-2">
+          <button onClick={() => setShowVault(!showVault)} className="text-[11px] text-haze hover:text-neutral-300">
+            {showVault ? '▾' : '▸'} the vault — {vault.length} set aside
+          </button>
+          {showVault && (
+            <ul className="mt-1.5 space-y-1">
+              {vault.slice(0, 20).map((v, i) => (
+                <li key={v.id || i} className="text-[11px] text-ink-500 leading-snug">
+                  {v.ticker && <span className="font-mono text-neutral-400">{v.ticker} </span>}
+                  {stripMd(v.headline || '')}
+                  {v.bossNote && <span className="text-ink-600"> — {v.bossNote}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );
@@ -207,6 +280,7 @@ export default function TheFloor({ onAnalyze }) {
       </div>
 
       <LastNight />
+      <EventDesk onAnalyze={onAnalyze} />
       <DcaCard />
       <DiscoveryCard items={floor.discovery} onAnalyze={onAnalyze} />
 

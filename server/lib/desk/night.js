@@ -225,8 +225,9 @@ export async function runDeskNight(uid, { reflect = true } = {}) {
 
 export async function lastDeskWork(uid) {
   try {
-    const snap = await db.collection(`users/${uid}/deskWork`).orderBy('ts', 'desc').limit(1).get();
-    return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+    const snap = await db.collection(`users/${uid}/deskWork`).orderBy('ts', 'desc').limit(8).get();
+    const nightly = snap.docs.map((d) => ({ id: d.id, ...d.data() })).find((w) => w.kind !== 'event');
+    return nightly || null;
   } catch {
     return null;
   }
