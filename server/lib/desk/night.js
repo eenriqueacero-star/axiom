@@ -72,7 +72,9 @@ async function marketBlock(portfolio) {
   return `Market data (daily closes, ${new Date().toISOString().slice(0, 10)}):\n${rows.join('\n')}\nCash available: $${Math.round(cash)}.`;
 }
 
-const dayStr = (x) => (x == null ? '' : ` (${x >= 0 ? '+' : ''}${(x * 100).toFixed(1)}% today)`);
+// quotes.js changePct is already in percent units (1.48 = 1.48%); priceFacts
+// momentum/high fields are ratios (0.0148 = 1.48%).
+const dayStr = (x) => (x == null ? '' : ` (${x >= 0 ? '+' : ''}${x.toFixed(1)}% today)`);
 const pctStr = (x) => (x == null ? 'n/a' : `${x >= 0 ? '+' : ''}${(x * 100).toFixed(1)}%`);
 
 export async function firmContext(uid) {
