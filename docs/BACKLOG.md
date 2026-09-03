@@ -344,9 +344,12 @@ content shown inside each 3D room.
     thesis-level events (acquisition, guidance cut, fraud, delisting…).
   - `GET /api/signals/holdings` + Portfolio: a news dot on flagged holdings
     (amber = thesis-level), the headlines in the expanded detail.
-- [ ] **Events service — remaining**: SEC EDGAR 8-K, Fed/econ/FDA calendars. The
-  `signals` collection + NOVA context + push-on-holdings-hit plumbing now exists;
-  this is just adding the extra feeds into `scanAllHoldingsNews`.
+- [x] **SEC EDGAR 8-K feed** — DONE 2026-09-03 (commit 7b3395d). `server/lib/edgar.js`
+  (free, no key), wired into `scanHoldingsNewsForUser` (push + `kind:'filing'` signal
+  + re-convene on thesis items) and into `council.js` LIVE DATA (14d 8-K block).
+  Extra 5:20 PM ET scheduler sweep for after-close earnings 8-Ks.
+- [ ] **Events service — remaining**: Fed/econ calendar, FDA calendar (PDUFA dates).
+  Same pattern — new source feeding `scanAllHoldingsNews`.
 - [ ] **Congressional trading tracker** — BLOCKED on data source. Free sources dead in
   2026 (old S3/github datasets gone; CongressInvests API rate-shared + 3mo stale).
   Decide: Disclosed Capitol free-tier signup, Quiver $25/mo, or defer.
