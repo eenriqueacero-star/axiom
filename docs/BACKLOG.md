@@ -65,6 +65,45 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
    ran-ago, error string). LEFT: nothing — but consider a push when a job goes
    `failing ×3`.
 
+9. **Notification rework** — SHIPPED (2026-09-03). `lib/notify.js` is now the only
+   notification path (replaced 7 scattered sendPush). Feed at
+   `users/{uid}/notifications`, dedupe (ticker+kind+day), severity
+   (critical/review/fyi), per-kind push/digest/off prefs
+   (`users/{uid}/state/notifyPrefs`), ET quiet hours, twice-daily digest job
+   (digest-am/digest-pm). Client: "alerts" bell + unread badge, feed panel,
+   detail sheet with a "what it means for the book" block (position econ + agents
+   + rulebook flags, NO council re-run). `?n=<id>` deep link; SW click no longer
+   auto-runs a council. `council.js` synth emits an `impact` line.
+   Converted: holdingsNews, scout, move-review, price alerts, congress, triage,
+   weekend reflection.
+   LEFT: `notifyBatch()` exists but callers don't use it yet (move-review /
+   holdings-news bursts could coalesce); rating-change notifications not wired
+   (scout writes analyses silently); the feed panel has no infinite scroll.
+
+10. **Boss sweep** — SHIPPED (2026-09-03). `lib/desk/sweep.js`, 35-min cron. The
+    boss reads every unseen notification (held or not) in one batched call and
+    tags each dismiss/act_held/buy_new/watch. Opportunities →
+    `users/{uid}/deskOpportunities` + one "boss sees N angles" notification;
+    strong buy_new (≥8) → full council run within budget. `GET
+    /api/desk/opportunities`; "The boss sees an angle" card on The Floor.
+    LEFT: opportunities only on the card-view Floor, not TheOffice 3D; no
+    watchlist persistence beyond the opp doc; boss can't yet be told "ignore
+    this kind".
+
+11. **Boss market context** — SHIPPED (2026-09-03). `firmContext` (boss chat +
+    triage + nightly) now carries a per-holding price/SMA/trend/momentum table +
+    cash, from the council's own `priceFacts`. Fixes the boss saying "I have no
+    live prices" when the council uses them nightly. Addresses most of AXIOM's
+    data-gaps letter (see the "What the Council Needs" boss-chat thread).
+    LEFT: no `cash_usd` from a real broker cash line (uses portfolio cash
+    positions); no FCF-yield/market-cap; no macro/econ calendar; no
+    scheduled-inflow ledger — those are Axiom's remaining asks.
+
+12. **Dev channel to the boss** — SHIPPED (2026-09-03). `routes/dev.js`:
+    `POST /api/dev/boss`, `GET /api/dev/context`, `GET /api/dev/boss/:id`,
+    guarded by `x-dev-key` == `DEV_KEY` env (404s if unset).
+    **BLOCKED ON USER: set `DEV_KEY` in Render** to enable it.
+
 ---
 
 ## ⭐ Hard requirements (never drop)
