@@ -12,7 +12,7 @@ import { tickerNews } from './signals.js';
 import { recentFilings, edgarConfigured } from './edgar.js';
 import { insiderActivity, insiderHeadline } from './insiders.js';
 import { triageSignal } from './desk/triage.js';
-import { notify } from './notify.js';
+import { notify, notifyBatch } from './notify.js';
 
 // Words that tend to mean a real change to the story, not noise.
 const MATERIAL = /\b(acqui|merger|buyout|takeover|to acquire|acquires|acquired|guidance|cuts? outlook|lowers? outlook|profit warning|downgrade[sd]?|upgrade[sd]?|SEC (?:probe|investigat|charge)|lawsuit|sued|fraud|accounting|restat|recall|bankrupt|chapter 11|CEO (?:steps down|resign|fired|out)|CFO (?:steps down|resign)|delist|short seller|halts? trading|data breach|antitrust|FTC|DOJ|tariff|export (?:ban|control)|earnings (?:beat|miss)|raises? guidance|record (?:revenue|quarter))\b/i;
@@ -43,6 +43,7 @@ export async function scanHoldingsNewsForUser(uid) {
   let alerted = 0;
   const newlySeen = [];
   const toTriage = [];   // the serious events — handed to the boss after dedup is saved
+  const pending = [];    // notify() args, collected then fired (criticals now, the rest coalesced)
 
   const signal = async (sig) => {
     const ref = await db.collection(`users/${uid}/signals`).add({ ...sig, seenAt: now }).catch(() => null);
@@ -63,7 +64,7 @@ export async function scanHoldingsNewsForUser(uid) {
       const thesisLevel = THESIS.test(n.headline);
 
       const sigId = await signal({ ticker, kind: 'news', headline: n.headline, url: n.url || '', source: n.source || '', ts: n.ts || now, material: true, thesis: thesisLevel });
-      await notify(uid, {
+      pending.push({
         kind: 'news',
         severity: thesisLevel ? 'critical' : 'review',
         ticker,
@@ -87,7 +88,7 @@ export async function scanHoldingsNewsForUser(uid) {
         const what = f.itemLabels.length ? f.itemLabels.join('; ') : 'a material event';
 
         const sigId = await signal({ ticker, kind: 'filing', headline: `${f.form}: ${ticker} ${what}`, url: f.url || '', source: 'SEC EDGAR', ts: f.filedAt || now, material: true, thesis: !!f.thesis });
-        await notify(uid, {
+        pending.push({
           kind: 'filing',
           severity: f.thesis ? 'critical' : 'review',
           ticker,
@@ -112,7 +113,7 @@ export async function scanHoldingsNewsForUser(uid) {
           alerted++;
           const head = insiderHeadline(ia);
           const sigId = await signal({ ticker, kind: 'insider', headline: head, url: '', source: 'SEC Form 4', ts: now, material: true, thesis: false });
-          await notify(uid, {
+          pending.push({
             kind: 'insider',
             severity: 'review',
             ticker,
@@ -132,6 +133,21 @@ export async function scanHoldingsNewsForUser(uid) {
   if (newlySeen.length) {
     const ids = [...seen, ...newlySeen].slice(-SEEN_CAP);
     await seenRef.set({ ids, updatedAt: now }).catch(() => {});
+  }
+
+  // Fire the alerts: thesis-level items always go through individually; the rest
+  // coalesce into one summary if there are more than a few (a busy news day
+  // shouldn't mean a dozen buzzes).
+  const critical = pending.filter((p) => p.severity === 'critical');
+  const routine = pending.filter((p) => p.severity !== 'critical');
+  for (const p of critical) await notify(uid, p);
+  if (routine.length) {
+    const names = [...new Set(routine.map((p) => p.ticker).filter(Boolean))];
+    await notifyBatch(uid, routine, {
+      title: `${routine.length} updates on your book`,
+      body: `${names.slice(0, 6).join(', ')} — news, filings, insider activity`,
+      path: '/?tab=notifications',
+    });
   }
 
   // Hand the serious events to the boss — ONE AT A TIME. A scan cycle often

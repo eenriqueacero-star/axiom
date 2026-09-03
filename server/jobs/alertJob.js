@@ -1,6 +1,6 @@
 import { ACCOUNTS } from '../agents/definitions.js';
 import { db } from '../lib/firebase.js';
-import { notify } from '../lib/notify.js';
+import { notify, notifyBatch } from '../lib/notify.js';
 import { getPortfolio } from '../lib/portfolio.js';
 import { runCouncil } from '../lib/council.js';
 
@@ -32,6 +32,7 @@ export async function runMoveReview() {
     if (!movers.size) continue;
 
     const col = db.collection(`users/${uid}/analyses`);
+    const pending = [];
     for (const [ticker, changePct] of movers) {
       try {
         const snap = await col.where('ticker', '==', ticker).get();
@@ -41,7 +42,7 @@ export async function runMoveReview() {
         const result = await runCouncil(ticker, { mode: 'scout', uid });
         const added = await col.add({ ...result, trigger: 'move' });
         reviewed++;
-        await notify(uid, {
+        pending.push({
           kind: 'move',
           severity: Math.abs(changePct) >= 12 ? 'critical' : 'review',
           ticker,
@@ -53,6 +54,18 @@ export async function runMoveReview() {
         console.error(`[move-review] ${ticker}:`, err.message);
       }
       await new Promise(r => setTimeout(r, 2000));
+    }
+
+    // A broad selloff can move many names at once — coalesce the routine ones.
+    const critical = pending.filter((p) => p.severity === 'critical');
+    const routine = pending.filter((p) => p.severity !== 'critical');
+    for (const p of critical) await notify(uid, p);
+    if (routine.length) {
+      await notifyBatch(uid, routine, {
+        title: `${routine.length} holdings moved — re-reviewed`,
+        body: routine.map((p) => `${p.ticker} ${p.title.match(/[+-][\d.]+%/)?.[0] || ''}`).join(', '),
+        path: '/?tab=notifications',
+      });
     }
   }
   if (reviewed) console.log(`[move-review] re-reviewed ${reviewed} big movers`);

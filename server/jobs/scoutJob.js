@@ -38,20 +38,34 @@ export async function scoutHoldingsForUser(uid, { force = false } = {}) {
 
   for (const ticker of tickers) {
     try {
+      const snap = await col.where('ticker', '==', ticker).get();
+      const prev = snap.docs
+        .map(d => d.data())
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+
       if (!force) {
-        const snap = await col.where('ticker', '==', ticker).get();
-        const latest = snap.docs
-          .map(d => d.data())
-          .sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
         // Skip only if it's genuinely fresh AND carries the current rating shape
         // (a valid verdict + a conviction tier). Re-run pre-tier analyses.
-        const fresh = latest && Date.now() - (latest.ts || 0) < FRESH_MS;
-        if (fresh && latest.tier && VERDICTS.has(latest.verdict)) continue;
+        const fresh = prev && Date.now() - (prev.ts || 0) < FRESH_MS;
+        if (fresh && prev.tier && VERDICTS.has(prev.verdict)) continue;
       }
       const result = await runCouncil(ticker, { mode: 'scout', uid });
-      await col.add({ ...result, trigger: 'scout' });
+      const added = await col.add({ ...result, trigger: 'scout' });
       ran++;
       console.log(`[scout:holdings] ${uid.slice(0, 6)}… ${ticker}: ${result.verdict} ${result.conviction}/10 · ${result.tier}`);
+
+      // Rating change on a name you hold → surface it (was written silently).
+      if (prev && VERDICTS.has(prev.verdict) && VERDICTS.has(result.verdict) && prev.verdict !== result.verdict) {
+        await notify(uid, {
+          kind: 'rating',
+          severity: result.verdict === 'EXIT' ? 'critical' : 'review',
+          ticker,
+          title: `${ticker}: ${prev.verdict} → ${result.verdict}`,
+          body: `The council changed its call — ${result.conviction}/10${result.headline ? ` · ${result.headline}` : ''}`,
+          refKind: 'analysis', refId: added?.id || null,
+          dedupeKey: `rating:${ticker}:${result.verdict}`,
+        });
+      }
     } catch (err) {
       console.error(`[scout:holdings] ${ticker} failed:`, err.message);
     }

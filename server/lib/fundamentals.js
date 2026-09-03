@@ -47,12 +47,25 @@ export async function fundamentals(ticker) {
       fcfPerShare: pick('freeCashFlowPerShareTTM', 'freeCashFlowPerShareAnnual'),
       pe: pick('peTTM', 'peBasicExclExtraTTM', 'peAnnual'),
       ps: pick('psTTM', 'psAnnual'),
+      // Market cap (Finnhub reports it in millions) + FCF yield for REX's quality screen.
+      marketCapM: pick('marketCapitalization'),
+      pfcf: pick('pfcfShareTTM', 'pfcfShareAnnual', 'currentEv/freeCashFlowTTM'),
     };
+    // FCF yield = inverse of price-to-free-cash-flow, as a percent.
+    f.fcfYield = f.pfcf && f.pfcf > 0 ? 100 / f.pfcf : null;
     if (Object.entries(f).some(([k, v]) => k !== 'available' && typeof v === 'number')) data = f;
   } catch { /* leave unavailable */ }
 
   cache.set(sym, { ts: Date.now(), data });
   return data;
+}
+
+// Finnhub market cap is in $millions.
+export function fmtCap(m) {
+  if (m == null) return 'n/a';
+  if (m >= 1e6) return `${(m / 1e6).toFixed(1)}T`;
+  if (m >= 1e3) return `${(m / 1e3).toFixed(0)}B`;
+  return `${m.toFixed(0)}M`;
 }
 
 export function fundamentalsBlock(f) {
@@ -64,7 +77,7 @@ export function fundamentalsBlock(f) {
     `- Revenue growth (YoY): ${p(f.revGrowth)} · EPS growth (YoY): ${p(f.epsGrowth)}`,
     `- Margins — gross ${p(f.grossMargin)}, operating ${p(f.opMargin)}, net ${p(f.netMargin)} · ROE ${p(f.roe)}`,
     `- Balance sheet — debt/equity ${r(f.debtToEquity)}, current ratio ${r(f.currentRatio)}, FCF/share ${f.fcfPerShare == null ? 'n/a' : '$' + f.fcfPerShare.toFixed(2)}`,
-    `- Valuation — P/E ${r(f.pe)}, P/S ${r(f.ps)}`,
+    `- Valuation — P/E ${r(f.pe)}, P/S ${r(f.ps)}, FCF yield ${f.fcfYield == null ? 'n/a' : f.fcfYield.toFixed(1) + '%'}${f.marketCapM ? `, market cap $${fmtCap(f.marketCapM)}` : ''}`,
   ];
   return '\n' + lines.join('\n') + '\n';
 }

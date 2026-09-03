@@ -16,6 +16,7 @@ import { db } from '../firebase.js';
 import { getPortfolio } from '../portfolio.js';
 import { diagnose } from '../strategy.js';
 import { priceFacts } from '../metrics.js';
+import { fundamentals, fmtCap } from '../fundamentals.js';
 import { contributionsBlock } from '../contributions.js';
 import { callAgent, callSynthesis, setAutonomous } from '../groq.js';
 import { extractJSON } from '../council.js';
@@ -55,15 +56,21 @@ async function marketBlock(portfolio) {
   const rows = await Promise.all(
     [...held.entries()].map(async ([ticker, q]) => {
       try {
-        const { facts } = await priceFacts(ticker, q.price);
+        const [{ facts }, fund] = await Promise.all([
+          priceFacts(ticker, q.price),
+          fundamentals(ticker).catch(() => null),
+        ]);
+        const val = fund?.available
+          ? ` · ${fund.marketCapM ? `$${fmtCap(fund.marketCapM)}` : ''}${fund.fcfYield != null ? ` FCF yld ${fund.fcfYield.toFixed(1)}%` : ''}`.replace(/ · $/, '')
+          : '';
         if (!facts?.available) {
-          return `- ${ticker}: $${q.price?.toFixed?.(2) ?? '?'}${dayStr(q.changePct)} · not enough history for trend`;
+          return `- ${ticker}: $${q.price?.toFixed?.(2) ?? '?'}${dayStr(q.changePct)} · not enough history for trend${val}`;
         }
         const f = facts;
         return `- ${ticker}: $${f.price}${dayStr(q.changePct)} · ${f.trend.toUpperCase()}`
           + ` (50d $${f.sma50 ?? '?'} / 200d $${f.sma200 ?? '?'})`
           + ` · mom 3m ${pctStr(f.ret3m)} 6m ${pctStr(f.ret6m)} 12m ${pctStr(f.ret12m)}`
-          + ` · ${pctStr(f.pctFromHigh52w)} from 52w high`;
+          + ` · ${pctStr(f.pctFromHigh52w)} from 52w high${val}`;
       } catch {
         return `- ${ticker}: $${q.price?.toFixed?.(2) ?? '?'}${dayStr(q.changePct)}`;
       }
