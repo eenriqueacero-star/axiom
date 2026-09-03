@@ -13,6 +13,7 @@ import { getPortfolio } from './portfolio.js';
 import { diagnose, sectorOf, sleeveOf, SPLIT, CORE_LIST, BUFFER_ETF, CAPS, ENTRY } from './strategy.js';
 import { priceFacts } from './metrics.js';
 import { buildStances } from './stances.js';
+import { getContributions, nextContribution, projectedInflow } from './contributions.js';
 import { ACCOUNTS } from '../agents/definitions.js';
 
 const TIER_RANK = { HIGH: 3, MEDIUM: 2, LOW: 1, SPECULATIVE: 0 };
@@ -39,7 +40,14 @@ export async function dcaSuggestion(uid) {
   const portfolio = await getPortfolio(uid);
   const d = diagnose(portfolio);
 
-  const weeklyTotal = Object.values(ACCOUNTS).reduce((s, a) => s + (a.dca || 0), 0);
+  // The contribution ledger is the source of truth if the user has set it;
+  // otherwise fall back to the per-account defaults in definitions.js.
+  const contrib = await getContributions(uid).catch(() => null);
+  const next = contrib ? nextContribution(contrib) : { amount: 0, kind: 'none' };
+  const weeklyTotal = next.amount > 0
+    ? next.amount
+    : Object.values(ACCOUNTS).reduce((s, a) => s + (a.dca || 0), 0);
+  const inflow30 = contrib ? projectedInflow(contrib, 30) : null;
 
   if (!d.ready) {
     return {
@@ -102,6 +110,7 @@ export async function dcaSuggestion(uid) {
   return {
     ready: true,
     weeklyTotal,
+    contribution: { amount: next.amount, kind: next.kind, date: next.date || null, projected30d: inflow30 },
     accounts: Object.values(ACCOUNTS).map(a => ({ label: a.label, dca: a.dca, note: a.dcaNote })),
     pick: pick
       ? {

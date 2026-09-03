@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount, renameAccount,
   getStances, getLatestAnalysis, getAgents, getDca, reviewHoldings, getHoldingsSignals,
+  getContributions, setContributions, addContributionEntry, removeContributionEntry,
 } from '../api';
 import BrokerLink from './BrokerLink';
 import StrategyCheck from './StrategyCheck';
@@ -126,6 +127,102 @@ function NextContribution({ onAnalyze }) {
         {target.buffer && <span className="ml-1.5 text-[10px] uppercase tracking-wider text-haze">buffer</span>}
       </button>
       <p className="mt-1 text-[11px] text-haze leading-snug">{target.reason}</p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------- contribution ledger */
+
+const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function ContributionLedger() {
+  const [c, setC] = useState(null);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({ date: '', amount: '', direction: 'in', note: '' });
+
+  useEffect(() => { getContributions().then(setC).catch(() => setC(false)); }, []);
+  if (c === false) return null;
+
+  const save = (patch) => {
+    const next = { ...c, ...patch };
+    setC(next);
+    setContributions(patch).then(setC).catch(() => {});
+  };
+  const addEntry = () => {
+    if (!draft.date || !(Number(draft.amount) > 0)) return;
+    addContributionEntry({ ...draft, amount: Number(draft.amount) }).then((r) => { setC(r); setDraft({ date: '', amount: '', direction: 'in', note: '' }); }).catch(() => {});
+  };
+  const del = (id) => { removeContributionEntry(id).then(setC).catch(() => {}); };
+
+  const upcoming = (c?.entries || []).filter((e) => !e.done && e.date >= new Date().toISOString().slice(0, 10));
+
+  return (
+    <div className="card p-4">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-haze">Contributions</p>
+        <button onClick={() => setOpen((o) => !o)} className="text-[11px] text-indigo-400 hover:text-indigo-300">
+          {open ? 'done' : 'edit'}
+        </button>
+      </div>
+
+      {!c ? (
+        <p className="mt-2 text-[11px] text-haze">…</p>
+      ) : !open ? (
+        <div className="mt-2 space-y-1">
+          <p className="text-xs text-neutral-200">
+            {c.weeklyAmount > 0 ? `$${c.weeklyAmount}/week` : 'No recurring contribution set'}
+            {c.weeklyAmount > 0 && <span className="text-haze"> · {WD[c.weekday]}</span>}
+          </p>
+          {c.split?.length > 0 && (
+            <p className="text-[11px] text-haze">{c.split.map((s) => `${s.ticker} ${Math.round(s.pct * 100)}%`).join(' / ')}</p>
+          )}
+          {upcoming.slice(0, 3).map((e) => (
+            <p key={e.id} className="text-[11px] text-haze">
+              {e.date}: {e.direction === 'out' ? '−' : '+'}${e.amount}{e.note ? ` · ${e.note}` : ''}
+            </p>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-haze w-16">Weekly $</span>
+            <input type="number" min="0" value={c.weeklyAmount}
+              onChange={(e) => save({ weeklyAmount: Number(e.target.value) || 0 })}
+              className="w-20 bg-ink-900 rounded px-2 py-1 text-xs text-neutral-200" />
+            <select value={c.weekday} onChange={(e) => save({ weekday: Number(e.target.value) })}
+              className="bg-ink-900 rounded px-2 py-1 text-xs text-neutral-200">
+              {WD.map((w, i) => <option key={w} value={i}>{w}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <p className="text-[11px] text-haze mb-1">One-off deposit / withdrawal</p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <input type="date" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })}
+                className="bg-ink-900 rounded px-2 py-1 text-xs text-neutral-200" />
+              <input type="number" min="0" placeholder="$" value={draft.amount} onChange={(e) => setDraft({ ...draft, amount: e.target.value })}
+                className="w-16 bg-ink-900 rounded px-2 py-1 text-xs text-neutral-200" />
+              <select value={draft.direction} onChange={(e) => setDraft({ ...draft, direction: e.target.value })}
+                className="bg-ink-900 rounded px-2 py-1 text-xs text-neutral-200">
+                <option value="in">in</option>
+                <option value="out">out</option>
+              </select>
+              <button onClick={addEntry} className="text-[11px] px-2 py-1 rounded bg-indigo-500 text-white hover:bg-indigo-400">add</button>
+            </div>
+          </div>
+
+          {(c.entries || []).length > 0 && (
+            <ul className="space-y-1">
+              {c.entries.map((e) => (
+                <li key={e.id} className="flex items-center justify-between text-[11px] text-haze">
+                  <span>{e.date} · {e.direction === 'out' ? '−' : '+'}${e.amount}{e.note ? ` · ${e.note}` : ''}</span>
+                  <button onClick={() => del(e.id)} className="text-red-400 hover:text-red-300 ml-2">✕</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -710,6 +807,7 @@ export default function Portfolio({ onAnalyze }) {
         <aside className="lg:sticky lg:top-20 self-start space-y-4">
           <StrategyCheck />
           <NextContribution onAnalyze={onAnalyze} />
+          <ContributionLedger />
           <Movers positions={data.accounts.flatMap((a) => a.positions || [])} />
         </aside>
       </div>

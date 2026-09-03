@@ -16,6 +16,7 @@ import { db } from '../firebase.js';
 import { getPortfolio } from '../portfolio.js';
 import { diagnose } from '../strategy.js';
 import { priceFacts } from '../metrics.js';
+import { contributionsBlock } from '../contributions.js';
 import { callAgent, callSynthesis, setAutonomous } from '../groq.js';
 import { extractJSON } from '../council.js';
 import { saveMemo, listMemos } from '../memos.js';
@@ -94,6 +95,9 @@ export async function firmContext(uid) {
   // the boss in chat isn't blind to what the nightly run already knows.
   const mkt = await marketBlock(portfolio).catch(() => '');
   if (mkt) lines.push(mkt);
+
+  const contrib = await contributionsBlock(uid).catch(() => '');
+  if (contrib) lines.push(contrib);
 
   // latest verdict per ticker
   try {

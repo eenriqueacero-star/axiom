@@ -231,6 +231,12 @@ function DcaCard() {
   return (
     <div className="card p-4">
       <p className="text-[11px] uppercase tracking-widest text-haze mb-2">This cycle's contribution</p>
+      {d.contribution?.amount > 0 && (
+        <p className="text-xs text-neutral-300 mb-1">
+          ${d.contribution.amount}{d.contribution.kind === 'weekly' ? '/week' : d.contribution.date ? ` on ${d.contribution.date}` : ''}
+          {d.contribution.projected30d != null && <span className="text-haze"> · ~${d.contribution.projected30d} over 30d</span>}
+        </p>
+      )}
       {!d.ready ? (
         <p className="text-xs text-haze">{d.note}</p>
       ) : d.pick ? (
