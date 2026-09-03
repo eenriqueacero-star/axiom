@@ -59,6 +59,14 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 ---
 
+8. **Job health view** — SHIPPED (2026-09-03). Heartbeat records per-job outcome
+   (ok/error+msg, duration, consecutive fails, last-success) → `state/schedule.jobs`;
+   `GET /api/status/jobs`; SystemStatus "Scheduled jobs" panel (status dot, cadence,
+   ran-ago, error string). LEFT: nothing — but consider a push when a job goes
+   `failing ×3`.
+
+---
+
 ## ⭐ Hard requirements (never drop)
 
 - **EVERYTHING MUST BE CONNECTED.** No isolated features. Every piece feeds the others —
