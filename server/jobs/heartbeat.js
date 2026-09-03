@@ -74,9 +74,9 @@ const JOBS = [
     run: () => runDeskNightAll(),
   },
   {
-    name: 'weekend-reflect',      // all six analysts review + rewrite playbooks with the boss
-    every: 5 * 24 * HOUR,
-    when: () => etParts().isWeekend,
+    name: 'all-hands-reflect',    // all six analysts review + rewrite playbooks with the boss
+    every: 6 * 24 * HOUR,         // ~weekly, whenever overdue (no weekend gate — the box may
+                                  // never be awake-and-weekend on the free tier)
     run: () => runWeekendReflection(),
   },
 ];
@@ -96,12 +96,17 @@ export async function runDueJobs(trigger = 'interval') {
     for (const job of JOBS) {
       if (now - (last[job.name] || 0) < job.every) continue;
       if (job.when && !job.when()) continue;
-      last[job.name] = now;
-      await stateRef().set({ lastRun: last, updatedAt: now, trigger }, { merge: true }).catch(() => {});
-      job.run()
-        .then((r) => console.log(`[heartbeat] ${job.name} ok${r ? ` ${JSON.stringify(r).slice(0, 120)}` : ''}`))
-        .catch((e) => console.error(`[heartbeat] ${job.name} failed:`, e.message));
+      last[job.name] = Date.now();
+      await stateRef().set({ lastRun: last, updatedAt: Date.now(), trigger }, { merge: true }).catch(() => {});
       ran.push(job.name);
+      // Awaited in series — the `running` guard only means something if we
+      // don't return before the jobs finish. A slow job just delays the rest.
+      try {
+        const r = await job.run();
+        console.log(`[heartbeat] ${job.name} ok${r ? ` ${JSON.stringify(r).slice(0, 120)}` : ''}`);
+      } catch (e) {
+        console.error(`[heartbeat] ${job.name} failed:`, e.message);
+      }
     }
     return { ran, trigger };
   } finally {

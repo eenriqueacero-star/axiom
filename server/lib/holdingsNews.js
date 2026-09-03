@@ -122,9 +122,14 @@ export async function scanHoldingsNewsForUser(uid) {
     await seenRef.set({ ids, updatedAt: now }).catch(() => {});
   }
 
-  // Hand the serious events to the boss. Fire-and-forget — triage can take a
-  // while (analyst research), and dedup is already persisted.
-  for (const sig of toTriage) triageSignal(uid, sig).catch((e) => console.error('[event-desk] from news:', e.message));
+  // Hand the serious events to the boss — ONE AT A TIME. A scan cycle often
+  // produces two signals for the same ticker (a headline + its 8-K); firing
+  // them in parallel raced past the per-ticker cooldown and doubled the spend.
+  (async () => {
+    for (const sig of toTriage) {
+      await triageSignal(uid, sig).catch((e) => console.error('[event-desk] from news:', e.message));
+    }
+  })();
 
   return alerted;
 }

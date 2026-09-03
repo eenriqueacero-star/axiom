@@ -3,8 +3,15 @@
 // The free-tier keys are a shared, finite resource. Scheduled work (the scout,
 // alerts, the scorecard) and anything the user is waiting on always win; the
 // autonomous desk conversations only spend what's left over.
+//
+// The day's counters are persisted to Firestore (state/budget) and re-hydrated
+// on boot — Render's free tier discards process memory every ~15 min, so an
+// in-memory-only counter would reset all day and the caps would never bite.
+
+import { db } from './firebase.js';
 
 const DAY = 864e5;
+const dayKey = () => new Date().toISOString().slice(0, 10);
 
 const num = (v, d) => {
   const n = Number(v);
@@ -25,21 +32,55 @@ const MAX_EVENTS_DAY = num(process.env.EVENT_MAX_PER_DAY, 12);
 // "activity" — the desk stays quiet while the user is around.
 const IDLE_MS = num(process.env.DESK_IDLE_MINUTES, 4) * 60_000;
 
-let dayStamp = 0;
+let dayStamp = '';
 let calls = 0;          // every Groq request this process has made today
 let autonomousCalls = 0; // the subset spent by the desk loop
 let dialoguesToday = 0;
 let eventsToday = 0;     // event-desk triage runs today
 let lastUserActivity = 0;
 
+// --- Firestore persistence (survives Render's 15-min process recycling) ------
+const budgetDoc = () => db.doc('state/budget');
+let hydrated = false;
+let flushTimer = null;
+
+async function hydrate() {
+  const key = dayKey();
+  try {
+    const snap = await budgetDoc().get();
+    const d = snap.exists ? snap.data() : null;
+    if (d && d.day === key) {
+      calls = Math.max(calls, d.calls || 0);
+      autonomousCalls = Math.max(autonomousCalls, d.autonomousCalls || 0);
+      dialoguesToday = Math.max(dialoguesToday, d.dialoguesToday || 0);
+      eventsToday = Math.max(eventsToday, d.eventsToday || 0);
+    }
+  } catch { /* Firestore not ready — fall back to in-memory */ }
+  dayStamp = key;
+  hydrated = true;
+}
+hydrate();
+
+function scheduleFlush(immediate = false) {
+  if (flushTimer) return;
+  flushTimer = setTimeout(() => {
+    flushTimer = null;
+    budgetDoc().set({
+      day: dayStamp, calls, autonomousCalls, dialoguesToday, eventsToday, updatedAt: Date.now(),
+    }, { merge: true }).catch(() => {});
+  }, immediate ? 0 : 10_000);
+}
+
 function roll() {
-  const today = Math.floor(Date.now() / DAY);
-  if (today !== dayStamp) {
-    dayStamp = today;
+  const key = dayKey();
+  if (key !== dayStamp) {
+    dayStamp = key;
     calls = 0;
     autonomousCalls = 0;
     dialoguesToday = 0;
     eventsToday = 0;
+    hydrated = false;
+    hydrate();
   }
 }
 
@@ -54,6 +95,7 @@ export function recordCall({ autonomous = false } = {}) {
   roll();
   calls += 1;
   if (autonomous) autonomousCalls += 1;
+  scheduleFlush();
 }
 
 /** The user did something we spent tokens on — hold the desk back for a bit. */
@@ -89,6 +131,7 @@ export function canSpendAutonomous(n = 5) {
 export function noteDialogue() {
   roll();
   dialoguesToday += 1;
+  scheduleFlush(true);
 }
 
 /**
@@ -111,6 +154,7 @@ export function canSpendEvent(n = 8) {
 export function noteEvent() {
   roll();
   eventsToday += 1;
+  scheduleFlush(true);
 }
 
 export function budgetStatus() {
@@ -118,6 +162,7 @@ export function budgetStatus() {
   const total = dailyBudget();
   return {
     callsToday: calls,
+    hydrated,
     dailyBudget: total,
     autonomousCalls,
     autonomousPool: Math.floor(total * AUTONOMOUS_SHARE),

@@ -49,7 +49,7 @@ export async function scoutHoldingsForUser(uid, { force = false } = {}) {
         if (fresh && latest.tier && VERDICTS.has(latest.verdict)) continue;
       }
       const result = await runCouncil(ticker, { mode: 'scout', uid });
-      await col.add(result);
+      await col.add({ ...result, trigger: 'scout' });
       ran++;
       console.log(`[scout:holdings] ${uid.slice(0, 6)}… ${ticker}: ${result.verdict} ${result.conviction}/10 · ${result.tier}`);
     } catch (err) {

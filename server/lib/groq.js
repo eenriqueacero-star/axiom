@@ -142,29 +142,33 @@ export async function callAgent({ system, user, useSearch = false, maxTokens = 7
     ? [...keys.slice(start), ...keys.slice(0, start)]
     : shuffled(keys);
 
+  let lastErr = null;
   for (let k = 0; k < keyOrder.length; k++) {
     try {
       let text = await callBase(keyOrder[k], system, user, maxTokens, effort);
       if (!text) { await sleep(500); text = await callBase(keyOrder[k], system, user, maxTokens, effort); }
       return { text, grounded: false };
     } catch (err) {
-      if (err.status === 429 && k < keyOrder.length - 1) continue;
-      if (err.status === 429) break;   // all Groq keys spent — try NVIDIA below
-      return { text: '', grounded: false, warning: `Agent error: ${err.message}` };
+      lastErr = err;
+      // 429, 5xx, network — all retryable on the next key. Only a hard 401/403
+      // (bad key) is worth skipping, and even then keep trying the others.
+      if (k < keyOrder.length - 1) continue;
     }
   }
-  // Groq exhausted — NVIDIA NIM fallback (same model).
+  // Every Groq key failed (rate-limited or erroring) — fall through to NVIDIA.
   try {
     const text = await callNvidia(system, user, maxTokens, effort);
     return { text, grounded: false, provider: 'nvidia' };
   } catch {
-    return { text: '', grounded: false, warning: 'All keys exhausted (Groq + NVIDIA)' };
+    return { text: '', grounded: false, warning: `All keys exhausted (Groq: ${lastErr?.message || '?'}; NVIDIA failed)` };
   }
 }
 
 // Multi-turn chat with an agent persona. A little warmth (temp 0.4), no seed —
 // this is conversation, not a verdict.
-export async function callAgentChat({ system, messages, maxTokens = 600, effort = 'medium' }) {
+// 'low' effort — gpt-oss-120b on 'medium' routinely spends the whole token
+// budget on chain-of-thought and returns an empty string for a chat-length reply.
+export async function callAgentChat({ system, messages, maxTokens = 600, effort = 'low' }) {
   const keys = getKeys();
   if (!keys.length) throw new Error('No GROQ keys configured');
   const order = shuffled(keys);

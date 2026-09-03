@@ -39,7 +39,7 @@ export async function runMoveReview() {
         if (latest && Date.now() - (latest.ts || 0) < REVIEW_COOLDOWN_MS) continue;
 
         const result = await runCouncil(ticker, { mode: 'scout', uid });
-        await col.add(result);
+        await col.add({ ...result, trigger: 'move' });
         reviewed++;
         await sendPush(uid, {
           title: `${changePct >= 0 ? '📈' : '📉'} ${ticker} ${changePct >= 0 ? '+' : ''}${changePct.toFixed(1)}% — council re-reviewed`,

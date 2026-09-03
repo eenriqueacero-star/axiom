@@ -380,7 +380,7 @@ router.post('/run', async (req, res) => {
 
   try {
     const result = await runCouncil(ticker, { uid: req.uid });
-    const ref = await col.add(result);
+    const ref = await col.add({ ...result, trigger: 'user' });
     res.json({ id: ref.id, ...result });
   } catch (err) {
     res.status(502).json({ error: `Council run failed: ${err.message}` });

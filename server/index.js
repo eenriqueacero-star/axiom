@@ -65,10 +65,11 @@ app.get('/health', (_, res) => {
   });
 });
 
-// Dedicated wake/heartbeat endpoint for an external uptime pinger.
-app.get('/tick', async (_, res) => {
-  const r = await runDueJobs('tick').catch((e) => ({ error: e.message }));
-  res.json({ ok: true, ts: Date.now(), ...r });
+// Dedicated wake/heartbeat endpoint for an external uptime pinger. Kicks the
+// scheduler and returns immediately — the jobs run in the background.
+app.get('/tick', (_, res) => {
+  runDueJobs('tick').catch(() => {});
+  res.json({ ok: true, ts: Date.now() });
 });
 
 // Global error handler — never leak a stack trace, never crash the process.

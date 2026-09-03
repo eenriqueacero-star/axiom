@@ -153,10 +153,11 @@ async function runEventJob(uid, signal, plan, context) {
     data: { ticker: signal.ticker || undefined, path: '/?tab=floor' },
   }).catch(() => {});
 
-  if (review.reconvene && signal.ticker && TICKER_RE.test(signal.ticker)) {
+  if (review.reconvene && signal.ticker && TICKER_RE.test(signal.ticker) && canSpendEvent(8).ok) {
     try {
+      noteEvent();   // a full council re-run is ~7 more calls — count it
       const result = await runCouncil(signal.ticker, { mode: 'scout', uid });
-      await db.collection(`users/${uid}/analyses`).add(result);
+      await db.collection(`users/${uid}/analyses`).add({ ...result, trigger: 'event' });
     } catch { /* non-fatal */ }
   }
 }
@@ -203,6 +204,9 @@ export async function triageSignal(uid, signal) {
     await saveToVault(uid, { ...vaultEntry(signal), bossNote: 'auto-archived: same name triaged recently' });
     return { decision: 'archive', why: 'cooldown' };
   }
+  // Claim the cooldown slot BEFORE any async work, so a second signal for the
+  // same ticker in the same cycle can't slip past the check above.
+  await markTriaged(uid, ticker);
 
   setAutonomous(true);
   noteEvent();
@@ -211,7 +215,6 @@ export async function triageSignal(uid, signal) {
       firmContext(uid).catch(() => 'No firm state available.'),
       listVault(uid, 6).catch(() => []),
     ]);
-    await markTriaged(uid, ticker);
 
     const plan = await bossTriage({ ...signal, ticker }, context, vault);
 

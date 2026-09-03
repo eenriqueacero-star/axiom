@@ -41,7 +41,7 @@ export async function marketNews({ limit = 20 } = {}) {
 
 export async function tickerNews(ticker, { days = 7, limit = 15 } = {}) {
   const sym = ticker.toUpperCase();
-  return cached(`co:${sym}`, 10 * 60_000, async () => {
+  return cached(`co:${sym}:${days}:${limit}`, 10 * 60_000, async () => {
     const to = new Date().toISOString().slice(0, 10);
     const from = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
     const res = await fetch(

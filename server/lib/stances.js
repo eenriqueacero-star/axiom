@@ -92,6 +92,7 @@ export async function buildStances(uid) {
       verdict: r.verdict || null,
       conviction: r.conviction ?? null,
       mandate: r.mandate || (r.computed?.broken || r.computed?.downtrendExit || r.computed?.concentrationTrim ? 'decision' : 'suggestion'),
+      trigger: r.trigger || 'user',   // user | scout | move | event — who ran this
       tier: r.tier || null,
       tierReasons: r.tierReasons || [],
       headline: r.headline || '',

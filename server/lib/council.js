@@ -49,7 +49,10 @@ export async function fetchLiveData(ticker) {
   const changePct = q.dp ?? null;
   const nextEarnings = earnings.earningsCalendar?.[0]?.date || null;
 
-  const timeStr = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+  // Date only, no clock time — the same facts on the same day must produce the
+  // same prompt (STABILITY RULE). A minute-precise timestamp made borderline
+  // checks flip between two runs 3 minutes apart.
+  const timeStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   const priceStr = price ? `$${price.toFixed(2)}` : 'N/A';
   const changeStr = changePct != null ? ` ${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}% today` : '';
   const earningsLine = nextEarnings
