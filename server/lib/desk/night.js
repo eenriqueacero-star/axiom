@@ -27,17 +27,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const json = extractJSON;
 const today = () => new Date().toISOString().slice(0, 10);
 
-// If the boss's LLM call comes back unparseable, the night still runs on a
-// sensible default: each analyst digs into its own remit against the book.
-const FALLBACK_TASKS = {
-  quality: 'Pull the latest quarterly numbers for our two biggest holdings — is revenue growth and margin holding, or cracking?',
-  trend: 'Check the weekly chart structure on every holding: which are making higher lows, which are rolling over below the 200-day?',
-  catalyst: 'Build the 90-day catalyst calendar for the whole book — earnings dates, product launches, policy decisions.',
-  bear: 'Stress-test the thesis that the entire book is one correlated AI-capex bet. What breaks it, and what would the first sign look like?',
-  sector: 'Is the semiconductor demand cycle still expanding or has it peaked? Find the hard evidence either way.',
-  sizing: 'Given the concentration, what does a sane rebalance path look like — which names get trimmed first, to what weight, over how long?',
-};
-
 async function firmContext(uid) {
   const portfolio = await getPortfolio(uid).catch(() => null);
   const d = diagnose(portfolio || {});
@@ -82,32 +71,29 @@ Keep each task to one sentence. Output ONLY raw JSON, no other text:
 {"focus":"<the firm's biggest open question tonight>","assignments":[{"agentId":"quality","task":"..."},{"agentId":"trend","task":"..."},{"agentId":"catalyst","task":"..."},{"agentId":"bear","task":"..."},{"agentId":"sector","task":"..."},{"agentId":"sizing","task":"..."}]}`;
 
   let parsed = null;
-  for (let attempt = 0; attempt < 2 && !parsed?.assignments?.length; attempt++) {
+  for (let attempt = 0; attempt < 3 && !parsed?.assignments?.length; attempt++) {
     try {
-      const text = await callSynthesis({ system, user: `FIRM STATE:\n${context}\n\nAssign tonight's work. JSON only.`, maxTokens: 1800 });
+      // 'low' reasoning effort — writing six task strings doesn't need deep
+      // chain-of-thought, and it was eating the token budget before the JSON.
+      const text = await callSynthesis({
+        system,
+        user: `FIRM STATE:\n${context}\n\nAssign tonight's work. Return the JSON and nothing else.`,
+        maxTokens: 2000, effort: 'low',
+      });
       parsed = json(text);
-      if (!parsed?.assignments?.length) console.warn('[desk-night] assign parse miss:', String(text).slice(0, 160));
+      if (!parsed?.assignments?.length) console.warn(`[desk-night] assign parse miss (try ${attempt + 1}):`, String(text).slice(0, 200));
     } catch (e) {
-      console.error('[desk-night] assign call failed:', e.message);
+      console.error(`[desk-night] assign call failed (try ${attempt + 1}):`, e.message);
+      await sleep(2000);
     }
   }
+  if (!parsed?.assignments?.length) return { focus: '', assignments: [] };
 
-  if (parsed?.assignments?.length) {
-    // keep only real agent ids, fill any that the boss skipped
-    const seen = new Set();
-    const clean = parsed.assignments
-      .filter((a) => byId[a.agentId] && a.task && !seen.has(a.agentId) && seen.add(a.agentId))
-      .map((a) => ({ agentId: a.agentId, task: String(a.task).slice(0, 300) }));
-    for (const id of Object.keys(FALLBACK_TASKS)) {
-      if (!seen.has(id)) clean.push({ agentId: id, task: FALLBACK_TASKS[id] });
-    }
-    return { focus: parsed.focus || '', assignments: clean };
-  }
-
-  return {
-    focus: 'Standing review — the book is ~100% one theme.',
-    assignments: Object.entries(FALLBACK_TASKS).map(([agentId, task]) => ({ agentId, task })),
-  };
+  const seen = new Set();
+  const assignments = parsed.assignments
+    .filter((a) => byId[a.agentId] && a.task && !seen.has(a.agentId) && seen.add(a.agentId))
+    .map((a) => ({ agentId: a.agentId, task: String(a.task).slice(0, 300) }));
+  return { focus: parsed.focus || '', assignments };
 }
 
 /* -------------------------------------------------------------- research */

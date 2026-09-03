@@ -7,6 +7,42 @@ const MODEL_SEARCH = 'groq/compound';
 const GROQ_URL    = 'https://api.groq.com/openai/v1/chat/completions';
 const COMPOUND_CAP = 600;
 
+// NVIDIA NIM — free OpenAI-compatible fallback. Serves the same gpt-oss-120b, so
+// it's a drop-in when Groq's free keys are rate-limited. Set NVIDIA_API_KEY
+// (one or more, comma-separated) from build.nvidia.com.
+const NVIDIA_URL   = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const NVIDIA_MODEL = 'openai/gpt-oss-120b';
+const nvidiaKeys = () =>
+  (process.env.NVIDIA_API_KEY || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+async function callNvidia(system, user, maxTokens, effort = 'low') {
+  const keys = nvidiaKeys();
+  if (!keys.length) throw Object.assign(new Error('no NVIDIA key'), { status: 0 });
+  recordCall({ autonomous: !!callBase.autonomous });
+  for (const key of shuffled(keys)) {
+    try {
+      const res = await fetch(NVIDIA_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: NVIDIA_MODEL,
+          messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          max_tokens: maxTokens, temperature: 0, top_p: 1,
+          ...(effort ? { reasoning_effort: effort } : {}),
+        }),
+      });
+      if (res.status === 429) continue;
+      if (!res.ok) throw Object.assign(new Error(`NVIDIA ${res.status}`), { status: res.status });
+      const data = await res.json();
+      return data.choices?.[0]?.message?.content || '';
+    } catch (err) {
+      if (err.status === 429) continue;
+      throw err;
+    }
+  }
+  throw Object.assign(new Error('all NVIDIA keys rate-limited'), { status: 429 });
+}
+
 // Deterministic sampling — the same facts must produce the same verdict
 // (definitions.js STABILITY RULE). temperature:0 + a fixed seed.
 const DETERMINISM = { temperature: 0, seed: 42, top_p: 1 };
@@ -107,11 +143,17 @@ export async function callAgent({ system, user, useSearch = false, maxTokens = 7
       return { text, grounded: false };
     } catch (err) {
       if (err.status === 429 && k < keyOrder.length - 1) continue;
-      if (err.status === 429) { await sleep(8000); continue; }
+      if (err.status === 429) break;   // all Groq keys spent — try NVIDIA below
       return { text: '', grounded: false, warning: `Agent error: ${err.message}` };
     }
   }
-  return { text: '', grounded: false, warning: 'All keys exhausted' };
+  // Groq exhausted — NVIDIA NIM fallback (same model).
+  try {
+    const text = await callNvidia(system, user, maxTokens, effort);
+    return { text, grounded: false, provider: 'nvidia' };
+  } catch {
+    return { text: '', grounded: false, warning: 'All keys exhausted (Groq + NVIDIA)' };
+  }
 }
 
 // Multi-turn chat with an agent persona. A little warmth (temp 0.4), no seed —
@@ -187,23 +229,36 @@ export async function checkGroqKeys({ force = false } = {}) {
   return data;
 }
 
-export async function callSynthesis({ system, user, maxTokens = 2000 }) {
-  const keys = getKeys();
-  const key = keys[keys.length - 1];
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await fetch(GROQ_URL, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: MODEL_SYNTH, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, reasoning_effort: 'medium', ...DETERMINISM }),
-      });
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw Object.assign(new Error(e.error?.message), { status: res.status }); }
-      const data = await res.json();
-      return data.choices?.[0]?.message?.content || '';
-    } catch (err) {
-      if (attempt === 0) { await sleep(err.status === 429 ? 20000 : 2000); continue; }
-      throw err;
+export async function callSynthesis({ system, user, maxTokens = 2000, effort = 'medium' }) {
+  const keys = shuffled(getKeys());
+  let lastErr;
+  for (const key of keys) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        recordCall({ autonomous: !!callBase.autonomous });
+        const res = await fetch(GROQ_URL, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ model: MODEL_SYNTH, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: maxTokens, reasoning_effort: effort, ...DETERMINISM }),
+        });
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw Object.assign(new Error(e.error?.message || `Groq ${res.status}`), { status: res.status }); }
+        const data = await res.json();
+        const text = data.choices?.[0]?.message?.content || '';
+        if (text) return text;
+        lastErr = new Error('empty synthesis response');
+      } catch (err) {
+        lastErr = err;
+        if (err.status === 429) break;              // next key
+        if (attempt === 0) { await sleep(2000); continue; }
+        break;
+      }
     }
+  }
+  // Every Groq key is rate-limited or failing — fall through to NVIDIA NIM.
+  try {
+    return await callNvidia(system, user, maxTokens, effort);
+  } catch (err) {
+    throw lastErr || err;
   }
 }
 
