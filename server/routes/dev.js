@@ -9,7 +9,7 @@ import { Router } from 'express';
 import { db } from '../lib/firebase.js';
 import { firmContext } from '../lib/desk/night.js';
 import { createThread, postMessage, getThread } from '../lib/desk/bossChat.js';
-import { sendPush } from './push.js';
+import { notify } from '../lib/notify.js';
 
 const router = Router();
 
@@ -60,16 +60,18 @@ router.post('/boss', async (req, res) => {
   }
 });
 
-// Fire a test push to the user's devices.
+// Fire a test notification (real feed entry + push) to the user.
 router.post('/push-test', async (req, res) => {
   try {
     const uid = await resolveUid(req.body?.uid);
-    const sent = await sendPush(uid, {
+    const r = await notify(uid, {
+      kind: 'desk',
+      severity: 'critical',
       title: req.body?.title || 'Axiom — test',
-      body: req.body?.body || 'Notification pipe check. If you see this, push is working.',
-      data: { path: '/?tab=notifications' },
+      body: req.body?.body || 'End-to-end notification check. If you can read this in the feed, the chain works.',
+      dedupeKey: `dev-test:${Date.now()}`,
     });
-    res.json({ uid, sent });
+    res.json({ uid, ...r });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
