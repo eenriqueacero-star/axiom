@@ -120,30 +120,42 @@ Output ONLY raw JSON: {"brief":"<the morning brief>","notes":[{"ticker":"<or nul
 
 export async function runDeskNight(uid, { reflect = true } = {}) {
   setAutonomous(true);
+  const date = today();
+  const workRef = db.doc(`users/${uid}/deskWork/${date}`);
+  const stamp = (patch) => workRef.set({ date, ts: Date.now(), ...patch }, { merge: true }).catch(() => {});
+
   try {
+    await stamp({ status: 'assigning', startedAt: Date.now() });
     const context = await firmContext(uid);
     const plan = await assign(context);
-    if (!plan.assignments.length) return { ok: false, why: 'no assignments produced' };
+    if (!plan.assignments.length) {
+      await stamp({ status: 'failed', error: 'the boss produced no assignments' });
+      return { ok: false, why: 'no assignments produced' };
+    }
+    await stamp({ status: 'researching', focus: plan.focus, assignments: plan.assignments });
 
     const findings = [];
     for (const a of plan.assignments) {
-      const r = await research(uid, a.agentId, a.task, context).catch(() => null);
-      if (r) findings.push(r);
+      const r = await research(uid, a.agentId, a.task, context).catch((e) => { console.error('[desk-night] research', a.agentId, e.message); return null; });
+      if (r) { findings.push(r); await stamp({ findings }); }
       await sleep(1500);
     }
-    if (!findings.length) return { ok: false, why: 'no findings' };
+    if (!findings.length) {
+      await stamp({ status: 'failed', error: 'no analyst returned usable findings' });
+      return { ok: false, why: 'no findings' };
+    }
 
+    await stamp({ status: 'briefing' });
     const b = await brief(context, plan.focus, findings);
 
-    // File the night.
-    const date = today();
-    await db.doc(`users/${uid}/deskWork/${date}`).set({
-      date, ts: Date.now(),
+    await stamp({
+      status: 'done',
       focus: plan.focus,
       assignments: plan.assignments,
       findings,
       brief: b.brief || '',
-    }, { merge: true }).catch(() => {});
+      finishedAt: Date.now(),
+    });
 
     // Each conclusion becomes a desk note the whole council reads back.
     for (const n of (b.notes || []).slice(0, 8)) {
@@ -169,6 +181,10 @@ export async function runDeskNight(uid, { reflect = true } = {}) {
 
     console.log(`[desk-night] ${uid.slice(0, 6)}… — ${findings.length} findings, ${(b.notes || []).length} notes${reflection ? `, ${reflection.agentId} playbook v${reflection.version}` : ''}`);
     return { ok: true, date, focus: plan.focus, findings: findings.length, notes: (b.notes || []).length, reflection };
+  } catch (err) {
+    console.error('[desk-night] failed:', err.stack || err.message);
+    await stamp({ status: 'failed', error: String(err.message).slice(0, 200) });
+    return { ok: false, why: err.message };
   } finally {
     setAutonomous(false);
   }

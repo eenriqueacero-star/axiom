@@ -21,8 +21,10 @@ function LastNight() {
     const started = Date.now();
     clearInterval(poll.current);
     poll.current = setInterval(async () => {
-      await load();
-      if (Date.now() - started > 3 * 60 * 1000) { clearInterval(poll.current); setRunning(false); }
+      const w = await getDeskWork().then((r) => r.work).catch(() => null);
+      if (w) setWork(w);
+      const settled = w && (w.status === 'done' || w.status === 'failed');
+      if (settled || Date.now() - started > 6 * 60 * 1000) { clearInterval(poll.current); setRunning(false); }
     }, 12000);
   };
 
@@ -42,6 +44,12 @@ function LastNight() {
         <p className="text-[11px] text-haze">
           The desk runs overnight (2 AM ET): the boss assigns each analyst research, they work it, and the findings
           become desk notes the council carries forward. Hit “Convene tonight” to run it now.
+        </p>
+      ) : work.status && work.status !== 'done' ? (
+        <p className={`text-[11px] ${work.status === 'failed' ? 'text-[#f0685f]' : 'text-haze animate-pulse'}`}>
+          {work.status === 'failed'
+            ? `The desk hit a snag: ${work.error || 'unknown error'}`
+            : `The desk is ${work.status}…${(work.findings || []).length ? ` ${work.findings.length}/6 analysts back` : ''}`}
         </p>
       ) : (
         <>
