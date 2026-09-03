@@ -1,0 +1,77 @@
+/**
+ * Developer-only channel. Guarded by a shared secret (DEV_KEY) in the
+ * x-dev-key header — NOT user auth. Lets the developer talk to the boss and
+ * inspect the context he's given, to verify changes without driving the UI.
+ *
+ * Disabled entirely if DEV_KEY is unset.
+ */
+import { Router } from 'express';
+import { db } from '../lib/firebase.js';
+import { firmContext } from '../lib/desk/night.js';
+import { createThread, postMessage, getThread } from '../lib/desk/bossChat.js';
+
+const router = Router();
+
+router.use((req, res, next) => {
+  const key = process.env.DEV_KEY;
+  if (!key) return res.status(404).json({ error: 'dev channel disabled' });
+  if (req.get('x-dev-key') !== key) return res.status(403).json({ error: 'bad dev key' });
+  next();
+});
+
+// Resolve the target user — an explicit id, or the sole user if there's one.
+async function resolveUid(explicit) {
+  if (explicit) return explicit;
+  const snap = await db.collection('users').get();
+  if (snap.size === 1) return snap.docs[0].id;
+  throw new Error(`${snap.size} users — pass "uid"`);
+}
+
+// The exact context string the boss/desk get for this user.
+router.get('/context', async (req, res) => {
+  try {
+    const uid = await resolveUid(req.query.uid);
+    res.json({ uid, context: await firmContext(uid) });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Talk to the boss. Body: { message, threadId?, uid? }. Reuses a thread if given.
+router.post('/boss', async (req, res) => {
+  const message = String(req.body?.message || '').trim();
+  if (!message) return res.status(400).json({ error: 'message required' });
+  try {
+    const uid = await resolveUid(req.body?.uid);
+    let threadId = req.body?.threadId;
+    if (!threadId) {
+      const t = await createThread(uid, { title: 'Dev channel' });
+      threadId = t.id;
+    }
+    const r = await postMessage(uid, threadId, message);
+    if (!r) return res.status(404).json({ error: 'thread not found' });
+    res.json({
+      uid, threadId, reply: r.reply,
+      consulted: (r.consulted || []).map((c) => ({ name: c.name, answer: c.answer })),
+    });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Read a thread back.
+router.get('/boss/:id', async (req, res) => {
+  try {
+    const uid = await resolveUid(req.query.uid);
+    const t = await getThread(uid, req.params.id);
+    if (!t) return res.status(404).json({ error: 'not found' });
+    res.json({
+      threadId: t.id,
+      messages: (t.messages || []).map((m) => ({ role: m.role, name: m.name || null, content: m.content })),
+    });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+export default router;
