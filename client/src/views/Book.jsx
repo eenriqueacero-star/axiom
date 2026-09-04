@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getPortfolio, getStrategyDiagnostics, getFloor, getFloorLive, getStances } from '../api';
+import { getPortfolio, getStrategyDiagnostics, getFloor, getFloorLive, getStances, getLatestAnalysis } from '../api';
 import { useNotifications } from '../hooks/useNotifications';
 import Icon, { AGENT_IDS } from '../ui/Icon';
 import Sheet from '../ui/Sheet';
@@ -89,9 +89,65 @@ function ConvictionBar({ conviction }) {
   );
 }
 
-/* the hero: every position as a row — weight, value, day move, council verdict */
-function Holdings({ rows, total, stances, onRow, dense }) {
+/* a row of compact stat tiles — turns the top band into a real dashboard */
+function StatTiles({ book, cash, sleeve, breaches, names, contribution }) {
+  const tiles = [
+    { k: 'Today', v: book.dayChange == null ? '—' : signed(book.dayChange), sub: book.dayPct != null ? pctStr(book.dayPct * 100) : '', tone: book.dayChange >= 0 ? 'good' : 'crit' },
+    { k: 'Unrealized', v: book.gain == null ? '—' : `${book.gain >= 0 ? '+' : '−'}${money(Math.abs(book.gain))}`, sub: book.gainPct != null ? pctStr(book.gainPct * 100) : '', tone: book.gain >= 0 ? 'good' : 'crit' },
+    { k: 'Cash', v: money(cash), sub: book.value ? `${Math.round(cash / book.value * 100)}% of book` : '' },
+    { k: 'Core sleeve', v: sleeve ? `${Math.round(sleeve.corePct * 100)}%` : '—', sub: sleeve ? `target ${Math.round((sleeve.targetCore || 0.5) * 100)}%` : '' },
+    { k: 'Breaches', v: String(breaches), sub: breaches ? 'see rulebook' : 'all clear', tone: breaches ? 'crit' : '' },
+    { k: 'Names', v: String(names), sub: contribution ? `+${money(contribution)}/wk in` : '' },
+  ];
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+      {tiles.map((t) => (
+        <div key={t.k} className="panel rounded-lg px-3 py-2.5">
+          <div className="label !text-[9px]">{t.k}</div>
+          <div className={`mt-1 font-wide text-[16px] font-semibold tabular-nums ${t.tone === 'good' ? 'text-good' : t.tone === 'crit' ? 'text-crit' : 'text-text'}`}>{t.v}</div>
+          {t.sub && <div className="mono text-[9px] text-faint">{t.sub}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CouncilRead({ ticker, onRun }) {
+  const [a, setA] = useState(undefined);
+  useEffect(() => {
+    let ok = true;
+    getLatestAnalysis(ticker).then((r) => ok && setA(r?.found ? r.analysis : null)).catch(() => ok && setA(null));
+    return () => { ok = false; };
+  }, [ticker]);
+  if (a === undefined) return <p className="px-1 pb-3 text-[11px] text-faint">Pulling the council's read…</p>;
+  if (a === null) return (
+    <div className="px-1 pb-3">
+      <p className="text-[11px] text-faint">No council run on {ticker} yet.</p>
+      <button onClick={() => onRun(ticker)} className="mt-1.5 btn-accent h-7 px-3 text-[10px]">run the council →</button>
+    </div>
+  );
+  return (
+    <div className="space-y-2 px-1 pb-3.5">
+      {a.headline && <p className="text-[12px] leading-snug text-text">{a.headline}</p>}
+      {(a.impact || a.rationale) && <p className="text-[11px] leading-relaxed text-muted">{a.impact || a.rationale}</p>}
+      {Array.isArray(a.agents) && (
+        <ul className="space-y-0.5 pt-0.5">
+          {a.agents.map((ag) => (
+            <li key={ag.id || ag.name} className="text-[10px] leading-snug text-faint">
+              <span className="text-muted">{ag.name}</span>{ag.stance ? ` — ${ag.stance}` : ''}{ag.note ? `: ${ag.note}` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+      <button onClick={() => onRun(ticker)} className="btn-accent h-7 px-3 text-[10px]">run it again →</button>
+    </div>
+  );
+}
+
+/* the hero: every position as a rich 2-line row, expandable to the council's read */
+function Holdings({ rows, total, stances, onRun, dense }) {
   const st = stances?.stances || {};
+  const [open, setOpen] = useState(null);
   if (!rows.length) return <p className="px-1 py-6 text-[11px] text-faint">No positions loaded.</p>;
   return (
     <ul className="divide-y divide-line">
@@ -101,25 +157,43 @@ function Holdings({ rows, total, stances, onRow, dense }) {
         const v = VERDICT[s.verdict];
         const tier = TIER[s.tier];
         const dp = p.changePct;
+        const gp = p.gainPct;
+        const isOpen = open === p.ticker;
         return (
           <li key={p.ticker + p.account}>
-            <button onClick={() => onRow(p.ticker)}
-              className="press grid w-full items-center gap-2.5 py-2.5 text-left
-                grid-cols-[46px_1fr_64px_58px_46px] sm:grid-cols-[52px_1fr_74px_64px_52px]">
-              <span className="mono text-[12px] font-medium text-text">{p.ticker}</span>
-              <span className="relative h-[3px] overflow-hidden rounded-sm bg-line-2">
-                <i className="absolute inset-y-0 left-0 rounded-sm bg-muted" style={{ width: `${Math.min(100, w / 0.4 * 100)}%` }} />
-              </span>
-              <span className="mono text-[11px] text-muted tabular-nums text-right">{money(p.value)}</span>
-              <span className={`mono text-[10px] tabular-nums text-right ${dp == null ? 'text-faint' : dp >= 0 ? 'text-good' : 'text-crit'}`}>
-                {dp == null ? '—' : pctStr(dp)}
-              </span>
-              {v ? (
-                <span className="mono text-[8px] px-1.5 py-0.5 rounded text-center" style={{ color: v.c, background: v.bg }}>{s.verdict}</span>
-              ) : tier ? (
-                <span className="mono text-[8px] text-right" style={{ color: tier.c }}>{s.tier?.slice(0, 4)}</span>
-              ) : <span className="mono text-[8px] text-faint text-right">—</span>}
+            <button onClick={() => setOpen(isOpen ? null : p.ticker)}
+              className="press grid w-full grid-cols-[1fr_auto] items-start gap-3 py-3 text-left">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="mono text-[13px] font-medium text-text">{p.ticker}</span>
+                  {v ? (
+                    <span className="mono text-[8px] px-1.5 py-0.5 rounded" style={{ color: v.c, background: v.bg }}>{s.verdict}</span>
+                  ) : tier ? (
+                    <span className="mono text-[8px]" style={{ color: tier.c }}>{s.tier}</span>
+                  ) : null}
+                  {s.stale && <span className="mono text-[8px] text-faint">stale</span>}
+                  <Icon name="chevron" size={11} className={`text-faint transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <span className="relative h-[3px] w-24 shrink-0 overflow-hidden rounded-sm bg-line-2">
+                    <i className="absolute inset-y-0 left-0 rounded-sm bg-muted" style={{ width: `${Math.min(100, w / 0.4 * 100)}%` }} />
+                  </span>
+                  <span className="mono text-[9px] text-faint tabular-nums">{Math.round(w * 100)}% · {p.shares} sh @ ${Number(p.costBasis || 0).toFixed(2)}</span>
+                </div>
+                {(s.summary || s.headline) && (
+                  <p className="mt-1.5 line-clamp-1 max-w-[46ch] text-[10.5px] leading-tight text-muted">{s.summary || s.headline}</p>
+                )}
+              </div>
+              <div className="text-right">
+                <div className="mono text-[12px] text-text tabular-nums">{money(p.value)}</div>
+                <div className="mt-1.5 flex items-center justify-end gap-2 mono text-[9px] tabular-nums">
+                  {gp != null && <span className={gp >= 0 ? 'text-good' : 'text-crit'}>{pctStr(gp * 100)}</span>}
+                  <span className={dp == null ? 'text-faint' : dp >= 0 ? 'text-good' : 'text-crit'}>{dp == null ? '—' : `${pctStr(dp)} d`}</span>
+                </div>
+                {s.conviction != null && <div className="mt-1 mono text-[9px] text-faint">conv {s.conviction}/10</div>}
+              </div>
             </button>
+            {isOpen && <CouncilRead ticker={p.ticker} onRun={onRun} />}
           </li>
         );
       })}
@@ -249,8 +323,11 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
       dayChange: t.dayChange ?? null,
       dayPct: t.dayChangePct ?? null,
       gain: t.gain ?? null,
+      gainPct: t.gainPct ?? null,
     };
   }, [pf, diag]);
+
+  const cash = useMemo(() => (pf?.accounts || []).reduce((s, a) => s + (a.cash || 0), 0), [pf]);
 
   const rows = useMemo(() => {
     const out = [];
@@ -325,18 +402,22 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
           </div>
           <div className="px-8 pt-3.5">{statusRow}</div>
           {err && <p className="px-8 pt-2 mono text-[11px] text-crit">{err}</p>}
-          <div className="px-8 pb-8 pt-4">
+          <div className="px-8 pt-4">
+            <StatTiles book={book} cash={cash} sleeve={diag?.sleeve} breaches={flags.length}
+              names={rows.length} contribution={pf?.contribution?.weekly} />
+          </div>
+          <div className="px-8 pb-8 pt-6">
             <div className="mb-1 flex items-baseline justify-between">
               <div className="label">Holdings</div>
-              <span className="mono text-[10px] text-faint">{rows.length} names · tap to run the council</span>
+              <span className="mono text-[10px] text-faint">{rows.length} names · tap for the council's read</span>
             </div>
-            <Holdings rows={rows} total={book.value} stances={stances} onRow={openRow} />
+            <Holdings rows={rows} total={book.value} stances={stances} onRun={openRow} />
           </div>
         </div>
-        <aside className="w-[300px] shrink-0 space-y-6 overflow-y-auto border-l border-line px-5 py-6">
+        <aside className="w-[340px] shrink-0 space-y-6 overflow-y-auto border-l border-line px-5 py-6">
           <Allocation diag={diag} onRulebook={() => setSheet('rulebook')} />
           <Breaches flags={flags} onRulebook={() => setSheet('rulebook')} />
-          <Pulse items={notifs.slice(0, 12)} onOpen={onOpenAlert} />
+          <Pulse items={notifs.slice(0, 14)} onOpen={onOpenAlert} />
         </aside>
         {sheets}
       </div>
@@ -353,11 +434,13 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
       </button>
       {err && <p className="px-6 mono text-[11px] text-crit">{err}</p>}
       <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
-        <div className="mb-1 mt-1 flex items-baseline justify-between">
+        <StatTiles book={book} cash={cash} sleeve={diag?.sleeve} breaches={flags.length}
+          names={rows.length} contribution={pf?.contribution?.weekly} />
+        <div className="mb-1 mt-6 flex items-baseline justify-between">
           <div className="label">Holdings</div>
           <span className="mono text-[10px] text-faint">{rows.length} names</span>
         </div>
-        <Holdings rows={rows} total={book.value} stances={stances} onRow={openRow} dense />
+        <Holdings rows={rows} total={book.value} stances={stances} onRun={openRow} dense />
         <div className="mt-6"><Allocation diag={diag} onRulebook={() => setSheet('rulebook')} /></div>
         <div className="mt-6"><Breaches flags={flags} onRulebook={() => setSheet('rulebook')} /></div>
         <div className="mt-6"><Pulse items={notifs.slice(0, 4)} onOpen={onOpenAlert} /></div>
