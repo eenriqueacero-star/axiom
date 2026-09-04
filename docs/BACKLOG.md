@@ -4,6 +4,35 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 ---
 
+## 🔜 Up next (2026-09-04) — don't lose these
+
+0. **FIRESTORE QUOTA — decide + run cleanup.** Hit the 50K/day free-tier read
+   cap tonight (not from this session's testing — root cause was `scoutResults`
+   never being pruned since launch + `analyses` full-collection scans; both
+   are now fixed going forward). Two things still needed:
+   - Once the daily quota resets (Pacific midnight), run these once:
+     `POST /api/dev/analyses/prune-all` and `POST /api/dev/scoutresults/prune`
+     (dev-key header) to shrink what already piled up.
+   - **Decide**: stay on free Spark plan (risk of hitting this again on a
+     heavy day) vs. upgrade to Blaze (pay-as-you-go, cheap at this scale,
+     removes the hard cap). Discussed but not decided.
+1. **Verdict-engine redesign — read `docs/PLAN_VERDICT_ENGINE.md` and answer
+   its 3 open questions.** User's concern: fixed yes/no checks don't fit
+   every stock (a biotech vs a bank vs a REIT). Scoped a hybrid (hard gates
+   stay mechanical, each agent's reasoning opens up per-stock, AXIOM
+   synthesizes bounded by the gates) but needs the user's answers before any
+   code — this changes the verdict engine, do it carefully with the new
+   stability watchdog in shadow mode first.
+2. **Connectivity plan — mostly done tonight**, see `PLAN_CONNECTIVITY.md`.
+   Remaining: the full `agentContext.js` shared assembler (deferred — would
+   touch the verdict engine, see the doc for the safer partial version),
+   CONFIRM-tier actions beyond watchlist (portfolio edits, account mgmt,
+   `strategy_set`), and B14 (unify 3 separate JSON extractors).
+3. Wire the watchlist into the daily discovery scout (currently a real
+   feature but not scouted automatically — the scout job runs once globally
+   against a shared pool, extending it per-user's watchlist is a separate
+   change).
+
 ## 🔜 Up next (2026-09-02) — don't lose these
 
 0. **CHECK THE DESK (2026-09-03+)** — NVIDIA strong model is now wired for synth +
