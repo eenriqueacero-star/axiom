@@ -122,6 +122,27 @@ router.post('/analyses/purge', async (req, res) => {
   }
 });
 
+// Clean up dev-test artefacts (test notifications + "Dev channel" chat threads).
+router.post('/cleanup', async (req, res) => {
+  try {
+    const uid = await resolveUid(req.body?.uid);
+    const nSnap = await db.collection(`users/${uid}/notifications`).get();
+    let notifs = 0;
+    for (const d of nSnap.docs) {
+      const x = d.data();
+      if (/^(dev-test|dev:test)/.test(x.dedupeKey || '') || /^Test /.test(x.title || '')) { await d.ref.delete().catch(() => {}); notifs++; }
+    }
+    const tSnap = await db.collection(`users/${uid}/chats`).get();
+    let threads = 0;
+    for (const d of tSnap.docs) {
+      if ((d.data().title || '') === 'Dev channel') { await d.ref.delete().catch(() => {}); threads++; }
+    }
+    res.json({ uid, deletedNotifications: notifs, deletedThreads: threads });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 // Read a thread back.
 router.get('/boss/:id', async (req, res) => {
   try {
