@@ -16,6 +16,7 @@ import { getPlaybooks, playbookBlock } from './desk/playbooks.js';
 import { backtestVerdictLine } from './quant.js';
 import { macroBlock } from './macro.js';
 import { db } from './firebase.js';
+import { auditVerdict } from './verdictAudit.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -461,6 +462,8 @@ export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
 
   const computed = scoreCouncil(agents, holdings, facts, aw.weights);
   const tier = convictionTier(agents, sym);
+  // Fire-and-forget stability watchdog — logs only, never affects computed.
+  auditVerdict(uid, sym, agents, computed.verdict, computed.conviction).catch(() => {});
 
   const checkLines = AGENTS.map(ag => {
     const r = agents[ag.id] || {};

@@ -10,6 +10,7 @@ import { db } from '../lib/firebase.js';
 import { firmContext } from '../lib/desk/night.js';
 import { createThread, postMessage, getThread } from '../lib/desk/bossChat.js';
 import { notify, listNotifications } from '../lib/notify.js';
+import { listStabilityAlerts } from '../lib/verdictAudit.js';
 
 const router = Router();
 
@@ -117,6 +118,17 @@ router.post('/analyses/purge', async (req, res) => {
     const uid = await resolveUid(req.body?.uid);
     await Promise.all(ids.map((id) => db.doc(`users/${uid}/analyses/${id}`).delete().catch(() => {})));
     res.json({ uid, deleted: ids.length });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Same-day runs where identical agent checks produced a different verdict —
+// should always be empty. A non-empty result means scoreCouncil() is not
+// actually deterministic and needs investigating.
+router.get('/verdict-stability', async (req, res) => {
+  try {
+    res.json({ alerts: await listStabilityAlerts() });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
