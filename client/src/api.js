@@ -51,6 +51,10 @@ export const getKeyStatus = (force = false) =>
 
 // Scheduled-job health — running / failing / overdue + last error.
 export const getJobs = () => request('/status/jobs');
+// Edit a job's schedule: { enabled, everyMs, hours: [startHour, endHour], weekdaysOnly }.
+export const patchJob = (name, patch) => request(`/status/jobs/${name}`, { method: 'PATCH', body: patch });
+// Run one job right now.
+export const runJob = (name) => request(`/status/jobs/${name}/run`, { method: 'POST' });
 
 // Notifications feed + preferences.
 export const getNotifications = (limit = 50) => request(`/notifications?limit=${limit}`);
@@ -132,7 +136,10 @@ export const getVault = () => request('/desk/vault');
 export const getBossThreads = () => request('/desk/chats');
 export const getBossThread = (id) => request(`/desk/chats/${id}`);
 export const newBossThread = (title) => request('/desk/chats', { method: 'POST', body: { title: title || 'Boss' } });
-export const sendBossMessage = (id, text) => request(`/desk/chats/${id}/message`, { method: 'POST', body: { text } });
+// context: { view, focus } — what tab the investor is on + the thing in focus,
+// so the boss's reply is grounded without them having to explain.
+export const sendBossMessage = (id, text, context) =>
+  request(`/desk/chats/${id}/message`, { method: 'POST', body: { text, context } });
 export const resolveBossThread = (id, outcome) => request(`/desk/chats/${id}/resolve`, { method: 'POST', body: { outcome } });
 export const startExecution = (ticker) => request('/desk/execute', { method: 'POST', body: { ticker } });
 export const chatAgent = (id, messages, ticker) =>
