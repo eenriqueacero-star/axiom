@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getPortfolio, getStrategyDiagnostics, getFloor, getFloorLive, getStances } from '../api';
 import { useNotifications } from '../hooks/useNotifications';
-import Icon, { AGENT_IDS } from '../ui/Icon';
+import Icon, { AGENT_IDS, AGENT_META } from '../ui/Icon';
 import Core from '../floor/Core';
 import Sheet from '../ui/Sheet';
 import { AgentSheet } from './sheets/AgentSheet';
@@ -169,6 +169,30 @@ function Pulse({ items, onOpen, className = '' }) {
   );
 }
 
+/* desktop: a row of 6 council chips under the core — fills the frame with live state */
+function CouncilStrip({ agents, onAgent }) {
+  return (
+    <div className="grid grid-cols-6 gap-2 px-8 pb-6 pt-2">
+      {agents.map((a) => {
+        const meta = AGENT_META[a.id] || {};
+        const on = !!a.work;
+        return (
+          <button key={a.id} onClick={() => onAgent(a.id)}
+            className="press panel flex flex-col gap-1.5 rounded-lg p-2.5 text-left">
+            <span className="flex items-center gap-1.5">
+              <i className="h-1.5 w-1.5 rounded-full" style={{ background: meta.color, boxShadow: on ? `0 0 7px ${meta.color}` : 'none', opacity: on ? 1 : 0.35 }} />
+              <span className="mono text-[10px] tracking-[0.08em]" style={{ color: on ? meta.color : 'var(--muted)' }}>{meta.name || a.id}</span>
+            </span>
+            <span className={`truncate text-[10px] leading-tight ${on ? 'text-muted' : 'text-faint'}`}>
+              {on ? a.work.task : 'idle'}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
   const [pf, setPf] = useState(null);
   const [diag, setDiag] = useState(null);
@@ -289,10 +313,11 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
             </span>
           </div>
           {err && <p className="px-8 mono text-[11px] text-crit">{err}</p>}
-          <div className="relative mx-auto w-full max-w-[940px] flex-1 min-h-0">{core}</div>
+          <div className="relative w-full flex-1 min-h-0">{core}</div>
+          <CouncilStrip agents={agents} onAgent={(id) => setSheet(`agent:${id}`)} />
         </div>
-        <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-line px-5 py-5">
-          <Pulse items={notifs.slice(0, 12)} onOpen={onOpenAlert} />
+        <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-line px-5 py-5">
+          <Pulse items={notifs.slice(0, 14)} onOpen={onOpenAlert} />
         </aside>
         {sheets}
       </div>

@@ -49,13 +49,13 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
       // the viewport but stays roughly square so a wide desktop doesn't stretch
       // the constellation and a phone doesn't cramp it.
       const wide = W >= 760;
-      const stageW = Math.min(W - (wide ? 40 : 14), wide ? 820 : 620);
-      const stageH = Math.min(H - (wide ? 48 : 14), wide ? 900 : 620);
-      const S = Math.min(stageW, stageH * 0.82);
+      const stageW = Math.min(W - (wide ? 32 : 14), wide ? 900 : 620);
+      const stageH = Math.min(H - (wide ? 24 : 14), wide ? 900 : 620);
+      const S = Math.min(stageW, stageH);
       cx = W / 2; cy = H / 2 - 2;
-      coreR = S * (wide ? 0.24 : 0.19);
-      const rx = stageW * (wide ? 0.47 : 0.46);
-      const ry = stageH * (wide ? 0.42 : 0.44);
+      coreR = S * (wide ? 0.2 : 0.19);
+      const rx = stageW * (wide ? 0.46 : 0.46);
+      const ry = stageH * (wide ? 0.47 : 0.45);
 
       const list = ids();
       list.forEach((id, i) => {
