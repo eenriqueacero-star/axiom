@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getPortfolio, getStrategyDiagnostics, getFloor, getFloorLive, getStances, getLatestAnalysis } from '../api';
 import { useNotifications } from '../hooks/useNotifications';
+import { useLivePrices } from '../hooks/useLivePrices';
 import Icon, { AGENT_IDS } from '../ui/Icon';
 import Sheet from '../ui/Sheet';
 import { AgentSheet } from './sheets/AgentSheet';
@@ -34,14 +35,18 @@ function relTime(ts) {
 
 function useCountUp(target, ms = 900) {
   const [n, setN] = useState(target == null ? null : 0);
+  const fromRef = useRef(0);
   useEffect(() => {
-    if (target == null) { setN(null); return; }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setN(target); return; }
+    if (target == null) { setN(null); fromRef.current = 0; return; }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setN(target); fromRef.current = target; return; }
+    const from = fromRef.current;
     let raf; const t0 = performance.now();
     const tick = (t) => {
       const p = Math.min(1, (t - t0) / ms);
-      setN(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      const eased = from + (target - from) * (1 - Math.pow(1 - p, 3));
+      setN(Math.round(eased));
       if (p < 1) raf = requestAnimationFrame(tick);
+      else fromRef.current = target;
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -341,6 +346,33 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss }) {
     return out.sort((x, y) => (y.value || 0) - (x.value || 0));
   }, [pf]);
 
+  const liveTickers = useMemo(() => [...new Set(rows.map((r) => r.ticker))], [rows]);
+  const quotes = useLivePrices(liveTickers, 8000);
+
+  // Overlay live quotes onto the last portfolio snapshot — price, position
+  // value, day % and unrealized % all move every few seconds without a full
+  // portfolio refetch. Falls back to the snapshot value whenever a ticker
+  // has no live quote yet.
+  const liveRows = useMemo(() => rows.map((r) => {
+    const q = quotes[r.ticker];
+    if (!q || q.error || q.price == null) return r;
+    const price = q.price;
+    const value = price * (r.shares || 0);
+    const changePct = q.changePct ?? r.changePct;
+    const gainPct = r.costBasis > 0 ? (price - r.costBasis) / r.costBasis : r.gainPct;
+    return { ...r, price, value, changePct, gainPct };
+  }), [rows, quotes]);
+
+  const liveBook = useMemo(() => {
+    const value = liveRows.reduce((s, r) => s + (r.value || 0), 0) + cash;
+    if (!value) return book;
+    const dayChange = liveRows.reduce((s, r) => {
+      if (r.changePct == null || !r.value) return s;
+      return s + r.value * (r.changePct / (100 + r.changePct));
+    }, 0);
+    return { ...book, value, dayChange, dayPct: value ? (dayChange / (value - dayChange)) * 100 : book.dayPct };
+  }, [liveRows, cash, book]);
+
   const conviction = useMemo(() => {
     const c = stances?.tierCounts;
     if (c) {
@@ -398,22 +430,22 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss }) {
           <div className="flex items-stretch justify-between gap-6 border-b border-line px-8 py-7">
             <button onClick={() => setSheet('holdings')} className="text-left">
               <div className="label">The book</div>
-              <div className="mt-2.5"><Value book={book} size="xl" /></div>
+              <div className="mt-2.5"><Value book={liveBook} size="xl" /></div>
               <ConvictionBar conviction={conviction} />
             </button>
           </div>
           <div className="px-8 pt-3.5">{statusRow}</div>
           {err && <p className="px-8 pt-2 mono text-[11px] text-crit">{err}</p>}
           <div className="px-8 pt-4">
-            <StatTiles book={book} cash={cash} sleeve={diag?.sleeve} breaches={flags.length}
-              names={rows.length} contribution={pf?.contribution?.weekly} />
+            <StatTiles book={liveBook} cash={cash} sleeve={diag?.sleeve} breaches={flags.length}
+              names={liveRows.length} contribution={pf?.contribution?.weekly} />
           </div>
           <div className="px-8 pb-8 pt-6">
             <div className="mb-1 flex items-baseline justify-between">
               <div className="label">Holdings</div>
-              <span className="mono text-[10px] text-faint">{rows.length} names · tap for the council's read</span>
+              <span className="mono text-[10px] text-faint">{liveRows.length} names · tap for the council's read</span>
             </div>
-            <Holdings rows={rows} total={book.value} stances={stances} onRun={openRow} />
+            <Holdings rows={liveRows} total={liveBook.value} stances={stances} onRun={openRow} />
           </div>
         </div>
         <aside className="w-[340px] shrink-0 space-y-6 overflow-y-auto border-l border-line px-5 py-6">
@@ -432,18 +464,18 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss }) {
       <div className="px-6 pb-1 pt-4">{statusRow}</div>
       <button onClick={() => setSheet('holdings')} className="block w-full px-6 pb-3 pt-1 text-left">
         <div className="label">The book</div>
-        <div className="mt-1.5"><Value book={book} /></div>
+        <div className="mt-1.5"><Value book={liveBook} /></div>
         <ConvictionBar conviction={conviction} />
       </button>
       {err && <p className="px-6 mono text-[11px] text-crit">{err}</p>}
       <div className="px-6 pb-4">
-        <StatTiles book={book} cash={cash} sleeve={diag?.sleeve} breaches={flags.length}
-          names={rows.length} contribution={pf?.contribution?.weekly} />
+        <StatTiles book={liveBook} cash={cash} sleeve={diag?.sleeve} breaches={flags.length}
+          names={liveRows.length} contribution={pf?.contribution?.weekly} />
         <div className="mb-1 mt-6 flex items-baseline justify-between">
           <div className="label">Holdings</div>
-          <span className="mono text-[10px] text-faint">{rows.length} names</span>
+          <span className="mono text-[10px] text-faint">{liveRows.length} names</span>
         </div>
-        <Holdings rows={rows} total={book.value} stances={stances} onRun={openRow} dense />
+        <Holdings rows={liveRows} total={liveBook.value} stances={stances} onRun={openRow} dense />
         <div className="mt-6"><Allocation diag={diag} onRulebook={() => setSheet('rulebook')} /></div>
         <div className="mt-6"><Breaches flags={flags} onRulebook={() => setSheet('rulebook')} /></div>
         <div className="mt-6"><Pulse items={notifs.slice(0, 4)} onOpen={onOpenAlert} /></div>

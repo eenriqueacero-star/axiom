@@ -90,6 +90,10 @@ export const getQuantStatus = () => request('/quant/status');
 export const getQuantHoldings = () => request('/quant/holdings-now');
 
 export const getPortfolio = () => request('/portfolio');
+
+// Batched live quote lookup — server caches per ticker-set for 45s, so
+// polling this every few seconds costs nothing extra against Finnhub.
+export const getQuotes = (tickers) => request('/quotes', { method: 'POST', body: { tickers } });
 export const setHolding = (accountId, ticker, body) =>
   request(`/portfolio/${accountId}/${ticker.toUpperCase()}`, { method: 'PUT', body });
 export const addTicker = (accountId, ticker) =>
