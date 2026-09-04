@@ -3,7 +3,42 @@ import { getDeskState, getDeskWork, getOpportunities, getDeskEvents, getMacro, g
 import Icon, { AGENT_META, AGENT_IDS } from '../ui/Icon';
 import Core from '../floor/Core';
 import Sheet from '../ui/Sheet';
+import JobsPanel from '../ui/JobsPanel';
+import NewsPanel from '../ui/NewsPanel';
+import { getJobs } from '../api';
 import { AgentSheet } from './sheets/AgentSheet';
+
+function ScheduleCard({ onOpen }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => getJobs().then((r) => alive && setData(r)).catch(() => {});
+    load();
+    const id = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+  const jobs = data?.jobs || [];
+  const failing = data?.failing?.length || jobs.filter((j) => j.status === 'failing').length;
+  const overdue = data?.overdue?.length || jobs.filter((j) => j.status === 'overdue').length;
+  const line = !data
+    ? 'loading…'
+    : failing || overdue
+      ? [overdue && `${overdue} overdue`, failing && `${failing} failing`].filter(Boolean).join(', ')
+      : `${jobs.length} jobs · all running`;
+  return (
+    <button onClick={onOpen}
+      className="press panel rise-in w-full rounded-xl p-4 text-left"
+      style={{ borderLeft: '2px solid var(--accent)', boxShadow: '0 0 24px -12px var(--accent-glow)' }}>
+      <div className="flex items-center gap-2">
+        <Icon name="sync" size={13} className="text-accent" />
+        <h3 className="label !tracking-[0.16em]">The desk's schedule</h3>
+        <Icon name="chevron" size={13} className="ml-auto text-faint" />
+      </div>
+      <p className={`mono text-2xs mt-2 ${failing ? 'text-crit' : overdue ? 'text-warn' : 'text-muted'}`}>{line}</p>
+      <p className="mt-1 text-[11px] text-faint">Tap to view and tune what the desk runs.</p>
+    </button>
+  );
+}
 
 function rel(ts) {
   if (!ts) return '';
@@ -62,6 +97,7 @@ export default function Floor({ desktop, onRun }) {
   const [live, setLive] = useState(null);
   const [diag, setDiag] = useState(null);
   const [sheet, setSheet] = useState(null);
+  const [jobsOpen, setJobsOpen] = useState(false);
 
   const load = () => {
     getDeskState().then((r) => setState(r)).catch(() => {});
@@ -115,6 +151,12 @@ export default function Floor({ desktop, onRun }) {
 
   const deskPanels = (
     <>
+      <ScheduleCard onOpen={() => setJobsOpen(true)} />
+
+      <Panel title="On the wire" icon="news">
+        <NewsPanel compact />
+      </Panel>
+
       <Panel title="Convene" icon="chat">
         <p className="mb-3 text-[11px] leading-relaxed text-muted">
           Two analysts with a real disagreement sit down and talk it out. The result becomes a desk note the whole council reads back.
@@ -215,10 +257,16 @@ export default function Floor({ desktop, onRun }) {
   );
 
   const sheets = (
-    <Sheet open={!!sheet} onClose={() => setSheet(null)} labelledBy="sheet-agent-title">
-      {sheet && <AgentSheet id={sheet} live={live?.agents?.[sheet]} floor={floor}
-        onAnalyze={(t) => { setSheet(null); onRun?.(t); }} />}
-    </Sheet>
+    <>
+      <Sheet open={!!sheet} onClose={() => setSheet(null)} labelledBy="sheet-agent-title">
+        {sheet && <AgentSheet id={sheet} live={live?.agents?.[sheet]} floor={floor}
+          onAnalyze={(t) => { setSheet(null); onRun?.(t); }} />}
+      </Sheet>
+      <Sheet open={jobsOpen} onClose={() => setJobsOpen(false)} labelledBy="sheet-jobs-title">
+        <h2 id="sheet-jobs-title" className="sr-only">The desk's schedule</h2>
+        {jobsOpen && <JobsPanel />}
+      </Sheet>
+    </>
   );
 
   if (desktop) {
