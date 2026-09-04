@@ -9,3 +9,4 @@ quant/.venv/
 quant/.cache/
 quant/__pycache__/
 quant/**/__pycache__/
+.claude/worktrees/

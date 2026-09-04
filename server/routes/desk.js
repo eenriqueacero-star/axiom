@@ -144,8 +144,12 @@ router.get('/chats/:id', async (req, res) => {
 router.post('/chats/:id/message', async (req, res) => {
   const text = String(req.body?.text || '').trim();
   if (!text) return res.status(400).json({ error: 'empty message' });
+  const c = req.body?.context;
+  const viewContext = (c && typeof c === 'object')
+    ? { view: String(c.view || '').slice(0, 40), focus: String(c.focus || '').slice(0, 200) }
+    : undefined;
   try {
-    const r = await postMessage(req.uid, req.params.id, text);
+    const r = await postMessage(req.uid, req.params.id, text, viewContext);
     if (!r) return res.status(404).json({ error: 'no such thread' });
     res.json(r);
   } catch (err) {

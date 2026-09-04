@@ -1,16 +1,22 @@
 import { auth } from './firebase';
 
 const BASE = import.meta.env.VITE_API_BASE || '';
+export const DEV_KEY = import.meta.env.DEV ? (import.meta.env.VITE_DEV_KEY || '') : '';
 
 async function request(path, { method = 'GET', body } = {}) {
-  const user = auth.currentUser;
-  if (!user) throw new Error('Not signed in');
-  const token = await user.getIdToken();
+  let authHeaders;
+  if (DEV_KEY) {
+    authHeaders = { 'x-dev-key': DEV_KEY };
+  } else {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not signed in');
+    authHeaders = { Authorization: `Bearer ${await user.getIdToken()}` };
+  }
 
   const res = await fetch(`${BASE}/api${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${token}`,
+      ...authHeaders,
       ...(body ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -45,6 +51,10 @@ export const getKeyStatus = (force = false) =>
 
 // Scheduled-job health — running / failing / overdue + last error.
 export const getJobs = () => request('/status/jobs');
+// Edit a job's schedule: { enabled, everyMs, hours: [startHour, endHour], weekdaysOnly }.
+export const patchJob = (name, patch) => request(`/status/jobs/${name}`, { method: 'PATCH', body: patch });
+// Run one job right now.
+export const runJob = (name) => request(`/status/jobs/${name}/run`, { method: 'POST' });
 
 // Notifications feed + preferences.
 export const getNotifications = (limit = 50) => request(`/notifications?limit=${limit}`);
@@ -105,6 +115,16 @@ export const reviewHoldings = (force = false) =>
 export const getLatestAnalysis = (ticker) =>
   request(`/council/analysis/${ticker.toUpperCase()}`);
 export const getFloor = () => request('/council/floor');
+
+// The Queue — desk decisions ranked, one screen. Basket = client-side sum of
+// selected items' cash fields; approve just commits the picks to the ledger.
+export const getQueue = () => request('/queue');
+export const skipQueueItem = (id, mode = 'now') => request('/queue/skip', { method: 'POST', body: { id, mode } });
+export const approveQueue = (items) => request('/queue/approve', { method: 'POST', body: { items } });
+export const getLedger = () => request('/queue/ledger');
+export const fillExecution = (id, price, shares) =>
+  request(`/queue/ledger/${id}/fill`, { method: 'POST', body: { price, shares } });
+export const cancelExecution = (id) => request(`/queue/ledger/${id}/cancel`, { method: 'POST' });
 export const getAgentWeights = () => request('/council/agent-weights');
 export const getCalibration = () => request('/council/calibration');
 export const getFloorLive = () => request('/council/floor/live');
@@ -126,7 +146,10 @@ export const getVault = () => request('/desk/vault');
 export const getBossThreads = () => request('/desk/chats');
 export const getBossThread = (id) => request(`/desk/chats/${id}`);
 export const newBossThread = (title) => request('/desk/chats', { method: 'POST', body: { title: title || 'Boss' } });
-export const sendBossMessage = (id, text) => request(`/desk/chats/${id}/message`, { method: 'POST', body: { text } });
+// context: { view, focus } — what tab the investor is on + the thing in focus,
+// so the boss's reply is grounded without them having to explain.
+export const sendBossMessage = (id, text, context) =>
+  request(`/desk/chats/${id}/message`, { method: 'POST', body: { text, context } });
 export const resolveBossThread = (id, outcome) => request(`/desk/chats/${id}/resolve`, { method: 'POST', body: { outcome } });
 export const startExecution = (ticker) => request('/desk/execute', { method: 'POST', body: { ticker } });
 export const chatAgent = (id, messages, ticker) =>
