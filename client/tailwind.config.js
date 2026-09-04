@@ -15,6 +15,7 @@ export default {
         muted: 'var(--muted)',
         faint: 'var(--faint)',
         lit: 'var(--lit)',
+        accent: 'var(--accent)',
         good: 'var(--good)',
         warn: 'var(--warn)',
         crit: 'var(--crit)',
