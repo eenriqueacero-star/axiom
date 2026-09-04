@@ -6,6 +6,7 @@ import { useMedia } from './hooks/useMedia';
 import Book from './views/Book';
 import Run from './views/Run';
 import Alerts from './views/Alerts';
+import You from './views/You';
 import Stub from './views/Stub';
 
 const NAV = [
@@ -82,12 +83,10 @@ export default function App() {
   if (view === 'book') content = <Book desktop={desktop} onOpenAgent={goRun} onOpenAlert={() => setView('alerts')} />;
   else if (view === 'run') content = <Run desktop={desktop} initialTicker={runTicker} />;
   else if (view === 'alerts') content = <Alerts desktop={desktop} openId={alertOpenId} onRun={goRun} />;
-  else if (view === 'floor') content = <Stub icon="floor" title="THE FLOOR"
+  else if (view === 'you') content = <You desktop={desktop} />;
+  else content = <Stub icon="floor" title="THE FLOOR"
     note="The full desk — what the council has settled, last night's brief, the event desk, the agents' rooms. Building now."
     items={['Convene the desk (with feedback)', 'Desk notes browser', 'Opportunities from the sweep', 'Multi-agent chat rooms']} />;
-  else content = <Stub icon="you" title="YOU"
-    note="Account, contributions, broker, notification preferences, job health, backtest. Building now."
-    items={['Contribution ledger', 'Notification prefs + quiet hours', 'Scheduled jobs', 'Strategy vs the index']} />;
 
   if (desktop) {
     return (
