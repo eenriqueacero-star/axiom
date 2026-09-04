@@ -4,6 +4,8 @@ import Icon from './ui/Icon';
 import { useNotifications } from './hooks/useNotifications';
 import { useMedia } from './hooks/useMedia';
 import Book from './views/Book';
+import Run from './views/Run';
+import Alerts from './views/Alerts';
 import Stub from './views/Stub';
 
 const NAV = [
@@ -54,15 +56,20 @@ function NavButton({ n, active, onClick, unread, wide }) {
 export default function App() {
   const { user } = useAuth();
   const [view, setView] = useState('book');
+  const [runTicker, setRunTicker] = useState('');
+  const [alertOpenId, setAlertOpenId] = useState(null);
   const { unread } = useNotifications(20);
   const desktop = useMedia('(min-width: 860px)');
+
+  const goRun = (ticker) => { setRunTicker(ticker || ''); setView('run'); };
 
   useEffect(() => {
     if (!user) return;
     const p = new URLSearchParams(window.location.search);
-    if (p.get('tab') === 'notifications' || p.get('n')) setView('alerts');
+    if (p.get('n')) { setAlertOpenId(p.get('n')); setView('alerts'); }
+    else if (p.get('tab') === 'notifications') setView('alerts');
     else if (p.get('tab') === 'floor') setView('floor');
-    else if (p.get('t')) setView('run');
+    else if (p.get('t')) goRun(p.get('t').toUpperCase());
     if ([...p.keys()].length) window.history.replaceState({}, '', window.location.pathname);
   }, [user]);
 
@@ -71,24 +78,16 @@ export default function App() {
   }
   if (!user) return <Login />;
 
-  const stubs = {
-    floor: <Stub icon="floor" title="THE FLOOR"
-      note="The full desk — what the council has settled, last night's brief, the event desk, the agents' rooms. Next build."
-      items={['Convene the desk (with feedback)', 'Desk notes browser', 'Opportunities from the sweep', 'Multi-agent chat rooms']} />,
-    run: <Stub icon="run" title="RUN THE COUNCIL"
-      note="Pick a ticker, watch the six analysts work their checks, the verdict lands on the floor."
-      items={['Check-by-check as each agent finishes', 'Verdict + conviction + the impact line', 'Proceed → an execution thread']} />,
-    alerts: <Stub icon="alerts" title="ALERTS"
-      note="One feed of everything, filterable by kind, with the full 'what it means for the book' detail."
-      items={['Filter by kind', 'Per-notification detail + actions', 'Notification preferences']} />,
-    you: <Stub icon="you" title="YOU"
-      note="Account, contributions, broker, notification preferences, job health, backtest."
-      items={['Contribution ledger', 'Notification prefs + quiet hours', 'Scheduled jobs', 'Strategy vs the index']} />,
-  };
-
-  const content = view === 'book'
-    ? <Book desktop={desktop} onOpenAgent={() => setView('run')} onOpenAlert={() => setView('alerts')} />
-    : stubs[view];
+  let content;
+  if (view === 'book') content = <Book desktop={desktop} onOpenAgent={goRun} onOpenAlert={() => setView('alerts')} />;
+  else if (view === 'run') content = <Run desktop={desktop} initialTicker={runTicker} />;
+  else if (view === 'alerts') content = <Alerts desktop={desktop} openId={alertOpenId} onRun={goRun} />;
+  else if (view === 'floor') content = <Stub icon="floor" title="THE FLOOR"
+    note="The full desk — what the council has settled, last night's brief, the event desk, the agents' rooms. Building now."
+    items={['Convene the desk (with feedback)', 'Desk notes browser', 'Opportunities from the sweep', 'Multi-agent chat rooms']} />;
+  else content = <Stub icon="you" title="YOU"
+    note="Account, contributions, broker, notification preferences, job health, backtest. Building now."
+    items={['Contribution ledger', 'Notification prefs + quiet hours', 'Scheduled jobs', 'Strategy vs the index']} />;
 
   if (desktop) {
     return (
