@@ -171,7 +171,7 @@ export async function postMessage(uid, id, userText) {
   const convo = [...history];
   let reply = '';
   try {
-    reply = await callAgentChat({ system, messages: convo, maxTokens: 600 });
+    reply = await callAgentChat({ system, messages: convo, maxTokens: 850 });
     for (let hop = 0; hop < 3; hop++) {
       const ask = parseConsult(reply);
       if (!ask) break;
@@ -182,7 +182,7 @@ export async function postMessage(uid, id, userText) {
       convo.push({ role: 'user', content: answer
         ? `${ask.name}: "${answer}"\n\nNow give ME your answer in plain prose — what this means for the plan. Do NOT output any JSON or ask anyone else.`
         : `${ask.name} didn't get back in time. Answer me yourself, in plain prose, from what you know. No JSON.` });
-      reply = await callAgentChat({ system, messages: convo, maxTokens: 600 });
+      reply = await callAgentChat({ system, messages: convo, maxTokens: 850 });
     }
   } catch (e) {
     reply = `Can't get to that right now — ${e.message}. Try me again in a minute.`;
