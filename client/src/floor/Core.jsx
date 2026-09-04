@@ -44,10 +44,16 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
       W = r.width; H = r.height;
       canvas.width = W * DPR; canvas.height = H * DPR;
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+      // Lay agents on an ellipse inside a CENTERED stage, so a wide viewport
+      // doesn't stretch the constellation across dead space.
+      const stageW = Math.min(W - 24, H * 1.35, 560);
+      const stageH = Math.min(H - 20, 520);
       cx = W / 2; cy = H / 2 - 2;
-      coreR = Math.min(W, H) * 0.15;
+      coreR = Math.min(stageW, stageH) * 0.15;
+      const rx = stageW * 0.42, ry = stageH * 0.40;
+
       const list = ids();
-      const rx = Math.min(W * 0.34, 152), ry = H * 0.32;
       list.forEach((id, i) => {
         const ang = -Math.PI / 2 + (i * Math.PI * 2) / list.length;
         const x = cx + Math.cos(ang) * rx;
