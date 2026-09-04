@@ -1,29 +1,71 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Expanded:wght@600;700&family=Martian+Mono:wght@300;400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ---- Axiom — one dark operations world. Committed single theme. ---- */
+:root {
+  --base:    #0b0b0c;
+  --base-2:  #0e0e10;
+  --panel:   #131316;
+  --panel-2: #17171a;
+  --line:    #232327;
+  --line-2:  #2e2e33;
+  --text:    #e9e9ec;
+  --muted:   #7a7a82;
+  --faint:   #55555c;
+  --lit:     #f3efe2;   /* ink on an instrument — the number that matters */
+  --good:    #4bad83;
+  --warn:    #d69a3e;
+  --crit:    #e0574e;
+  --sage:    #a874e8;
+  --rex:     #6d74ee;
+  --nova:    #e6a13c;
+  --vega:    #e05b52;
+  --atlas:   #4b8fe0;
+  --zen:     #43b981;
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
-    background: theme('colors.ink.950');
+    background: #050506;
   }
   body {
-    @apply bg-ink-950 text-neutral-200 font-sans antialiased;
     margin: 0;
     min-height: 100dvh;
+    background: var(--base);
+    color: var(--text);
+    font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
   }
-  ::selection {
-    background: rgba(99, 102, 241, 0.35);
-  }
+  ::selection { background: rgba(125, 134, 240, 0.32); }
+  button { font: inherit; -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid var(--lit); outline-offset: 2px; }
 }
 
-@layer utilities {
-  .card {
-    @apply bg-ink-900 border border-ink-800 rounded-xl;
+@layer components {
+  .mono {
+    font-family: "Martian Mono", ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
   }
-  .hairline {
-    @apply border-ink-800;
+  .label {
+    font-family: "Martian Mono", ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .panel { background: var(--panel); border: 1px solid var(--line); }
+  .hairline { border-color: var(--line); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

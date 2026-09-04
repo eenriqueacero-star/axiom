@@ -5,19 +5,31 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: {
-          950: '#0a0a0b',
-          900: '#111113',
-          850: '#17171a',
-          800: '#1e1e22',
-          700: '#2a2a30',
-          600: '#3a3a42',
+        base: 'var(--base)',
+        'base-2': 'var(--base-2)',
+        panel: 'var(--panel)',
+        'panel-2': 'var(--panel-2)',
+        line: 'var(--line)',
+        'line-2': 'var(--line-2)',
+        text: 'var(--text)',
+        muted: 'var(--muted)',
+        faint: 'var(--faint)',
+        lit: 'var(--lit)',
+        good: 'var(--good)',
+        warn: 'var(--warn)',
+        crit: 'var(--crit)',
+        agent: {
+          sage: 'var(--sage)', rex: 'var(--rex)', nova: 'var(--nova)',
+          vega: 'var(--vega)', atlas: 'var(--atlas)', zen: 'var(--zen)',
         },
-        haze: '#8b8b96',
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+        sans: ['Archivo', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        wide: ['"Archivo Expanded"', 'Archivo', 'sans-serif'],
+        mono: ['"Martian Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
+      fontSize: {
+        '2xs': ['0.625rem', { lineHeight: '1rem' }],
       },
     },
   },
