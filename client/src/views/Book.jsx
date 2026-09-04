@@ -1,22 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getPortfolio, getStrategyDiagnostics, getFloor, getFloorLive, getStances } from '../api';
 import { useNotifications } from '../hooks/useNotifications';
-import Icon, { AGENT_IDS, AGENT_META } from '../ui/Icon';
-import Core from '../floor/Core';
+import Icon, { AGENT_IDS } from '../ui/Icon';
 import Sheet from '../ui/Sheet';
 import { AgentSheet } from './sheets/AgentSheet';
 import { HoldingsSheet } from './sheets/HoldingsSheet';
 import { RulebookSheet } from './sheets/RulebookSheet';
 
 const signed = (n) => `${n >= 0 ? '+' : '−'}$${Math.abs(Math.round(n)).toLocaleString()}`;
+const money = (n) => `$${Math.round(n || 0).toLocaleString()}`;
+const pctStr = (n) => `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)}%`;
 
-const JOB_TASK = {
-  scout: 'Re-rating every holding', alerts: 'Watching for big moves',
-  scorecard: 'Scoring past calls', scan: 'Scanning for news & filings',
-  congress: 'Checking congressional trades', 'boss-sweep': 'Reviewing the inbox',
-};
-const AGENT_JOB = { catalyst: 'scan', trend: 'alerts', quality: 'scorecard', bear: 'scan', sector: 'scout', sizing: 'scorecard' };
 const KIND_ICON = { news: 'news', filing: 'filing', insider: 'insider', congress: 'congress', move: 'move', rating: 'rating', scout: 'scout', desk: 'desk', opportunity: 'opportunity', macro: 'macro' };
+const TIER = {
+  HIGH: { c: 'var(--good)' }, MEDIUM: { c: '#5a6b8c' }, LOW: { c: 'var(--warn)' }, SPECULATIVE: { c: 'var(--crit)' },
+};
+const VERDICT = {
+  ADD: { c: 'var(--good)', bg: 'rgba(75,173,131,0.13)' },
+  HOLD: { c: 'var(--muted)', bg: 'rgba(255,255,255,0.04)' },
+  TRIM: { c: 'var(--warn)', bg: 'rgba(214,154,62,0.13)' },
+  EXIT: { c: 'var(--crit)', bg: 'rgba(224,87,78,0.13)' },
+};
 
 function relTime(ts) {
   if (!ts) return '';
@@ -25,26 +29,6 @@ function relTime(ts) {
   if (s < 3600) return `${Math.floor(s / 60)}m`;
   if (s < 86400) return `${Math.floor(s / 3600)}h`;
   return `${Math.floor(s / 86400)}d`;
-}
-
-function ConvictionBar({ conviction, big }) {
-  if (!conviction) return <div className="mt-3 mono text-[10px] text-faint">council read loading…</div>;
-  return (
-    <div className={big ? 'w-full max-w-[280px]' : ''}>
-      <div className="mt-3 flex h-[3px] gap-[1.5px] overflow-hidden rounded-sm">
-        <span className="bg-good" style={{ width: `${conviction.high * 100}%` }} />
-        <span style={{ width: `${conviction.med * 100}%`, background: '#5a6b8c' }} />
-        <span className="bg-warn" style={{ width: `${conviction.low * 100}%` }} />
-        <span className="bg-crit" style={{ width: `${conviction.spec * 100}%` }} />
-      </div>
-      <div className="mt-1.5 flex justify-between mono text-[9px] tracking-[0.08em] text-faint">
-        <span>HIGH {Math.round(conviction.high * 100)}</span>
-        <span>MED {Math.round(conviction.med * 100)}</span>
-        <span>LOW {Math.round(conviction.low * 100)}</span>
-        <span>SPEC {Math.round(conviction.spec * 100)}</span>
-      </div>
-    </div>
-  );
 }
 
 function useCountUp(target, ms = 900) {
@@ -67,60 +51,100 @@ function useCountUp(target, ms = 900) {
 function Value({ book, size = 'lg' }) {
   const n = useCountUp(book.value == null ? null : Math.round(book.value));
   const cls = size === 'xl'
-    ? 'font-wide text-[52px] font-bold leading-none tracking-tight text-lit tabular-nums'
-    : 'font-wide text-[40px] font-bold leading-none tracking-tight text-lit tabular-nums';
+    ? 'font-wide text-[54px] font-bold leading-none tracking-tight text-lit tabular-nums'
+    : 'font-wide text-[38px] font-bold leading-none tracking-tight text-lit tabular-nums';
   return (
-    <div className="flex items-baseline gap-3">
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
       <span className={cls}>{n == null ? '—' : `$${n.toLocaleString()}`}</span>
       {book.dayChange != null && (
         <span className={`mono flex items-center gap-1 text-xs ${book.dayChange >= 0 ? 'text-good glow-good' : 'text-crit glow-crit'}`}>
           <Icon name="up" size={9} className={book.dayChange >= 0 ? '' : 'rotate-180'} />
-          {signed(book.dayChange)} today
+          {signed(book.dayChange)}{book.dayPct != null ? ` · ${pctStr(book.dayPct * 100)}` : ''} today
+        </span>
+      )}
+      {book.gain != null && (
+        <span className="mono text-[10px] text-faint">
+          {book.gain >= 0 ? '+' : '−'}{money(Math.abs(book.gain))} all-time
         </span>
       )}
     </div>
   );
 }
 
-/* mobile: compact tappable header */
-function BookHead({ book, conviction, alertLine, onTap }) {
+function ConvictionBar({ conviction }) {
+  if (!conviction) return <div className="mt-3 mono text-[10px] text-faint">council read loading…</div>;
+  const seg = [
+    ['high', 'HIGH', 'var(--good)'], ['med', 'MED', '#5a6b8c'],
+    ['low', 'LOW', 'var(--warn)'], ['spec', 'SPEC', 'var(--crit)'],
+  ];
   return (
-    <button onClick={onTap} className="block w-full px-6 pb-3 pt-1 text-left">
-      <div className="label">The book</div>
-      <div className="mt-1.5"><Value book={book} /></div>
-      <ConvictionBar conviction={conviction} />
-      {alertLine && (
-        <div className="mt-2.5 flex items-center gap-1.5 mono text-[10px] tracking-[0.03em] text-warn">
-          <Icon name="warn" size={11} /> {alertLine}
-        </div>
-      )}
-    </button>
+    <div className="mt-3 w-full max-w-[320px]">
+      <div className="flex h-[3px] gap-[1.5px] overflow-hidden rounded-sm">
+        {seg.map(([k, , c]) => <span key={k} style={{ width: `${conviction[k] * 100}%`, background: c }} />)}
+      </div>
+      <div className="mt-1.5 flex justify-between mono text-[9px] tracking-[0.08em] text-faint">
+        {seg.map(([k, label]) => <span key={k}>{label} {Math.round(conviction[k] * 100)}</span>)}
+      </div>
+    </div>
   );
 }
 
-/* desktop: a header band across the top — book value + allocation side by side */
-function BookBand({ book, conviction, diag, alertLine, breaches, onHoldings, onRulebook }) {
-  const sectors = diag?.sectors?.slice(0, 3) || [];
+/* the hero: every position as a row — weight, value, day move, council verdict */
+function Holdings({ rows, total, stances, onRow, dense }) {
+  const st = stances?.stances || {};
+  if (!rows.length) return <p className="px-1 py-6 text-[11px] text-faint">No positions loaded.</p>;
+  return (
+    <ul className="divide-y divide-line">
+      {rows.map((p) => {
+        const w = (p.value || 0) / (total || 1);
+        const s = st[p.ticker] || {};
+        const v = VERDICT[s.verdict];
+        const tier = TIER[s.tier];
+        const dp = p.changePct;
+        return (
+          <li key={p.ticker + p.account}>
+            <button onClick={() => onRow(p.ticker)}
+              className="press grid w-full items-center gap-2.5 py-2.5 text-left
+                grid-cols-[46px_1fr_64px_58px_46px] sm:grid-cols-[52px_1fr_74px_64px_52px]">
+              <span className="mono text-[12px] font-medium text-text">{p.ticker}</span>
+              <span className="relative h-[3px] overflow-hidden rounded-sm bg-line-2">
+                <i className="absolute inset-y-0 left-0 rounded-sm bg-muted" style={{ width: `${Math.min(100, w / 0.4 * 100)}%` }} />
+              </span>
+              <span className="mono text-[11px] text-muted tabular-nums text-right">{money(p.value)}</span>
+              <span className={`mono text-[10px] tabular-nums text-right ${dp == null ? 'text-faint' : dp >= 0 ? 'text-good' : 'text-crit'}`}>
+                {dp == null ? '—' : pctStr(dp)}
+              </span>
+              {v ? (
+                <span className="mono text-[8px] px-1.5 py-0.5 rounded text-center" style={{ color: v.c, background: v.bg }}>{s.verdict}</span>
+              ) : tier ? (
+                <span className="mono text-[8px] text-right" style={{ color: tier.c }}>{s.tier?.slice(0, 4)}</span>
+              ) : <span className="mono text-[8px] text-faint text-right">—</span>}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function Allocation({ diag, onRulebook }) {
+  const sectors = diag?.sectors?.slice(0, 5) || [];
   const core = diag?.sleeve ? Math.round(diag.sleeve.corePct * 100) : null;
   const target = diag?.sleeve ? Math.round((diag.sleeve.targetCore || 0.5) * 100) : 50;
   return (
-    <div className="flex items-stretch gap-6 border-b border-line px-8 py-6">
-      <button onClick={onHoldings} className="text-left">
-        <div className="label">The book</div>
-        <div className="mt-2"><Value book={book} size="xl" /></div>
-        <ConvictionBar conviction={conviction} big />
+    <div>
+      <button onClick={onRulebook} className="label mb-2.5 flex items-center gap-1.5">
+        <i className="h-1 w-1 rounded-full bg-muted" /> Allocation
       </button>
-
-      <div className="ml-auto flex flex-col justify-center gap-1.5 min-w-[220px]">
-        <button onClick={onRulebook} className="label mb-0.5 text-left">Allocation</button>
+      <div className="flex flex-col gap-1.5">
         {core != null && (
           <div className="flex items-center gap-2 text-[11px]">
-            <span className="w-16 text-muted">Core</span>
+            <span className="w-16 shrink-0 text-muted">Core</span>
             <span className="relative h-[3px] flex-1 overflow-hidden rounded-sm bg-line-2">
               <i className="absolute inset-y-0 left-0 bg-muted" style={{ width: `${core}%` }} />
-              <i className="absolute inset-y-0 w-px bg-lit/50" style={{ left: `${target}%` }} />
+              <i className="absolute inset-y-0 w-px bg-lit/60" style={{ left: `${target}%` }} />
             </span>
-            <span className="mono text-muted tabular-nums">{core}%</span>
+            <span className="mono w-9 text-right text-muted tabular-nums">{core}%</span>
           </div>
         )}
         {sectors.map((s) => {
@@ -128,34 +152,55 @@ function BookBand({ book, conviction, diag, alertLine, breaches, onHoldings, onR
           const over = s.pct > 0.35;
           return (
             <div key={s.name} className="flex items-center gap-2 text-[11px]">
-              <span className="w-16 truncate text-muted">{s.name}</span>
+              <span className="w-16 shrink-0 truncate text-muted">{s.name}</span>
               <span className="relative h-[3px] flex-1 overflow-hidden rounded-sm bg-line-2">
                 <i className={`absolute inset-y-0 left-0 ${over ? 'bg-crit' : 'bg-muted'}`} style={{ width: `${Math.min(100, p / 35 * 100)}%` }} />
               </span>
-              <span className={`mono tabular-nums ${over ? 'text-crit' : 'text-muted'}`}>{p}%</span>
+              <span className={`mono w-9 text-right tabular-nums ${over ? 'text-crit' : 'text-muted'}`}>{p}%</span>
             </div>
           );
         })}
-        {alertLine && (
-          <button onClick={onRulebook} className="mt-1 flex items-center gap-1.5 mono text-[10px] text-warn">
-            <Icon name="warn" size={11} /> {breaches} breach{breaches !== 1 ? 'es' : ''}
-          </button>
-        )}
       </div>
     </div>
   );
 }
 
-function Pulse({ items, onOpen, className = '' }) {
+function Breaches({ flags, onRulebook }) {
+  if (!flags?.length) {
+    return (
+      <div>
+        <div className="label mb-2 flex items-center gap-1.5"><i className="h-1 w-1 rounded-full bg-good" /> Rulebook</div>
+        <p className="text-[11px] text-faint">Every rule holds. Nothing for the desk to flag.</p>
+      </div>
+    );
+  }
   return (
-    <div className={className}>
-      <button onClick={onOpen} className="label mb-2 flex items-center gap-1.5">
+    <div>
+      <button onClick={onRulebook} className="label mb-2 flex items-center gap-1.5 text-warn">
+        <Icon name="warn" size={11} /> {flags.length} breach{flags.length !== 1 ? 'es' : ''}
+      </button>
+      <ul className="flex flex-col gap-1.5">
+        {flags.slice(0, 5).map((f, i) => (
+          <li key={i} className="flex gap-2 text-[11px] leading-snug text-muted">
+            <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-crit" />
+            <span>{typeof f === 'string' ? f : f.label || f.msg || f.rule}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Pulse({ items, onOpen }) {
+  return (
+    <div>
+      <button onClick={onOpen} className="label mb-2.5 flex items-center gap-1.5">
         <i className="h-1 w-1 rounded-full bg-muted" /> Pulse
       </button>
       <div className="flex flex-col gap-2">
         {items.map((n) => (
           <button key={n.id} onClick={onOpen}
-            className="grid grid-cols-[13px_1fr_auto] items-center gap-2.5 text-left text-xs text-text">
+            className="press grid grid-cols-[13px_1fr_auto] items-center gap-2.5 rounded-md px-1 py-0.5 text-left text-xs text-text">
             <Icon name={KIND_ICON[n.kind] || 'desk'} size={13} className="text-muted" />
             <span className="truncate">{n.title}</span>
             <time className="mono text-[10px] text-faint">{relTime(n.ts)}</time>
@@ -165,30 +210,6 @@ function Pulse({ items, onOpen, className = '' }) {
           <p className="text-[11px] text-faint">Nothing on the wire. News, filings and the boss's reads land here.</p>
         )}
       </div>
-    </div>
-  );
-}
-
-/* desktop: a row of 6 council chips under the core — fills the frame with live state */
-function CouncilStrip({ agents, onAgent }) {
-  return (
-    <div className="grid grid-cols-6 gap-2 px-8 pb-6 pt-2">
-      {agents.map((a) => {
-        const meta = AGENT_META[a.id] || {};
-        const on = !!a.work;
-        return (
-          <button key={a.id} onClick={() => onAgent(a.id)}
-            className="press panel flex flex-col gap-1.5 rounded-lg p-2.5 text-left">
-            <span className="flex items-center gap-1.5">
-              <i className="h-1.5 w-1.5 rounded-full" style={{ background: meta.color, boxShadow: on ? `0 0 7px ${meta.color}` : 'none', opacity: on ? 1 : 0.35 }} />
-              <span className="mono text-[10px] tracking-[0.08em]" style={{ color: on ? meta.color : 'var(--muted)' }}>{meta.name || a.id}</span>
-            </span>
-            <span className={`truncate text-[10px] leading-tight ${on ? 'text-muted' : 'text-faint'}`}>
-              {on ? a.work.task : 'idle'}
-            </span>
-          </button>
-        );
-      })}
     </div>
   );
 }
@@ -227,8 +248,20 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
       value: t.value ?? diag?.total ?? null,
       dayChange: t.dayChange ?? null,
       dayPct: t.dayChangePct ?? null,
+      gain: t.gain ?? null,
     };
   }, [pf, diag]);
+
+  const rows = useMemo(() => {
+    const out = [];
+    for (const acct of pf?.accounts || []) {
+      for (const p of acct.positions || []) {
+        if (!p.ticker || (p.shares || 0) <= 0) continue;
+        out.push({ ...p, account: acct.label || acct.id || '' });
+      }
+    }
+    return out.sort((x, y) => (y.value || 0) - (x.value || 0));
+  }, [pf]);
 
   const conviction = useMemo(() => {
     const c = stances?.tierCounts;
@@ -242,43 +275,23 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
     return null;
   }, [stances]);
 
-  const sectors = diag?.sectors?.map((s) => ({ name: s.name, pct: s.pct })) || [];
-  const breaches = diag?.flags?.length || 0;
+  const flags = diag?.flags || [];
+  const workingCount = useMemo(() => {
+    if (!live) return 0;
+    const a = live.agents || {};
+    return AGENT_IDS.filter((id) => a[id]?.busy).length || Object.values(live.busy || {}).filter(Boolean).length;
+  }, [live]);
 
-  const agents = useMemo(() => AGENT_IDS.map((id) => {
-    const la = live?.agents?.[id];
-    const jobKey = AGENT_JOB[id];
-    const busy = !!la?.busy || !!live?.busy?.[jobKey];
-    return {
-      id,
-      work: busy ? { task: JOB_TASK[jobKey] || 'Working', startedMs: Date.now() - 60000, pct: 45 } : null,
-      reaction: la?.reaction,
-    };
-  }), [live]);
+  const openRow = (t) => onOpenAgent?.(t);
 
-  const alertLine = useMemo(() => {
-    const parts = [];
-    if (breaches) parts.push(`${breaches} rule breach${breaches > 1 ? 'es' : ''}`);
-    const hot = diag?.sectors?.find((s) => s.pct > 0.35);
-    if (hot) parts.push(`${hot.name.toLowerCase()} ${Math.round(hot.pct * 100)}% of the book`);
-    return parts.join(' · ');
-  }, [diag, breaches]);
-
-  const workingCount = agents.filter((a) => a.work).length;
-
-  const status = (
-    <div className="flex items-center justify-between px-6 pb-3 pt-5 mono text-[10px] tracking-[0.12em] text-faint">
+  const statusRow = (
+    <div className="flex items-center justify-between mono text-[10px] tracking-[0.12em] text-faint">
       <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toUpperCase()} ET</span>
       <span className="flex items-center gap-1.5 text-muted">
         <i className="h-1.5 w-1.5 rounded-full bg-good shadow-[0_0_8px_var(--zen)]" />
-        {workingCount ? `${workingCount} working` : 'desk quiet'}
+        {workingCount ? `${workingCount} on the floor` : 'desk quiet'}
       </span>
     </div>
-  );
-
-  const core = (
-    <Core agents={agents} sectors={sectors} breaches={breaches} dayPct={book.dayPct}
-      onAgent={(id) => setSheet(`agent:${id}`)} onCore={() => setSheet('rulebook')} />
   );
 
   const sheets = (
@@ -302,22 +315,28 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
   if (desktop) {
     return (
       <div className="flex h-full">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <BookBand book={book} conviction={conviction} diag={diag} alertLine={alertLine} breaches={breaches}
-            onHoldings={() => setSheet('holdings')} onRulebook={() => setSheet('rulebook')} />
-          <div className="flex items-center justify-between px-8 pt-3 mono text-[10px] tracking-[0.12em] text-faint">
-            <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toUpperCase()} ET</span>
-            <span className="flex items-center gap-1.5 text-muted">
-              <i className="h-1.5 w-1.5 rounded-full bg-good shadow-[0_0_8px_var(--zen)]" />
-              {workingCount ? `${workingCount} working` : 'desk quiet'}
-            </span>
+        <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+          <div className="flex items-stretch justify-between gap-6 border-b border-line px-8 py-7">
+            <button onClick={() => setSheet('holdings')} className="text-left">
+              <div className="label">The book</div>
+              <div className="mt-2.5"><Value book={book} size="xl" /></div>
+              <ConvictionBar conviction={conviction} />
+            </button>
           </div>
-          {err && <p className="px-8 mono text-[11px] text-crit">{err}</p>}
-          <div className="relative w-full flex-1 min-h-0">{core}</div>
-          <CouncilStrip agents={agents} onAgent={(id) => setSheet(`agent:${id}`)} />
+          <div className="px-8 pt-3.5">{statusRow}</div>
+          {err && <p className="px-8 pt-2 mono text-[11px] text-crit">{err}</p>}
+          <div className="px-8 pb-8 pt-4">
+            <div className="mb-1 flex items-baseline justify-between">
+              <div className="label">Holdings</div>
+              <span className="mono text-[10px] text-faint">{rows.length} names · tap to run the council</span>
+            </div>
+            <Holdings rows={rows} total={book.value} stances={stances} onRow={openRow} />
+          </div>
         </div>
-        <aside className="w-[300px] shrink-0 overflow-y-auto border-l border-line px-5 py-5">
-          <Pulse items={notifs.slice(0, 14)} onOpen={onOpenAlert} />
+        <aside className="w-[300px] shrink-0 space-y-6 overflow-y-auto border-l border-line px-5 py-6">
+          <Allocation diag={diag} onRulebook={() => setSheet('rulebook')} />
+          <Breaches flags={flags} onRulebook={() => setSheet('rulebook')} />
+          <Pulse items={notifs.slice(0, 12)} onOpen={onOpenAlert} />
         </aside>
         {sheets}
       </div>
@@ -326,11 +345,23 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
 
   return (
     <div className="flex h-full flex-col">
-      {status}
-      <BookHead book={book} conviction={conviction} alertLine={alertLine} onTap={() => setSheet('holdings')} />
+      <div className="px-6 pb-1 pt-4">{statusRow}</div>
+      <button onClick={() => setSheet('holdings')} className="block w-full px-6 pb-3 pt-1 text-left">
+        <div className="label">The book</div>
+        <div className="mt-1.5"><Value book={book} /></div>
+        <ConvictionBar conviction={conviction} />
+      </button>
       {err && <p className="px-6 mono text-[11px] text-crit">{err}</p>}
-      <div className="relative flex-1 min-h-0">{core}</div>
-      <Pulse items={notifs.slice(0, 3)} onOpen={onOpenAlert} className="border-t border-line px-5 pb-2 pt-2.5" />
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
+        <div className="mb-1 mt-1 flex items-baseline justify-between">
+          <div className="label">Holdings</div>
+          <span className="mono text-[10px] text-faint">{rows.length} names</span>
+        </div>
+        <Holdings rows={rows} total={book.value} stances={stances} onRow={openRow} dense />
+        <div className="mt-6"><Allocation diag={diag} onRulebook={() => setSheet('rulebook')} /></div>
+        <div className="mt-6"><Breaches flags={flags} onRulebook={() => setSheet('rulebook')} /></div>
+        <div className="mt-6"><Pulse items={notifs.slice(0, 4)} onOpen={onOpenAlert} /></div>
+      </div>
       {sheets}
     </div>
   );
