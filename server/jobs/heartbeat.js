@@ -135,6 +135,32 @@ const JOB_META = Object.fromEntries(JOBS.map((j) => [j.name, j]));
 const stateRef = () => db.doc('state/schedule');
 let running = false;
 
+/**
+ * Per-job overrides live at state/schedule.overrides[name] =
+ *   { enabled?:bool, everyMs?:number, hours?:[startHour,endHour], weekdaysOnly?:bool }
+ * All keys optional. ET hours 0-23.
+ */
+function effEnabled(ov) { return (ov?.enabled ?? true) !== false; }
+function effEveryMs(job, ov) { return typeof ov?.everyMs === 'number' ? ov.everyMs : job.every; }
+function isOverridden(ov) { return !!ov && Object.keys(ov).length > 0; }
+
+// Effective schedule gate. An override gate (hours and/or weekdaysOnly) REPLACES
+// the coded job.when; with neither override gate set, fall back to job.when.
+function gateOpen(job, ov) {
+  const hasHours = Array.isArray(ov?.hours) && ov.hours.length === 2;
+  const hasWeekdays = ov?.weekdaysOnly === true;
+  if (hasHours || hasWeekdays) {
+    const e = etParts();
+    if (hasWeekdays && !e.isWeekday) return false;
+    if (hasHours) {
+      const [start, end] = ov.hours;
+      if (!(e.hour >= start && e.hour <= end)) return false;
+    }
+    return true;
+  }
+  return job.when ? Boolean(job.when()) : true;
+}
+
 export async function runDueJobs(trigger = 'interval') {
   if (running) return { skipped: 'already running' };
   running = true;
@@ -143,12 +169,15 @@ export async function runDueJobs(trigger = 'interval') {
     const data = snap?.data() || {};
     const last = data.lastRun || {};
     const jobs = data.jobs || {};
+    const overrides = data.overrides || {};
     const now = Date.now();
     const ran = [];
 
     for (const job of JOBS) {
-      if (now - (last[job.name] || 0) < job.every) continue;
-      if (job.when && !job.when()) continue;
+      const ov = overrides[job.name] || {};
+      if (!effEnabled(ov)) continue;
+      if (now - (last[job.name] || 0) < effEveryMs(job, ov)) continue;
+      if (!gateOpen(job, ov)) continue;
 
       const startedAt = Date.now();
       last[job.name] = startedAt;
@@ -198,20 +227,89 @@ export async function runDueJobs(trigger = 'interval') {
 }
 
 /**
+ * Run a single job right now, ignoring the every/when gates but writing the same
+ * outcome record + lastRun stamp as a scheduled run.
+ * Returns { name, ok, error, durationMs, result } or { error:'no such job' }.
+ */
+export async function runJobByName(name, trigger = 'manual') {
+  const job = JOB_META[name];
+  if (!job) return { error: 'no such job' };
+
+  const snap = await stateRef().get().catch(() => null);
+  const data = snap?.data() || {};
+  const last = data.lastRun || {};
+  const jobs = data.jobs || {};
+  const prev = jobs[job.name] || {};
+  const startedAt = Date.now();
+  last[job.name] = startedAt;
+
+  let outcome;
+  let result = null;
+  let error = null;
+  let ok = true;
+  try {
+    const r = await job.run();
+    result = r ?? null;
+    outcome = {
+      ok: true,
+      lastRunAt: startedAt,
+      lastOkAt: Date.now(),
+      durationMs: Date.now() - startedAt,
+      result: r ? JSON.stringify(r).slice(0, 300) : null,
+      error: null,
+      consecutiveFailures: 0,
+      runs: (prev.runs || 0) + 1,
+      fails: prev.fails || 0,
+      trigger,
+    };
+    console.log(`[heartbeat] ${job.name} ok (${trigger})`);
+  } catch (e) {
+    ok = false;
+    error = e.message || String(e);
+    outcome = {
+      ok: false,
+      lastRunAt: startedAt,
+      lastOkAt: prev.lastOkAt || null,
+      durationMs: Date.now() - startedAt,
+      result: prev.result || null,
+      error,
+      consecutiveFailures: (prev.consecutiveFailures || 0) + 1,
+      runs: (prev.runs || 0) + 1,
+      fails: (prev.fails || 0) + 1,
+      trigger,
+    };
+    console.error(`[heartbeat] ${job.name} failed (${trigger}):`, error);
+  }
+  jobs[job.name] = outcome;
+  await stateRef().set(
+    { lastRun: last, jobs, updatedAt: Date.now(), trigger },
+    { merge: true },
+  ).catch(() => {});
+
+  return { name, ok, error, durationMs: outcome.durationMs, result };
+}
+
+/**
  * Snapshot of every scheduled job for the app's system view.
  * status: ok | failing | overdue | pending  (pending = never run yet)
  */
 export async function jobsHealth() {
   const snap = await stateRef().get().catch(() => null);
-  const jobs = snap?.data()?.jobs || {};
+  const data = snap?.data() || {};
+  const jobs = data.jobs || {};
+  const overrides = data.overrides || {};
   const now = Date.now();
 
   const list = JOBS.map((job) => {
     const j = jobs[job.name] || {};
-    const gatedOut = Boolean(job.when && !job.when());
+    const ov = overrides[job.name] || {};
+    const enabled = effEnabled(ov);
+    const everyMs = effEveryMs(job, ov);
+    const overridden = isOverridden(ov);
+    const gatedOut = !enabled || !gateOpen(job, ov);
     // overdue = more than 2× its interval since the last run, and it isn't
     // simply outside its scheduled window right now.
-    const overdue = !gatedOut && j.lastRunAt != null && now - j.lastRunAt > job.every * 2;
+    const overdue = !gatedOut && j.lastRunAt != null && now - j.lastRunAt > everyMs * 2;
     let status = 'pending';
     if (j.lastRunAt != null) {
       if (j.ok === false) status = 'failing';
@@ -221,8 +319,12 @@ export async function jobsHealth() {
     return {
       name: job.name,
       label: job.label,
-      everyMs: job.every,
+      everyMs,
       window: job.window || 'always',
+      enabled,
+      overridden,
+      override: overridden ? ov : null,
+      nextDueAt: j.lastRunAt != null ? j.lastRunAt + everyMs : null,
       gatedOut,
       status,
       ok: j.ok ?? null,
