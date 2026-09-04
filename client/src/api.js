@@ -159,6 +159,8 @@ export const startExecution = (ticker) => request('/desk/execute', { method: 'PO
 export const chatAgent = (id, messages, ticker, view) =>
   request(`/council/agent/${id}/chat`, { method: 'POST', body: { messages, ticker, view } });
 export const getDca = () => request('/strategy/dca');
+export const getDigest = () => request('/desk/digest');
+export const markDigestSeen = () => request('/desk/digest/seen', { method: 'POST' });
 
 export const getStrategyDiagnostics = () => request('/strategy/diagnostics');
 export const getStrategyConfig = () => request('/strategy');

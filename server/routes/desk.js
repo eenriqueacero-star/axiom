@@ -12,6 +12,7 @@ import { listThreads, getThread, createThread, createExecutionThread, postMessag
 import { db } from '../lib/firebase.js';
 import { triageSignal, listEventJobs } from '../lib/desk/triage.js';
 import { listOpportunities } from '../lib/desk/sweep.js';
+import { buildDigest, markDigestSeen } from '../lib/digest.js';
 
 const router = Router();
 router.use(verifyToken);
@@ -23,6 +24,19 @@ router.get('/work', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
+});
+
+// "While you were away" — last night's brief, new signals, fresh verdicts,
+// the DCA pick, all since the investor last dismissed the digest.
+router.get('/digest', async (req, res) => {
+  try {
+    res.json(await buildDigest(req.uid));
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+router.post('/digest/seen', async (req, res) => {
+  res.json(await markDigestSeen(req.uid));
 });
 
 // Every analyst's current self-authored playbook + its version history.
