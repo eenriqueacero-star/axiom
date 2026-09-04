@@ -11,6 +11,7 @@ import { buildStances } from './stances.js';
 import { dcaSuggestion } from './dca.js';
 import { topDiscoveries } from './discovery.js';
 import { listSkips } from './executions.js';
+import { sectorOf } from './strategy.js';
 
 const STALE_MS = 3 * 24 * 60 * 60 * 1000;
 const DEFAULT_TRIM_FRACTION = 0.25; // how much of a TRIM position we suggest freeing, absent a sharper rule
@@ -60,6 +61,7 @@ export async function buildQueue(uid) {
       cash, editable: s.verdict === 'TRIM',
       conviction: s.conviction, tier: s.tier,
       source: relSource(s), ts: s.ts, stale: s.stale,
+      sector: sectorOf(ticker), concentrationTrim: !!s.concentrationTrim,
     });
   }
 
@@ -74,6 +76,7 @@ export async function buildQueue(uid) {
         editable: true,
         conviction: null, tier: dca.pick.tier,
         source: `contribution · ${dca.contribution?.kind || 'weekly'}`, ts: now, stale: false,
+        sector: sectorOf(dca.pick.ticker),
       });
     }
   }
@@ -90,7 +93,28 @@ export async function buildQueue(uid) {
       cash: -DEFAULT_OPPORTUNITY_SIZE, editable: true,
       conviction: d.conviction, tier: d.tier,
       source: relSource(d), ts: d.ts, stale: now - (d.ts || 0) > STALE_MS,
+      sector: sectorOf(d.ticker),
     });
+  }
+
+  // Conflicts: the desk pulling in two directions at once.
+  //  1. Same ticker, contradictory action (an ADD and a TRIM/EXIT on the same name).
+  //  2. A concentration-driven TRIM/EXIT (cutting a sector because it's over cap)
+  //     alongside an ADD that would grow the very sector being cut.
+  for (const a of items) {
+    if (a.action !== 'ADD') continue;
+    for (const b of items) {
+      if (b.action === 'ADD') continue;
+      let reason = null;
+      if (a.ticker === b.ticker) {
+        reason = `${a.action} ${a.ticker} and ${b.action} ${b.ticker} are the same name — the desk wants both.`;
+      } else if (b.concentrationTrim && a.sector && a.sector === b.sector) {
+        reason = `${b.action} ${b.ticker} is cutting ${b.sector} for being over cap, but ${a.action} ${a.ticker} would add more ${b.sector} exposure.`;
+      }
+      if (!reason) continue;
+      (a.conflicts ||= []).push({ id: b.id, ticker: b.ticker, action: b.action, reason });
+      (b.conflicts ||= []).push({ id: a.id, ticker: a.ticker, action: a.action, reason });
+    }
   }
 
   // EXIT/TRIM first (capital to free is the more urgent call), then by conviction.

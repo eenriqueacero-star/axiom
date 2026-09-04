@@ -60,6 +60,7 @@ export default function App() {
   const [view, setView] = useState('book');
   const [runTicker, setRunTicker] = useState('');
   const [alertOpenId, setAlertOpenId] = useState(null);
+  const [bossDraft, setBossDraft] = useState(null); // { text, focus } — prefills + opens the boss dock
   const { unread } = useNotifications(20);
   const desktop = useMedia('(min-width: 860px)');
 
@@ -92,7 +93,9 @@ export default function App() {
   if (!user) return <Login />;
 
   let content;
-  if (view === 'book') content = <Book desktop={desktop} onOpenAgent={goRun} onOpenAlert={() => setView('alerts')} />;
+  const askBoss = (text, focus) => setBossDraft({ text, focus });
+
+  if (view === 'book') content = <Book desktop={desktop} onOpenAgent={goRun} onOpenAlert={() => setView('alerts')} onAskBoss={askBoss} />;
   else if (view === 'run') content = <Run desktop={desktop} initialTicker={runTicker} />;
   else if (view === 'alerts') content = <Alerts desktop={desktop} openId={alertOpenId} onRun={goRun} />;
   else if (view === 'you') content = <You desktop={desktop} />;
@@ -108,7 +111,7 @@ export default function App() {
           ))}
         </nav>
         <main key={view} className="min-w-0 flex-1 fade-in">{content}</main>
-        <BossDock view={bossView} onAction={onBossAction} />
+        <BossDock view={bossView} onAction={onBossAction} draft={bossDraft} onDraftConsumed={() => setBossDraft(null)} />
       </div>
     );
   }

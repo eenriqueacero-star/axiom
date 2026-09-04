@@ -14,8 +14,9 @@ function relTime(ts) {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-function Card({ item, checked, onToggle, onAdjust, onSkip }) {
+function Card({ item, checked, onToggle, onAdjust, onSkip, onConvene }) {
   const c = ACTION_COLOR[item.action];
+  const conflict = item.conflicts?.[0];
   return (
     <li className="flex items-start gap-3 border-b border-line py-3 last:border-0">
       <button onClick={() => onToggle(item.id)} aria-pressed={checked}
@@ -32,6 +33,12 @@ function Card({ item, checked, onToggle, onAdjust, onSkip }) {
         </div>
         {item.note && <p className="mt-1 line-clamp-2 max-w-[52ch] text-[11px] leading-snug text-muted">{item.note}</p>}
         <div className="mt-1 mono text-[9px] text-faint">{item.source}{item.ts ? ` · ${relTime(item.ts)}` : ''}</div>
+        {conflict && (
+          <button onClick={() => onConvene(item, conflict)}
+            className="press mt-1.5 flex items-center gap-1 mono text-[9px] text-warn">
+            <Icon name="warn" size={10} /> desk disagrees — convene
+          </button>
+        )}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1">
         <span className={`mono text-[12px] tabular-nums ${item.cash >= 0 ? 'text-good' : 'text-text'}`}>
@@ -133,7 +140,7 @@ function LedgerRow({ e, onFill, onCancel }) {
   );
 }
 
-export default function Queue({ onRun }) {
+export default function Queue({ onRun, onAskBoss }) {
   const [q, setQ] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [checked, setChecked] = useState(() => new Set());
@@ -179,7 +186,19 @@ export default function Queue({ onRun }) {
       setChecked(new Set());
       setShowBasket(false);
       getLedger().then(setLedger).catch(() => {});
+      const lines = selected.map((i) => `${i.action} ${i.ticker}`).join(', ');
+      onAskBoss?.(
+        `I just approved: ${lines}. Walk me through it — anything you'd flag before I place these?`,
+        `approved ${selected.length} from the queue`,
+      );
     } finally { setBusy(false); }
+  };
+
+  const doConvene = (item, conflict) => {
+    onAskBoss?.(
+      `The queue is showing a conflict: ${conflict.reason} Which one should win?`,
+      `queue conflict: ${item.ticker} vs ${conflict.ticker}`,
+    );
   };
 
   const doFill = async (e) => {
@@ -215,7 +234,7 @@ export default function Queue({ onRun }) {
             <ul className="mt-1">
               {items.map((i) => (
                 <Card key={i.id} item={i} checked={checked.has(i.id)} onToggle={toggle}
-                  onAdjust={setAdjustItem} onSkip={setSkipItem} />
+                  onAdjust={setAdjustItem} onSkip={setSkipItem} onConvene={doConvene} />
               ))}
             </ul>
           )}

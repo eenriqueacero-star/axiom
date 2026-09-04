@@ -40,16 +40,28 @@ function Msg({ m }) {
   );
 }
 
-export default function BossDock({ view, focus, onAction }) {
+export default function BossDock({ view, focus, onAction, draft, onDraftConsumed }) {
   const desktop = useMedia('(min-width: 860px)');
   const [open, setOpen] = useState(false);
   const [threadId, setThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [actions, setActions] = useState([]);
   const [text, setText] = useState('');
+  const [pendingFocus, setPendingFocus] = useState(null);
   const [sending, setSending] = useState(false);
   const [unread, setUnread] = useState(false);
   const scrollRef = useRef(null);
+
+  // A caller elsewhere in the app (e.g. "desk disagrees — convene") wants to
+  // open the dock with a question already typed, for the user to review and send.
+  useEffect(() => {
+    if (!draft) return;
+    setOpen(true);
+    setUnread(false);
+    setText(draft.text || '');
+    setPendingFocus(draft.focus || null);
+    onDraftConsumed?.();
+  }, [draft, onDraftConsumed]);
 
   // unread dot poll while closed
   useEffect(() => {
@@ -102,13 +114,14 @@ export default function BossDock({ view, focus, onAction }) {
         id = created?.thread?.id;
         setThreadId(id);
       }
-      const r = await sendBossMessage(id, t, { view, focus });
+      const r = await sendBossMessage(id, t, { view, focus: pendingFocus || focus });
       if (Array.isArray(r?.messages) && r.messages.length) setMessages(r.messages);
       else if (r?.reply) setMessages((m) => [...m, { role: 'assistant', content: r.reply, ts: Date.now() }]);
       setActions(Array.isArray(r?.actions) ? r.actions : []);
     } catch (e) {
       setMessages((m) => [...m, { role: 'assistant', content: `(couldn't reach the desk: ${e.message})`, ts: Date.now() }]);
     }
+    setPendingFocus(null);
     setSending(false);
   };
 
@@ -117,7 +130,7 @@ export default function BossDock({ view, focus, onAction }) {
     setOpen(false);
   };
 
-  const ctx = `on the ${view || 'floor'} screen${focus ? ` · ${focus}` : ''}`;
+  const ctx = `on the ${view || 'floor'} screen${(pendingFocus || focus) ? ` · ${pendingFocus || focus}` : ''}`;
 
   const panelPos = desktop
     ? `right-0 top-0 h-dvh w-[380px] max-w-[92vw] border-l border-line-2 ${open ? 'translate-x-0' : 'translate-x-full'}`

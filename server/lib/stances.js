@@ -101,6 +101,7 @@ export async function buildStances(uid) {
       stale: now - (r.ts || 0) > STALE_MS,
       broken: !!r.computed?.broken,
       downtrend: !!r.computed?.downtrend,
+      concentrationTrim: !!r.computed?.concentrationTrim,
       econ,
       analyzed: true,
     };

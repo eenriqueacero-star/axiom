@@ -289,7 +289,7 @@ function Pulse({ items, onOpen }) {
   );
 }
 
-export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
+export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss }) {
   const [pf, setPf] = useState(null);
   const [diag, setDiag] = useState(null);
   const [floor, setFloor] = useState(null);
@@ -394,7 +394,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
     return (
       <div className="flex h-full">
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-          <Queue onRun={openRow} />
+          <Queue onRun={openRow} onAskBoss={onAskBoss} />
           <div className="flex items-stretch justify-between gap-6 border-b border-line px-8 py-7">
             <button onClick={() => setSheet('holdings')} className="text-left">
               <div className="label">The book</div>
@@ -428,7 +428,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <Queue onRun={openRow} />
+      <Queue onRun={openRow} onAskBoss={onAskBoss} />
       <div className="px-6 pb-1 pt-4">{statusRow}</div>
       <button onClick={() => setSheet('holdings')} className="block w-full px-6 pb-3 pt-1 text-left">
         <div className="label">The book</div>
