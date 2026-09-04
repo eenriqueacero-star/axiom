@@ -19,6 +19,7 @@ import { canSpendEvent, noteEvent } from '../budget.js';
 import { extractJSON, runCouncil } from '../council.js';
 import { getPortfolio } from '../portfolio.js';
 import { firmContext } from './night.js';
+import { saveAnalysis } from '../analyses.js';
 import { notify } from '../notify.js';
 
 const TICKER_RE = /^[A-Z.\-]{1,10}$/;
@@ -145,7 +146,7 @@ Output ONLY a raw JSON array, one object per item:
       noteEvent();
       setAutonomous(true);
       const result = await runCouncil(strong.ticker, { mode: 'scout', uid });
-      await db.collection(`users/${uid}/analyses`).add({ ...result, trigger: 'boss-sweep' });
+      await saveAnalysis(uid, { ...result, trigger: 'boss-sweep' });
       convened = strong.ticker;
     } catch { /* non-fatal */ } finally { setAutonomous(false); }
   }

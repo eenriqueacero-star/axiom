@@ -17,7 +17,7 @@
  */
 import { db } from '../lib/firebase.js';
 import { runDailyScout } from './scoutJob.js';
-import { runPortfolioAlerts, runMoveReview } from './alertJob.js';
+import { runMoveReview } from './alertJob.js';
 import { scanAllHoldingsNews } from '../lib/holdingsNews.js';
 import { scanCongressForHoldings } from '../lib/congress/scan.js';
 import { scoreAllUsers } from '../lib/scorecard.js';
@@ -52,12 +52,12 @@ const JOBS = [
     run: () => scanAllHoldingsNews(),
   },
   {
-    name: 'movers',               // portfolio alerts + ±8% re-review
-    label: 'Price movers + ±8% re-review',
+    name: 'movers',               // ±8% intraday re-review on held names
+    label: 'Price movers ±8% re-review',
     every: 30 * MIN,
     when: marketHours,
     window: 'market hours (weekday 9–17 ET)',
-    run: async () => { await runPortfolioAlerts(); await runMoveReview(); },
+    run: async () => { await runMoveReview(); },
   },
   {
     name: 'scout',                // daily discovery sweep on names you don't own

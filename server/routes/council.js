@@ -20,6 +20,7 @@ import { markUserActivity } from '../lib/budget.js';
 import { dcaSuggestion } from '../lib/dca.js';
 import { congressConfigured, congressTrades } from '../lib/congress/index.js';
 import { backtestVerdictLine } from '../lib/quant.js';
+import { saveAnalysis } from '../lib/analyses.js';
 
 const COMMON_WORDS = new Set(['I', 'A', 'THE', 'MY', 'IS', 'IT', 'DO', 'OK', 'ADD', 'HOLD', 'TRIM', 'EXIT', 'AI', 'US', 'CEO', 'ETF', 'YOU', 'AND', 'OR', 'FOR', 'ARE', 'NOT', 'BUY', 'SELL', 'WHY', 'HOW']);
 const findTicker = (text) => {
@@ -418,7 +419,7 @@ router.post('/run', async (req, res) => {
 
   try {
     const result = await runCouncil(ticker, { uid: req.uid });
-    const ref = await col.add({ ...result, trigger: 'user' });
+    const ref = await saveAnalysis(req.uid, { ...result, trigger: 'user' });
     res.json({ id: ref.id, ...result });
   } catch (err) {
     res.status(502).json({ error: `Council run failed: ${err.message}` });

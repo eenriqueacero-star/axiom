@@ -23,6 +23,7 @@ import { extractJSON, runCouncil } from '../council.js';
 import { saveMemo, listMemos } from '../memos.js';
 import { notify } from '../notify.js';
 import { firmContext, research } from './night.js';
+import { saveAnalysis } from '../analyses.js';
 import { saveToVault, listVault, vaultBlock } from './vault.js';
 
 const byId = Object.fromEntries(AGENTS.map((a) => [a.id, a]));
@@ -159,7 +160,7 @@ async function runEventJob(uid, signal, plan, context) {
     try {
       noteEvent();   // a full council re-run is ~7 more calls — count it
       const result = await runCouncil(signal.ticker, { mode: 'scout', uid });
-      await db.collection(`users/${uid}/analyses`).add({ ...result, trigger: 'event' });
+      await saveAnalysis(uid, { ...result, trigger: 'event' });
     } catch { /* non-fatal */ }
   }
 }

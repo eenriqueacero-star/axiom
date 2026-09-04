@@ -3,6 +3,7 @@ import { db } from '../lib/firebase.js';
 import { notify } from '../lib/notify.js';
 import { runCouncil } from '../lib/council.js';
 import { getPortfolio } from '../lib/portfolio.js';
+import { saveAnalysis } from '../lib/analyses.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -50,7 +51,7 @@ export async function scoutHoldingsForUser(uid, { force = false } = {}) {
         if (fresh && prev.tier && VERDICTS.has(prev.verdict)) continue;
       }
       const result = await runCouncil(ticker, { mode: 'scout', uid });
-      const added = await col.add({ ...result, trigger: 'scout' });
+      const added = await saveAnalysis(uid, { ...result, trigger: 'scout' });
       ran++;
       console.log(`[scout:holdings] ${uid.slice(0, 6)}… ${ticker}: ${result.verdict} ${result.conviction}/10 · ${result.tier}`);
 
