@@ -95,14 +95,14 @@ export default function App() {
             <NavButton key={n.id} n={n} wide active={view === n.id} unread={unread} onClick={() => setView(n.id)} />
           ))}
         </nav>
-        <main className="min-w-0 flex-1">{content}</main>
+        <main key={view} className="min-w-0 flex-1 fade-in">{content}</main>
       </div>
     );
   }
 
   return (
     <div className="flex h-dvh flex-col bg-base" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <main className="min-h-0 flex-1">{content}</main>
+      <main key={view} className="min-h-0 flex-1 fade-in">{content}</main>
       <nav className="grid shrink-0 grid-cols-5 border-t border-line bg-base-2 px-2"
         style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom))', paddingTop: '9px' }}>
         {NAV.map((n) => (

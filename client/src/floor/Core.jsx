@@ -74,15 +74,16 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
     if (document.fonts?.ready) document.fonts.ready.then(layout);
 
     /* an orb only when info genuinely moves — a working agent's query/finding */
+    const active = (a) => a?.work && a.work.pct < 100;
     function sendOrb(id, dir) {
       const a = AG().find((x) => x.id === id);
-      if (!a?.work) return;
+      if (!active(a)) return;
       orbs.push({ id, p: 0, dir, color: AGENT_META[id]?.hex || '#8a8a93' });
     }
     function scheduleExchange(id) {
       clearTimeout(timers[id]);
       const a = AG().find((x) => x.id === id);
-      if (!a?.work || RM) return;
+      if (!active(a) || RM) return;
       timers[id] = setTimeout(() => {
         sendOrb(id, 1);
         setTimeout(() => sendOrb(id, -1), 1300 + Math.random() * 900);
@@ -93,8 +94,8 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
     // re-arm when work state changes
     const reArm = setInterval(() => ids().forEach((id) => {
       const a = AG().find((x) => x.id === id);
-      if (a?.work && !timers[id]) scheduleExchange(id);
-      if (!a?.work && timers[id]) { clearTimeout(timers[id]); delete timers[id]; }
+      if (active(a) && !timers[id]) scheduleExchange(id);
+      if (!active(a) && timers[id]) { clearTimeout(timers[id]); delete timers[id]; }
     }), 3000);
 
     function lobes() {
@@ -249,17 +250,19 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
       {agents.map((a) => {
         const meta = AGENT_META[a.id] || { name: a.id.toUpperCase(), color: 'var(--muted)' };
         const on = !!a.work;
+        const done = on && a.work.pct >= 100;
+        const state = done ? 'done' : on ? 'on' : 'idle';
         return (
           <button
             key={a.id}
             ref={(el) => { nodeRefs.current[a.id] = el; }}
             onClick={(e) => { e.stopPropagation(); onAgent?.(a.id); }}
-            data-work={on ? 'on' : 'idle'}
+            data-work={state}
             style={{ color: meta.color }}
             aria-label={on
-              ? `${meta.name}. Working: ${a.work.task}. ${elapsed(a.work.startedMs)} in, ${a.work.pct}% done.`
+              ? `${meta.name}. ${done ? 'Finished' : 'Working'}: ${a.work.task}. ${elapsed(a.work.startedMs)} in, ${a.work.pct}% done.`
               : `${meta.name}. Idle.`}
-            className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1
+            className="press absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1 rounded-lg
               w-[108px] md:w-[132px] p-1.5 data-[work=idle]:opacity-40 transition-opacity duration-500"
           >
             <span className="relative grid place-items-center rounded-full bg-panel border
@@ -273,15 +276,18 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
                     strokeDashoffset={C * (1 - a.work.pct / 100)} className="transition-[stroke-dashoffset] duration-700" />
                 </svg>
               )}
-              {on && <span className="absolute -inset-1 rounded-full border border-current animate-[apulse_2.4s_ease-out_infinite]" />}
-              <Icon name={a.id} size={15} className="md:hidden" />
-              <Icon name={a.id} size={18} className="hidden md:block" />
+              {on && !done && <span className="absolute -inset-1 rounded-full border border-current animate-[apulse_2.4s_ease-out_infinite]" />}
+              {done
+                ? <Icon name="check" size={15} />
+                : <><Icon name={a.id} size={15} className="md:hidden" /><Icon name={a.id} size={18} className="hidden md:block" /></>}
             </span>
             <span className="mono tracking-[0.14em] mt-0.5 text-[9px] md:text-[10px]">{meta.name}</span>
             {on
               ? <>
                   <span className="leading-tight text-faint line-clamp-2 text-[9px] md:text-[10px] max-w-[108px] md:max-w-[132px]">{a.work.task}</span>
-                  <span className="mono tracking-wider text-[8px] md:text-[9px]">{elapsed(a.work.startedMs)} · {a.work.pct}%</span>
+                  <span className="mono tracking-wider text-[8px] md:text-[9px]">
+                    {done ? `filed ${elapsed(a.work.startedMs)} ago` : `${elapsed(a.work.startedMs)} · ${a.work.pct}%`}
+                  </span>
                 </>
               : <span className="mono tracking-wider text-faint text-[8px] md:text-[9px]">idle</span>}
           </button>
