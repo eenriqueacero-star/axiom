@@ -122,6 +122,34 @@ router.post('/analyses/purge', async (req, res) => {
   }
 });
 
+// Delete ledger (executions) docs by id — for clearing test approvals/fills.
+router.post('/executions/purge', async (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  if (!ids.length) return res.status(400).json({ error: 'ids[] required' });
+  try {
+    const uid = await resolveUid(req.body?.uid);
+    await Promise.all(ids.map((id) => db.doc(`users/${uid}/executions/${id}`).delete().catch(() => {})));
+    res.json({ uid, deleted: ids.length });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Unset acted/actedAt on the latest analysis for a ticker — reverts a test fill.
+router.post('/analyses/unact', async (req, res) => {
+  const ticker = String(req.body?.ticker || '').toUpperCase();
+  if (!ticker) return res.status(400).json({ error: 'ticker required' });
+  try {
+    const uid = await resolveUid(req.body?.uid);
+    const snap = await db.collection(`users/${uid}/analyses`).where('ticker', '==', ticker).orderBy('ts', 'desc').limit(1).get();
+    if (snap.empty) return res.json({ found: false });
+    await snap.docs[0].ref.set({ acted: false, actedAt: null }, { merge: true });
+    res.json({ found: true, id: snap.docs[0].id });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 // Clean up dev-test artefacts (test notifications + "Dev channel" chat threads).
 router.post('/cleanup', async (req, res) => {
   try {
