@@ -8,6 +8,7 @@ import Run from './views/Run';
 import Alerts from './views/Alerts';
 import You from './views/You';
 import Floor from './views/Floor';
+import BossDock from './ui/BossDock';
 
 const NAV = [
   { id: 'book',   icon: 'book',   label: 'Book' },
@@ -64,6 +65,17 @@ export default function App() {
 
   const goRun = (ticker) => { setRunTicker(ticker || ''); setView('run'); };
 
+  // the boss can end a reply with an action pill — route it to the right surface
+  const onBossAction = (a) => {
+    if (!a) return;
+    if (a.view === 'run') goRun((a.param || '').toUpperCase());
+    else if (a.view === 'jobs') setView('floor');
+    else if (['book', 'floor', 'alerts', 'you'].includes(a.view)) setView(a.view);
+  };
+
+  // what the investor is looking at, so the boss's reply is already grounded
+  const bossView = view === 'run' && runTicker ? `run (${runTicker})` : view;
+
   useEffect(() => {
     if (!user) return;
     const p = new URLSearchParams(window.location.search);
@@ -96,6 +108,7 @@ export default function App() {
           ))}
         </nav>
         <main key={view} className="min-w-0 flex-1 fade-in">{content}</main>
+        <BossDock view={bossView} onAction={onBossAction} />
       </div>
     );
   }
@@ -110,6 +123,7 @@ export default function App() {
             onClick={() => setView(n.id)} />
         ))}
       </nav>
+      <BossDock view={bossView} onAction={onBossAction} />
     </div>
   );
 }
