@@ -115,6 +115,16 @@ export const reviewHoldings = (force = false) =>
 export const getLatestAnalysis = (ticker) =>
   request(`/council/analysis/${ticker.toUpperCase()}`);
 export const getFloor = () => request('/council/floor');
+
+// The Queue — desk decisions ranked, one screen. Basket = client-side sum of
+// selected items' cash fields; approve just commits the picks to the ledger.
+export const getQueue = () => request('/queue');
+export const skipQueueItem = (id, mode = 'now') => request('/queue/skip', { method: 'POST', body: { id, mode } });
+export const approveQueue = (items) => request('/queue/approve', { method: 'POST', body: { items } });
+export const getLedger = () => request('/queue/ledger');
+export const fillExecution = (id, price, shares) =>
+  request(`/queue/ledger/${id}/fill`, { method: 'POST', body: { price, shares } });
+export const cancelExecution = (id) => request(`/queue/ledger/${id}/cancel`, { method: 'POST' });
 export const getAgentWeights = () => request('/council/agent-weights');
 export const getCalibration = () => request('/council/calibration');
 export const getFloorLive = () => request('/council/floor/live');

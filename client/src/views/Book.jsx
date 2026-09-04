@@ -6,6 +6,7 @@ import Sheet from '../ui/Sheet';
 import { AgentSheet } from './sheets/AgentSheet';
 import { HoldingsSheet } from './sheets/HoldingsSheet';
 import { RulebookSheet } from './sheets/RulebookSheet';
+import Queue from '../components/Queue';
 
 const signed = (n) => `${n >= 0 ? '+' : '−'}$${Math.abs(Math.round(n)).toLocaleString()}`;
 const money = (n) => `$${Math.round(n || 0).toLocaleString()}`;
@@ -393,6 +394,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
     return (
       <div className="flex h-full">
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+          <Queue onRun={openRow} />
           <div className="flex items-stretch justify-between gap-6 border-b border-line px-8 py-7">
             <button onClick={() => setSheet('holdings')} className="text-left">
               <div className="label">The book</div>
@@ -425,7 +427,8 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-y-auto">
+      <Queue onRun={openRow} />
       <div className="px-6 pb-1 pt-4">{statusRow}</div>
       <button onClick={() => setSheet('holdings')} className="block w-full px-6 pb-3 pt-1 text-left">
         <div className="label">The book</div>
@@ -433,7 +436,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
         <ConvictionBar conviction={conviction} />
       </button>
       {err && <p className="px-6 mono text-[11px] text-crit">{err}</p>}
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-4">
+      <div className="px-6 pb-4">
         <StatTiles book={book} cash={cash} sleeve={diag?.sleeve} breaches={flags.length}
           names={rows.length} contribution={pf?.contribution?.weekly} />
         <div className="mb-1 mt-6 flex items-baseline justify-between">
