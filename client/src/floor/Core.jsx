@@ -49,12 +49,13 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
       // the viewport but stays roughly square so a wide desktop doesn't stretch
       // the constellation and a phone doesn't cramp it.
       const wide = W >= 760;
-      const stageW = Math.min(W - (wide ? 64 : 20), H * 1.25, wide ? 860 : 580);
-      const stageH = Math.min(H - 16, wide ? 760 : 540);
+      const stageW = Math.min(W - (wide ? 48 : 16), H * 1.12, wide ? 760 : 600);
+      const stageH = Math.min(H - 12, wide ? 640 : 560);
+      const S = Math.min(stageW, stageH);
       cx = W / 2; cy = H / 2 - 2;
-      coreR = Math.min(stageW, stageH) * (wide ? 0.16 : 0.155);
-      const rx = stageW * (wide ? 0.46 : 0.44);
-      const ry = stageH * (wide ? 0.44 : 0.42);
+      coreR = S * (wide ? 0.205 : 0.17);
+      const rx = stageW * (wide ? 0.47 : 0.45);
+      const ry = stageH * (wide ? 0.46 : 0.44);
 
       const list = ids();
       list.forEach((id, i) => {
@@ -115,15 +116,32 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
       const spin = RM ? 0 : t * 0.1;
       const LB = lobes();
 
-      /* cables — quiet static, lit in the agent's colour while working */
+      /* cables — quiet static, lit in the agent's colour while working;
+         a faint breath keeps them from looking dead */
+      const cb = RM ? 0.04 : 0.03 + Math.sin(t * 0.7) * 0.012;
       AG().forEach((a) => {
         const p = pos[a.id]; if (!p) return;
         ctx.beginPath();
         ctx.moveTo(cx, cy); ctx.lineTo(p.x, p.y);
-        ctx.strokeStyle = a.work ? `${AGENT_META[a.id]?.hex || '#888'}30` : 'rgba(255,255,255,0.035)';
+        ctx.strokeStyle = a.work ? `${AGENT_META[a.id]?.hex || '#888'}30` : `rgba(255,255,255,${cb})`;
         ctx.lineWidth = a.work ? 1.1 : 1;
         ctx.stroke();
       });
+
+      /* ambient — a slow, faint ring of motes orbiting the core */
+      if (!RM) {
+        const ringR = coreR * 1.9;
+        for (let m = 0; m < 7; m++) {
+          const a = (m / 7) * Math.PI * 2 + t * 0.08 * (m % 2 ? 1 : -1);
+          const rr = ringR * (1 + Math.sin(t * 0.5 + m) * 0.05);
+          const mx = cx + Math.cos(a) * rr;
+          const my = cy + Math.sin(a) * rr * 0.9;
+          ctx.beginPath();
+          ctx.arc(mx, my, 0.9, 0, 7);
+          ctx.fillStyle = `rgba(243,239,226,${0.06 + 0.05 * Math.abs(Math.sin(t + m))})`;
+          ctx.fill();
+        }
+      }
 
       /* orbs with a short trail */
       for (let k = orbs.length - 1; k >= 0; k--) {
@@ -226,7 +244,7 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
   const C = 2 * Math.PI * 20;
 
   return (
-    <div ref={wrapRef} className="relative flex-1 min-h-0" onClick={onCore}>
+    <div ref={wrapRef} className="absolute inset-0 overflow-hidden" onClick={onCore}>
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       {agents.map((a) => {
         const meta = AGENT_META[a.id] || { name: a.id.toUpperCase(), color: 'var(--muted)' };

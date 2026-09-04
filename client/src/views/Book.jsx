@@ -47,15 +47,33 @@ function ConvictionBar({ conviction, big }) {
   );
 }
 
+function useCountUp(target, ms = 900) {
+  const [n, setN] = useState(target == null ? null : 0);
+  useEffect(() => {
+    if (target == null) { setN(null); return; }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setN(target); return; }
+    let raf; const t0 = performance.now();
+    const tick = (t) => {
+      const p = Math.min(1, (t - t0) / ms);
+      setN(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return n;
+}
+
 function Value({ book, size = 'lg' }) {
+  const n = useCountUp(book.value == null ? null : Math.round(book.value));
   const cls = size === 'xl'
     ? 'font-wide text-[52px] font-bold leading-none tracking-tight text-lit tabular-nums'
     : 'font-wide text-[40px] font-bold leading-none tracking-tight text-lit tabular-nums';
   return (
     <div className="flex items-baseline gap-3">
-      <span className={cls}>{book.value == null ? '—' : `$${Math.round(book.value).toLocaleString()}`}</span>
+      <span className={cls}>{n == null ? '—' : `$${n.toLocaleString()}`}</span>
       {book.dayChange != null && (
-        <span className={`mono flex items-center gap-1 text-xs ${book.dayChange >= 0 ? 'text-good' : 'text-crit'}`}>
+        <span className={`mono flex items-center gap-1 text-xs ${book.dayChange >= 0 ? 'text-good glow-good' : 'text-crit glow-crit'}`}>
           <Icon name="up" size={9} className={book.dayChange >= 0 ? '' : 'rotate-180'} />
           {signed(book.dayChange)} today
         </span>
@@ -271,7 +289,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
             </span>
           </div>
           {err && <p className="px-8 mono text-[11px] text-crit">{err}</p>}
-          {core}
+          <div className="relative mx-auto w-full max-w-[940px] flex-1 min-h-0">{core}</div>
         </div>
         <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-line px-5 py-5">
           <Pulse items={notifs.slice(0, 12)} onOpen={onOpenAlert} />
@@ -286,7 +304,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
       {status}
       <BookHead book={book} conviction={conviction} alertLine={alertLine} onTap={() => setSheet('holdings')} />
       {err && <p className="px-6 mono text-[11px] text-crit">{err}</p>}
-      {core}
+      <div className="relative flex-1 min-h-0">{core}</div>
       <Pulse items={notifs.slice(0, 3)} onOpen={onOpenAlert} className="border-t border-line px-5 pb-2 pt-2.5" />
       {sheets}
     </div>

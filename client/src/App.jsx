@@ -33,9 +33,10 @@ function Login() {
 function NavButton({ n, active, onClick, unread, wide }) {
   return (
     <button onClick={onClick} aria-current={active}
-      className={`group flex items-center gap-1 transition-colors
-        ${wide ? 'flex-row w-full rounded-lg px-3 py-2.5' : 'flex-col py-1.5'}
+      className={`press relative flex items-center gap-1 transition-colors duration-200
+        ${wide ? 'w-full flex-row rounded-lg px-3 py-2.5' : 'flex-col py-1.5'}
         ${active ? 'text-lit' : 'text-faint hover:text-muted'}`}>
+      {wide && active && <span className="absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-accent shadow-[0_0_8px_var(--accent-glow)]" />}
       <span className="relative">
         <Icon name={n.icon} size={wide ? 18 : 19}
           style={active ? { filter: 'drop-shadow(0 0 6px rgba(243,239,226,0.4))' } : undefined} />
