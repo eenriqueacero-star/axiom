@@ -1,7 +1,28 @@
 import { getAuth } from 'firebase-admin/auth';
-import { firebaseReady } from './firebase.js';
+import { firebaseReady, db } from './firebase.js';
+
+// Dev bypass: a request carrying x-dev-key == DEV_KEY is treated as the sole
+// user. Lets the redesign be driven from browser automation (no Google popup).
+// Inert unless DEV_KEY is set. Resolved once, cached.
+let devUidPromise = null;
+async function devUid() {
+  if (!devUidPromise) {
+    devUidPromise = (async () => {
+      const snap = await db.collection('users').get();
+      return snap.size === 1 ? snap.docs[0].id : null;
+    })().catch(() => null);
+  }
+  return devUidPromise;
+}
 
 export async function verifyToken(req, res, next) {
+  const key = process.env.DEV_KEY;
+  if (key && req.get('x-dev-key') === key) {
+    const uid = await devUid();
+    if (uid) { req.uid = uid; return next(); }
+    return res.status(409).json({ error: 'dev-key auth needs exactly one user' });
+  }
+
   if (!firebaseReady) return res.status(503).json({ error: 'Auth not configured' });
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) return res.status(401).json({ error: 'Unauthorized' });

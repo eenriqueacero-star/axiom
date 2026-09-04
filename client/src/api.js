@@ -1,16 +1,22 @@
 import { auth } from './firebase';
 
 const BASE = import.meta.env.VITE_API_BASE || '';
+export const DEV_KEY = import.meta.env.DEV ? (import.meta.env.VITE_DEV_KEY || '') : '';
 
 async function request(path, { method = 'GET', body } = {}) {
-  const user = auth.currentUser;
-  if (!user) throw new Error('Not signed in');
-  const token = await user.getIdToken();
+  let authHeaders;
+  if (DEV_KEY) {
+    authHeaders = { 'x-dev-key': DEV_KEY };
+  } else {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not signed in');
+    authHeaders = { Authorization: `Bearer ${await user.getIdToken()}` };
+  }
 
   const res = await fetch(`${BASE}/api${path}`, {
     method,
     headers: {
-      Authorization: `Bearer ${token}`,
+      ...authHeaders,
       ...(body ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
