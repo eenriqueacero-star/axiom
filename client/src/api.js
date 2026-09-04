@@ -156,8 +156,8 @@ export const sendBossMessage = (id, text, context) =>
   request(`/desk/chats/${id}/message`, { method: 'POST', body: { text, context } });
 export const resolveBossThread = (id, outcome) => request(`/desk/chats/${id}/resolve`, { method: 'POST', body: { outcome } });
 export const startExecution = (ticker) => request('/desk/execute', { method: 'POST', body: { ticker } });
-export const chatAgent = (id, messages, ticker) =>
-  request(`/council/agent/${id}/chat`, { method: 'POST', body: { messages, ticker } });
+export const chatAgent = (id, messages, ticker, view) =>
+  request(`/council/agent/${id}/chat`, { method: 'POST', body: { messages, ticker, view } });
 export const getDca = () => request('/strategy/dca');
 
 export const getStrategyDiagnostics = () => request('/strategy/diagnostics');

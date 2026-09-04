@@ -17,6 +17,9 @@ import { agentWeights } from '../lib/agentWeights.js';
 import { getCalibration } from '../lib/calibration.js';
 import { relevantMemos, memoBlock, saveMemo } from '../lib/memos.js';
 import { markUserActivity } from '../lib/budget.js';
+import { dcaSuggestion } from '../lib/dca.js';
+import { congressConfigured, congressTrades } from '../lib/congress/index.js';
+import { backtestVerdictLine } from '../lib/quant.js';
 
 const COMMON_WORDS = new Set(['I', 'A', 'THE', 'MY', 'IS', 'IT', 'DO', 'OK', 'ADD', 'HOLD', 'TRIM', 'EXIT', 'AI', 'US', 'CEO', 'ETF', 'YOU', 'AND', 'OR', 'FOR', 'ARE', 'NOT', 'BUY', 'SELL', 'WHY', 'HOW']);
 const findTicker = (text) => {
@@ -262,13 +265,21 @@ router.post('/agent/:id/chat', async (req, res) => {
   try {
     const lastUser = messages[messages.length - 1].content;
     const t = (String(req.body?.ticker || '').toUpperCase().match(/^[A-Z.\-]{1,10}$/)?.[0]) || findTicker(lastUser);
+    const view = String(req.body?.view || '').slice(0, 60);
 
-    // Every agent chat is grounded in the user's real portfolio + any ticker mentioned.
-    const [portfolio, priced, news, memos] = await Promise.all([
+    // Every agent chat is grounded in the user's real portfolio + any ticker mentioned,
+    // plus the same firm-level signals the council/desk already see (DCA pick, congress
+    // trades, backtest verdict, recent signals) — this was previously the thinnest of
+    // the app's context builders.
+    const [portfolio, priced, news, memos, dca, congress, btLine, signalsSnap] = await Promise.all([
       getPortfolio(req.uid).catch(() => null),
       t ? priceFacts(t).catch(() => ({ block: '' })) : Promise.resolve({ block: '' }),
       t ? tickerNews(t, { days: 7, limit: 4 }).catch(() => []) : Promise.resolve([]),
       relevantMemos(req.uid, { ticker: t, agentId: agent.id }).catch(() => []),
+      dcaSuggestion(req.uid).catch(() => null),
+      (t && congressConfigured()) ? congressTrades({ ticker: t, days: 75 }).catch(() => []) : Promise.resolve([]),
+      backtestVerdictLine(t || null).catch(() => ''),
+      db.collection(`users/${req.uid}/signals`).orderBy('ts', 'desc').limit(20).get().catch(() => null),
     ]);
 
     let context = '';
@@ -295,6 +306,28 @@ router.post('/agent/:id/chat', async (req, res) => {
       context += `\n\nLIVE DATA — ${t}:\n${priced.block}\n${headlines ? 'Recent news:\n' + headlines : ''}`;
     }
     context += memoBlock(memos, { agentId: agent.id });
+
+    if (view) context += `\n\nTHE INVESTOR IS LOOKING AT: ${view}. If their question is vague, assume it's about this.`;
+
+    if (dca?.ready && dca.pick?.ticker) {
+      context += `\n\nNEXT CONTRIBUTION: the DCA engine's current pick is ${dca.pick.ticker} — ${dca.pick.reason}`;
+    } else if (dca?.ready && dca.buffer) {
+      context += `\n\nNEXT CONTRIBUTION: nothing cleared the entry rule this cycle — parking it in ${dca.buffer.etf} (${dca.buffer.reason}).`;
+    }
+
+    if (Array.isArray(congress) && congress.length) {
+      const rows = congress.slice(0, 5).map((c) =>
+        `- ${c.member || 'unknown'} (${c.chamber || '?'}) ${c.type || 'traded'} ${c.ticker} $${c.amountLow ?? '?'}-${c.amountHigh ?? '?'} on ${c.txDate || '?'}`);
+      context += `\n\nCONGRESSIONAL TRADES — ${t} (75d):\n${rows.join('\n')}`;
+    }
+
+    if (btLine) context += `\n\nBACKTEST: ${btLine}`;
+
+    const signals = signalsSnap?.docs?.map((d) => d.data()).filter((s) => !t || s.ticker === t) || [];
+    if (signals.length) {
+      const rows = signals.slice(0, 6).map((s) => `- [${s.kind || 'signal'}] ${s.ticker ? `${s.ticker}: ` : ''}${s.headline || s.title || ''}`);
+      context += `\n\nRECENT SIGNALS:\n${rows.join('\n')}`;
+    }
 
     const system = buildAgentSystem(agent, { context, allowConsult: true });
 
