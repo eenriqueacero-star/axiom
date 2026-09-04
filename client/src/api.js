@@ -160,6 +160,9 @@ export const chatAgent = (id, messages, ticker, view) =>
   request(`/council/agent/${id}/chat`, { method: 'POST', body: { messages, ticker, view } });
 export const getDca = () => request('/strategy/dca');
 export const getDigest = () => request('/desk/digest');
+export const getWatchlist = () => request('/watchlist');
+export const addWatchlist = (ticker, note) => request('/watchlist', { method: 'POST', body: { ticker, note } });
+export const removeWatchlist = (ticker) => request(`/watchlist/${ticker}`, { method: 'DELETE' });
 export const markDigestSeen = () => request('/desk/digest/seen', { method: 'POST' });
 
 export const getStrategyDiagnostics = () => request('/strategy/diagnostics');

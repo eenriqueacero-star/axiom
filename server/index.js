@@ -39,6 +39,7 @@ const { default: congressRoute }  = await import('./routes/congress.js');
 const { default: devRoute }        = await import('./routes/dev.js');
 const { default: notificationsRoute } = await import('./routes/notifications.js');
 const { default: queueRoute }         = await import('./routes/queue.js');
+const { default: watchlistRoute }     = await import('./routes/watchlist.js');
 
 app.use('/api/agent',   agentRoute);
 app.use('/api/council', councilRoute);
@@ -58,6 +59,7 @@ app.use('/api/congress',  congressRoute);
 app.use('/api/dev',       devRoute);
 app.use('/api/notifications', notificationsRoute);
 app.use('/api/queue',         queueRoute);
+app.use('/api/watchlist',     watchlistRoute);
 
 app.get('/health', (_, res) => {
   runDueJobs('health').catch(() => {});   // an uptime pinger on /health keeps the schedule alive

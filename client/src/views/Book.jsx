@@ -9,6 +9,7 @@ import { HoldingsSheet } from './sheets/HoldingsSheet';
 import { RulebookSheet } from './sheets/RulebookSheet';
 import Queue from '../components/Queue';
 import Digest from '../components/Digest';
+import Watchlist from '../components/Watchlist';
 
 const signed = (n) => `${n >= 0 ? '+' : '−'}$${Math.abs(Math.round(n)).toLocaleString()}`;
 const money = (n) => `$${Math.round(n || 0).toLocaleString()}`;
@@ -453,6 +454,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss, act
         <aside className="w-[340px] shrink-0 space-y-6 overflow-y-auto border-l border-line px-5 py-6">
           <Allocation diag={diag} onRulebook={() => setSheet('rulebook')} />
           <Breaches flags={flags} onRulebook={() => setSheet('rulebook')} />
+          <Watchlist onRun={openRow} />
           <Pulse items={notifs.slice(0, 14)} onOpen={onOpenAlert} />
         </aside>
         {sheets}
@@ -481,6 +483,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss, act
         <Holdings rows={liveRows} total={liveBook.value} stances={stances} onRun={openRow} dense />
         <div className="mt-6"><Allocation diag={diag} onRulebook={() => setSheet('rulebook')} /></div>
         <div className="mt-6"><Breaches flags={flags} onRulebook={() => setSheet('rulebook')} /></div>
+        <div className="mt-6"><Watchlist onRun={openRow} /></div>
         <div className="mt-6"><Pulse items={notifs.slice(0, 4)} onOpen={onOpenAlert} /></div>
       </div>
       {sheets}
