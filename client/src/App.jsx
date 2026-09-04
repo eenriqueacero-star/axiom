@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './AuthProvider';
 import Icon from './ui/Icon';
 import { useNotifications } from './hooks/useNotifications';
+import { useMedia } from './hooks/useMedia';
 import Book from './views/Book';
 import Stub from './views/Stub';
 
@@ -19,7 +20,7 @@ function Login() {
     <div className="grid min-h-dvh place-items-center bg-base px-6">
       <div className="text-center">
         <div className="font-wide text-2xl font-bold tracking-tight text-lit">AXIOM</div>
-        <p className="mt-2 mono text-[10px] tracking-[0.22em] text-faint">THE INVESTMENT COMMITTEE</p>
+        <p className="mt-2 mono text-2xs tracking-[0.22em] text-faint">THE INVESTMENT COMMITTEE</p>
         <button onClick={signIn}
           className="mt-8 h-10 rounded-lg bg-lit px-6 mono text-[11px] font-medium tracking-wider text-base">
           Sign in with Google
@@ -29,12 +30,32 @@ function Login() {
   );
 }
 
+function NavButton({ n, active, onClick, unread, wide }) {
+  return (
+    <button onClick={onClick} aria-current={active}
+      className={`group flex items-center gap-1 transition-colors
+        ${wide ? 'flex-row w-full rounded-lg px-3 py-2.5' : 'flex-col py-1.5'}
+        ${active ? 'text-lit' : 'text-faint hover:text-muted'}`}>
+      <span className="relative">
+        <Icon name={n.icon} size={wide ? 18 : 19}
+          style={active ? { filter: 'drop-shadow(0 0 6px rgba(243,239,226,0.4))' } : undefined} />
+        {n.id === 'alerts' && unread > 0 && (
+          <span className="absolute -right-2 -top-1.5 grid h-[14px] min-w-[14px] place-items-center rounded-full bg-crit px-1 mono text-[9px] leading-none text-white">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </span>
+      <span className={`mono uppercase tracking-[0.1em] ${wide ? 'text-[10px]' : 'text-2xs'}`}>{n.label}</span>
+    </button>
+  );
+}
+
 export default function App() {
   const { user } = useAuth();
   const [view, setView] = useState('book');
   const { unread } = useNotifications(20);
+  const desktop = useMedia('(min-width: 860px)');
 
-  // deep links from push / notifications
   useEffect(() => {
     if (!user) return;
     const p = new URLSearchParams(window.location.search);
@@ -49,41 +70,47 @@ export default function App() {
   }
   if (!user) return <Login />;
 
-  return (
-    <div className="mx-auto flex h-dvh max-w-md flex-col bg-base" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-      <main className="min-h-0 flex-1">
-        {view === 'book' && <Book onOpenAgent={(t) => setView('run')} onOpenAlert={() => setView('alerts')} />}
-        {view === 'floor' && <Stub icon="floor" title="THE FLOOR"
-          note="The full desk — what the council has settled, last night's brief, the event desk, and the agents' rooms. Next build."
-          items={['Convene the desk (with feedback when it no-ops)', 'Desk notes browser', 'Opportunities from the inbox sweep', 'Multi-agent chat rooms']} />}
-        {view === 'run' && <Stub icon="run" title="RUN THE COUNCIL"
-          note="Pick a ticker and watch the six analysts work their checks — the verdict lands on the floor. Replaces the old Analyze tab."
-          items={['Live check-by-check as each agent finishes', 'Verdict + conviction + the impact line', 'Proceed → an execution thread with the boss']} />}
-        {view === 'alerts' && <Stub icon="alerts" title="ALERTS"
-          note="One feed of everything — verdict changes, filings, congress trades, the boss's reads — filterable by kind, with the full 'what it means for the book' detail."
-          items={['Filter by kind (news / filing / rating / congress / …)', 'Per-notification detail + actions', 'Notification preferences']} />}
-        {view === 'you' && <Stub icon="you" title="YOU"
-          note="Account, contributions, connected broker, notification preferences, job health, backtest — everything that was scattered across System Status and Scorecard."
-          items={['Contribution ledger', 'Notification prefs + quiet hours', 'Scheduled jobs — all green?', 'Strategy vs the index']} />}
-      </main>
+  const stubs = {
+    floor: <Stub icon="floor" title="THE FLOOR"
+      note="The full desk — what the council has settled, last night's brief, the event desk, the agents' rooms. Next build."
+      items={['Convene the desk (with feedback)', 'Desk notes browser', 'Opportunities from the sweep', 'Multi-agent chat rooms']} />,
+    run: <Stub icon="run" title="RUN THE COUNCIL"
+      note="Pick a ticker, watch the six analysts work their checks, the verdict lands on the floor."
+      items={['Check-by-check as each agent finishes', 'Verdict + conviction + the impact line', 'Proceed → an execution thread']} />,
+    alerts: <Stub icon="alerts" title="ALERTS"
+      note="One feed of everything, filterable by kind, with the full 'what it means for the book' detail."
+      items={['Filter by kind', 'Per-notification detail + actions', 'Notification preferences']} />,
+    you: <Stub icon="you" title="YOU"
+      note="Account, contributions, broker, notification preferences, job health, backtest."
+      items={['Contribution ledger', 'Notification prefs + quiet hours', 'Scheduled jobs', 'Strategy vs the index']} />,
+  };
 
+  const content = view === 'book'
+    ? <Book desktop={desktop} onOpenAgent={() => setView('run')} onOpenAlert={() => setView('alerts')} />
+    : stubs[view];
+
+  if (desktop) {
+    return (
+      <div className="flex h-dvh bg-base">
+        <nav className="flex w-[168px] shrink-0 flex-col gap-1 border-r border-line bg-base-2 p-3">
+          <div className="px-3 pb-4 pt-2 font-wide text-sm font-bold tracking-tight text-lit">AXIOM</div>
+          {NAV.map((n) => (
+            <NavButton key={n.id} n={n} wide active={view === n.id} unread={unread} onClick={() => setView(n.id)} />
+          ))}
+        </nav>
+        <main className="min-w-0 flex-1">{content}</main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-dvh flex-col bg-base" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <main className="min-h-0 flex-1">{content}</main>
       <nav className="grid shrink-0 grid-cols-5 border-t border-line bg-base-2 px-2"
         style={{ paddingBottom: 'calc(8px + env(safe-area-inset-bottom))', paddingTop: '9px' }}>
         {NAV.map((n) => (
-          <button key={n.id} onClick={() => setView(n.id)} aria-current={view === n.id}
-            className={`flex flex-col items-center gap-1 py-1.5 mono text-[8px] uppercase tracking-[0.1em] transition-colors
-              ${view === n.id ? 'text-lit' : 'text-faint'}`}>
-            <span className="relative">
-              <Icon name={n.icon} size={19}
-                style={view === n.id ? { filter: 'drop-shadow(0 0 6px rgba(243,239,226,0.4))' } : undefined} />
-              {n.id === 'alerts' && unread > 0 && (
-                <span className="absolute -right-2 -top-1.5 grid h-[14px] min-w-[14px] place-items-center rounded-full bg-crit px-1 mono text-[9px] leading-none text-white">
-                  {unread > 9 ? '9+' : unread}
-                </span>
-              )}
-            </span>
-            {n.label}
-          </button>
+          <NavButton key={n.id} n={n} active={view === n.id} unread={unread}
+            onClick={() => setView(n.id)} />
         ))}
       </nav>
     </div>
