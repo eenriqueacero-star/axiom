@@ -1,12 +1,14 @@
 /**
  * Daily: check for fresh congressional trades in names each user holds, push
- * once, and drop them into the shared `signals` feed (kind: 'congress').
- * Dormant unless a provider key is set.
+ * once, drop them into the shared `signals` feed (kind: 'congress'), and hand
+ * each one to the event desk (triageSignal) so the boss can act/talk/archive
+ * it like any other material event. Dormant unless a provider key is set.
  */
 import { db } from '../firebase.js';
 import { getPortfolio } from '../portfolio.js';
 import { notify } from '../notify.js';
 import { congressTrades, congressConfigured } from './index.js';
+import { triageSignal } from '../desk/triage.js';
 
 const SEEN_CAP = 400;
 
@@ -46,9 +48,10 @@ export async function scanCongressForHoldings() {
       fresh.push(t.id);
       alerted++;
       const amt = t.amountLow ? `$${(t.amountLow / 1000).toFixed(0)}k–${(t.amountHigh / 1000).toFixed(0)}k` : '';
+      const headline = `${t.member} (${t.chamber}) ${t.type === 'buy' ? 'bought' : 'sold'} ${t.ticker} — ${amt}`;
       const sig = await db.collection(`users/${uid}/signals`).add({
         ticker: t.ticker, kind: 'congress',
-        headline: `${t.member} (${t.chamber}) ${t.type === 'buy' ? 'bought' : 'sold'} ${t.ticker} — ${amt}`,
+        headline,
         url: t.url || '', source: t.source || 'Congress',
         ts: new Date(t.txDate).getTime() || Date.now(),
         material: true, thesis: false, seenAt: Date.now(),
@@ -60,6 +63,11 @@ export async function scanCongressForHoldings() {
         url: t.url || null,
         refKind: sig ? 'signal' : null, refId: sig?.id || null,
       });
+
+      // Hand it to the boss too — a sizable buy/sell in a held name is exactly
+      // the kind of thing the event desk should weigh in on, not just a push.
+      await triageSignal(uid, { ticker: t.ticker, headline, source: t.source || 'Congress', url: t.url || '' })
+        .catch((e) => console.error('[event-desk] from congress:', e.message));
     }
 
     if (fresh.length) {
