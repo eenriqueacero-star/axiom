@@ -4,15 +4,16 @@ import { firebaseReady, db } from './firebase.js';
 // Dev bypass: a request carrying x-dev-key == DEV_KEY is treated as the sole
 // user. Lets the redesign be driven from browser automation (no Google popup).
 // Inert unless DEV_KEY is set. Resolved once, cached.
-let devUidPromise = null;
+let cachedDevUid = null;
 async function devUid() {
-  if (!devUidPromise) {
-    devUidPromise = (async () => {
-      const snap = await db.collection('users').get();
-      return snap.size === 1 ? snap.docs[0].id : null;
-    })().catch(() => null);
+  if (cachedDevUid) return cachedDevUid;
+  try {
+    const snap = await db.collection('users').get();
+    if (snap.size === 1) cachedDevUid = snap.docs[0].id;
+    return cachedDevUid;
+  } catch {
+    return null; // never cache a failed/ambiguous lookup — retry next request
   }
-  return devUidPromise;
 }
 
 export async function verifyToken(req, res, next) {

@@ -11,6 +11,7 @@ import { firmContext } from '../lib/desk/night.js';
 import { createThread, postMessage, getThread } from '../lib/desk/bossChat.js';
 import { notify, listNotifications } from '../lib/notify.js';
 import { listStabilityAlerts } from '../lib/verdictAudit.js';
+import { pruneAllAnalyses } from '../lib/analyses.js';
 
 const router = Router();
 
@@ -129,6 +130,41 @@ router.post('/analyses/purge', async (req, res) => {
 router.get('/verdict-stability', async (req, res) => {
   try {
     res.json({ alerts: await listStabilityAlerts() });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// One-time retroactive cleanup — analyses.js's saveAnalysis() only prunes on
+// new writes, so this shrinks whatever already piled up before that shipped.
+router.post('/analyses/prune-all', async (req, res) => {
+  try {
+    const uid = await resolveUid(req.body?.uid);
+    res.json(await pruneAllAnalyses(uid));
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Same idea for the global scoutResults collection — nothing ever pruned it;
+// keep just the newest run per ticker (all topDiscoveries() ever reads).
+router.post('/scoutresults/prune', async (req, res) => {
+  try {
+    const snap = await db.collection('scoutResults').get();
+    const byTicker = new Map();
+    for (const d of snap.docs) {
+      const t = d.data().ticker;
+      if (!t) continue;
+      (byTicker.get(t) || byTicker.set(t, []).get(t)).push(d);
+    }
+    let deleted = 0;
+    for (const docs of byTicker.values()) {
+      docs.sort((a, b) => (b.data().ts || 0) - (a.data().ts || 0));
+      const stale = docs.slice(1);
+      await Promise.all(stale.map((d) => d.ref.delete()));
+      deleted += stale.length;
+    }
+    res.json({ before: snap.size, deleted, tickers: byTicker.size });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

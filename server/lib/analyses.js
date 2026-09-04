@@ -20,6 +20,29 @@ export async function saveAnalysis(uid, result) {
   return ref;
 }
 
+/** One-time retroactive cleanup — prune every ticker's history, not just the one just written. */
+export async function pruneAllAnalyses(uid) {
+  const col = db.collection(`users/${uid}/analyses`);
+  const all = await col.get();
+  const tickers = new Set(all.docs.map((d) => d.data().ticker).filter(Boolean));
+  let deleted = 0;
+  for (const ticker of tickers) {
+    const snap = await col.where('ticker', '==', ticker).orderBy('ts', 'desc').get();
+    if (snap.docs.length > KEEP_PER_TICKER) {
+      const stale = snap.docs.slice(KEEP_PER_TICKER);
+      await Promise.all(stale.map((d) => d.ref.delete()));
+      deleted += stale.length;
+    }
+  }
+  const remaining = await col.orderBy('ts', 'desc').get();
+  if (remaining.size > KEEP_TOTAL) {
+    const stale = remaining.docs.slice(KEEP_TOTAL);
+    await Promise.all(stale.map((d) => d.ref.delete()));
+    deleted += stale.length;
+  }
+  return { before: all.size, deleted, tickers: tickers.size };
+}
+
 async function pruneAnalyses(uid, ticker) {
   const col = db.collection(`users/${uid}/analyses`);
 

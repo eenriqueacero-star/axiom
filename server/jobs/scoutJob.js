@@ -103,7 +103,17 @@ export async function runDailyScout() {
     try {
       const result = await runCouncil(ticker, { mode: 'scout' });
       results.push(result);
-      await db.collection('scoutResults').add(result);
+      const scoutCol = db.collection('scoutResults');
+      await scoutCol.add(result);
+      // discovery.js's topDiscoveries only ever reads the newest run per
+      // ticker -- this collection has been growing forever with dead older
+      // runs nobody reads. Keep just the latest per ticker (~len(tickers)
+      // docs total, permanently, instead of one more every day since launch).
+      const stale = await scoutCol.where('ticker', '==', ticker).get().catch(() => null);
+      if (stale && stale.docs.length > 1) {
+        const sorted = stale.docs.sort((a, b) => (b.data().ts || 0) - (a.data().ts || 0));
+        await Promise.all(sorted.slice(1).map((d) => d.ref.delete()));
+      }
       console.log(`[scout] ${ticker}: ${result.verdict} (${result.conviction}/10)`);
     } catch (err) {
       console.error(`[scout] ${ticker} failed:`, err.message);
