@@ -1,9 +1,71 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Icon, { AGENT_META } from '../../ui/Icon';
+import { chatAgent } from '../../api';
 
 const V_COLOR = { ADD: 'var(--good)', HOLD: 'var(--muted)', TRIM: 'var(--warn)', EXIT: 'var(--crit)' };
 
-export function AgentSheet({ id, live, floor, onAnalyze }) {
+function AgentChatPanel({ id, name, ticker }) {
+  const [msgs, setMsgs] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const endRef = useRef(null);
+
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'nearest' }); }, [msgs, busy]);
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || busy) return;
+    const next = [...msgs, { role: 'user', content: text }];
+    setMsgs(next);
+    setDraft('');
+    setBusy(true);
+    try {
+      const { reply, consulted } = await chatAgent(id, next, ticker, 'floor');
+      setMsgs([...next, { role: 'assistant', content: reply, consulted }]);
+    } catch (e) {
+      setMsgs([...next, { role: 'assistant', content: `(couldn't reach ${name}: ${e.message})` }]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-[10px] border border-line-2">
+      <div className="flex items-center gap-2 border-b border-line-2 px-3 py-2">
+        <Icon name="chat" size={13} className="text-faint" />
+        <span className="mono text-[10px] uppercase tracking-[0.12em] text-faint">
+          Talk to {name}{ticker ? ` · ${ticker}` : ''}
+        </span>
+      </div>
+      <div className="max-h-[240px] min-h-[80px] space-y-2.5 overflow-y-auto px-3 py-3">
+        {msgs.length === 0 && !busy && (
+          <p className="text-[11px] text-faint">Ask {name} anything in their remit{ticker ? ` — ${ticker} is already in context` : ''}.</p>
+        )}
+        {msgs.map((m, i) => (
+          <div key={i} className={m.role === 'user' ? 'flex justify-end' : ''}>
+            <div className={m.role === 'user'
+              ? 'max-w-[85%] rounded-lg rounded-br-sm bg-panel-2 px-2.5 py-1.5 text-[12px] text-text'
+              : 'text-[12px] leading-snug text-muted'}>
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {busy && <p className="mono text-2xs animate-pulse text-faint">{name} is thinking…</p>}
+        <div ref={endRef} />
+      </div>
+      <div className="flex items-end gap-2 border-t border-line-2 p-2.5">
+        <textarea rows={1} value={draft} onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder={`Message ${name}`}
+          className="mono max-h-24 min-h-[32px] flex-1 resize-none rounded-md border border-line bg-base px-2.5 py-1.5 text-[12px] text-text placeholder:text-faint" />
+        <button onClick={send} disabled={busy || !draft.trim()}
+          className="btn-accent h-8 px-3 text-[11px] disabled:opacity-40">send</button>
+      </div>
+    </div>
+  );
+}
+
+export function AgentSheet({ id, live, floor, ticker, onAnalyze }) {
   const meta = AGENT_META[id] || { name: id.toUpperCase(), color: 'var(--muted)', remit: '' };
   const per = floor?.perAgent?.[id];
   const blurb = floor?.agents?.find((a) => a.id === id)?.blurb;
@@ -70,10 +132,7 @@ export function AgentSheet({ id, live, floor, onAnalyze }) {
         </div>
       )}
 
-      <div className="flex items-center gap-2.5 rounded-[10px] border border-line-2 px-3.5 py-3 text-[12px] text-faint">
-        <Icon name="chat" size={14} />
-        Talk to {meta.name} — coming in the Floor build
-      </div>
+      <AgentChatPanel id={id} name={meta.name} ticker={ticker} />
     </div>
   );
 }

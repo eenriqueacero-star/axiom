@@ -87,7 +87,7 @@ function Convene({ onDone }) {
   );
 }
 
-export default function Floor({ desktop, onRun }) {
+export default function Floor({ desktop, onRun, activeTicker }) {
   const [work, setWork] = useState(null);
   const [state, setState] = useState(null);
   const [opps, setOpps] = useState([]);
@@ -259,7 +259,7 @@ export default function Floor({ desktop, onRun }) {
   const sheets = (
     <>
       <Sheet open={!!sheet} onClose={() => setSheet(null)} labelledBy="sheet-agent-title">
-        {sheet && <AgentSheet id={sheet} live={live?.agents?.[sheet]} floor={floor}
+        {sheet && <AgentSheet id={sheet} live={live?.agents?.[sheet]} floor={floor} ticker={activeTicker}
           onAnalyze={(t) => { setSheet(null); onRun?.(t); }} />}
       </Sheet>
       <Sheet open={jobsOpen} onClose={() => setJobsOpen(false)} labelledBy="sheet-jobs-title">

@@ -294,7 +294,7 @@ function Pulse({ items, onOpen }) {
   );
 }
 
-export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss }) {
+export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss, activeTicker }) {
   const [pf, setPf] = useState(null);
   const [diag, setDiag] = useState(null);
   const [floor, setFloor] = useState(null);
@@ -408,7 +408,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss }) {
     <>
       <Sheet open={sheet?.startsWith('agent:')} onClose={() => setSheet(null)} labelledBy="sheet-agent-title">
         {sheet?.startsWith('agent:') && (
-          <AgentSheet id={sheet.slice(6)} live={live?.agents?.[sheet.slice(6)]} floor={floor}
+          <AgentSheet id={sheet.slice(6)} live={live?.agents?.[sheet.slice(6)]} floor={floor} ticker={activeTicker}
             onAnalyze={(t) => { setSheet(null); onOpenAgent?.(t); }} />
         )}
       </Sheet>

@@ -95,11 +95,11 @@ export default function App() {
   let content;
   const askBoss = (text, focus) => setBossDraft({ text, focus });
 
-  if (view === 'book') content = <Book desktop={desktop} onOpenAgent={goRun} onOpenAlert={() => setView('alerts')} onAskBoss={askBoss} />;
+  if (view === 'book') content = <Book desktop={desktop} onOpenAgent={goRun} onOpenAlert={() => setView('alerts')} onAskBoss={askBoss} activeTicker={runTicker} />;
   else if (view === 'run') content = <Run desktop={desktop} initialTicker={runTicker} />;
   else if (view === 'alerts') content = <Alerts desktop={desktop} openId={alertOpenId} onRun={goRun} />;
   else if (view === 'you') content = <You desktop={desktop} />;
-  else content = <Floor desktop={desktop} onRun={goRun} />;
+  else content = <Floor desktop={desktop} onRun={goRun} activeTicker={runTicker} />;
 
   if (desktop) {
     return (
