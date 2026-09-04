@@ -7,7 +7,7 @@ import Book from './views/Book';
 import Run from './views/Run';
 import Alerts from './views/Alerts';
 import You from './views/You';
-import Stub from './views/Stub';
+import Floor from './views/Floor';
 
 const NAV = [
   { id: 'book',   icon: 'book',   label: 'Book' },
@@ -84,9 +84,7 @@ export default function App() {
   else if (view === 'run') content = <Run desktop={desktop} initialTicker={runTicker} />;
   else if (view === 'alerts') content = <Alerts desktop={desktop} openId={alertOpenId} onRun={goRun} />;
   else if (view === 'you') content = <You desktop={desktop} />;
-  else content = <Stub icon="floor" title="THE FLOOR"
-    note="The full desk — what the council has settled, last night's brief, the event desk, the agents' rooms. Building now."
-    items={['Convene the desk (with feedback)', 'Desk notes browser', 'Opportunities from the sweep', 'Multi-agent chat rooms']} />;
+  else content = <Floor desktop={desktop} onRun={goRun} />;
 
   if (desktop) {
     return (
