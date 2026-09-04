@@ -25,6 +25,30 @@ function parseConsult(text) {
   return target && q ? { id: target.id, name: target.name, question: q.slice(0, 400) } : null;
 }
 
+// The boss may end a reply with one [[open:...]] directive. Pull it off the tail,
+// return the cleaned text plus an actions array (empty if none).
+function parseActions(text) {
+  const t = String(text || '');
+  const m = t.match(/\[\[open:\s*([^\]]+?)\s*\]\]\s*$/i);
+  if (!m) return { text: t.trim(), actions: [] };
+  const cleaned = t.slice(0, m.index).trim();
+  const spec = m[1].trim();
+  const runMatch = spec.match(/^run\s+([A-Za-z.\-]{1,10})$/i);
+  let action = null;
+  if (runMatch) {
+    const param = runMatch[1].toUpperCase();
+    action = { label: `Open the council on ${param}`, view: 'run', param };
+  } else {
+    const labels = {
+      alerts: 'Open alerts', jobs: 'Open the jobs schedule',
+      book: 'Open the book', floor: 'Open the floor',
+    };
+    const view = spec.toLowerCase();
+    if (labels[view]) action = { label: labels[view], view };
+  }
+  return { text: cleaned || t.trim(), actions: action ? [action] : [] };
+}
+
 const col = (uid) => db.collection(`users/${uid}/chats`);
 const MSG_CAP = 60;
 
@@ -97,16 +121,20 @@ export async function createExecutionThread(uid, analysis) {
   return { id, ...doc };
 }
 
-function bossSystem(context, thread, vault, memos) {
+function bossSystem(context, thread, vault, memos, viewContext) {
   const memoLines = (memos || []).slice(0, 6).map((m) => `- ${m.ticker ? `[${m.ticker}] ` : ''}${m.conclusion}`).join('\n');
   const seededEvent = thread?.seededEvent;
   const dec = thread?.seededDecision;
   const roster = AGENTS.map((a) => `${a.name} (${a.role})`).join(', ');
+  const view = viewContext?.view;
+  const whereLine = view
+    ? `WHERE THE INVESTOR IS RIGHT NOW: the "${view}" screen${viewContext?.focus ? `, looking at ${viewContext.focus}` : ''}. If their question is vague, assume it's about this.\n\n`
+    : '';
 
   return `${AXIOM_CONVERSATIONAL}
 You are AXIOM, the partner running this investment firm, talking privately with the investor who owns it. ${PROTOCOLS}
 
-HOW TO TALK — you are a person, not a reporting function.
+${whereLine}HOW TO TALK — you are a person, not a reporting function.
 - Talk like a sharp colleague: plain words, contractions, opinions. A greeting gets a greeting. One line is fine.
 - Don't open with a status report or dump analysis nobody asked for. Use the reference material only when it's relevant.
 - When you do give a take, 2-4 sentences, grounded in the data below. If you don't know, say so.
@@ -128,6 +156,14 @@ THE ACTUAL POSITION — use THESE numbers, do not invent others: ${dec.shares !=
   : `the firm does not currently hold ${dec.ticker}.`}
 This is a SMALL family account — every dollar figure is literal US dollars, typically two/three/four figures, NEVER thousands or millions. If you catch yourself writing "k" or "M" or a number over ~10,000, you have made an error — stop and recompute from the shares above.
 This conversation is about EXECUTION: how many shares to ${({ ADD: 'buy', TRIM: 'sell', EXIT: 'sell', HOLD: 'hold' }[dec.verdict] || 'trade')}, which account, where the proceeds go (check the contribution / DCA pick in the firm state), tax lots if it's a sell, and timing. Be concrete with real share counts and dollar amounts. Lay the plan out as numbered steps. You are NOT placing trades — the investor executes at their broker.\n` : ''}
+DRIVING THE UI — when it genuinely helps the investor act (not every message), you MAY end your message with ONE action directive on its own line, chosen from:
+[[open:run TICKER]]  (open the council runner on a ticker)
+[[open:alerts]]
+[[open:jobs]]
+[[open:book]]
+[[open:floor]]
+Use it only when the next step is obvious and the button saves them a tap. Don't add one just to have one.
+
 --- REFERENCE (use what's relevant) ---
 FIRM STATE:
 ${context}${vaultBlock(vault)}${memoLines ? `\n\nRECENT DESK NOTES:\n${memoLines}` : ''}`;
@@ -145,7 +181,7 @@ async function askAnalyst(agentId, question, context) {
   } catch { return ''; }
 }
 
-export async function postMessage(uid, id, userText) {
+export async function postMessage(uid, id, userText, viewContext) {
   markUserActivity();
   const ref = col(uid).doc(id);
   const doc = await ref.get().catch(() => null);
@@ -158,7 +194,7 @@ export async function postMessage(uid, id, userText) {
     listMemos(uid, 6).catch(() => []),
   ]);
 
-  const system = bossSystem(context, thread, vault, memos);
+  const system = bossSystem(context, thread, vault, memos, viewContext);
   const history = (thread.messages || []).slice(-12).map((m) => ({
     role: m.role === 'user' ? 'user' : 'assistant',
     content: m.role === 'agent' ? `${m.name} said: ${m.content}` : m.content,
@@ -203,6 +239,9 @@ export async function postMessage(uid, id, userText) {
     }
   }
 
+  const { text: cleanReply, actions } = parseActions(reply);
+  reply = cleanReply;
+
   const now = Date.now();
   const appended = [{ role: 'user', content: String(userText).slice(0, 4000), ts: now }];
   consulted.forEach((c, i) => appended.push({
@@ -211,7 +250,7 @@ export async function postMessage(uid, id, userText) {
   appended.push({ role: 'assistant', agentId: 'axiom', name: 'AXIOM', content: reply, ts: now + 10 });
   const messages = [...(thread.messages || []), ...appended].slice(-MSG_CAP);
   await ref.set({ messages, updatedAt: now, unread: false }, { merge: true }).catch(() => {});
-  return { reply, messages, consulted };
+  return { reply, messages, consulted, actions };
 }
 
 /** Close the thread. 'archive' files the event in the vault for later. */
