@@ -20,6 +20,11 @@ const num = (v, d) => {
 
 // Per-key/day free-tier request allowance, times the number of keys we hold.
 const PER_KEY_DAILY = num(process.env.GROQ_DAILY_CALLS_PER_KEY, 900);
+// Groq's free tier is actually TOKEN-limited (TPM), not request-limited — a
+// daily scout pass alone is ~1M tokens. This tracks real usage so that's
+// visible, and gives the autonomous/event slices (the ones that can run
+// unattended and chew through it) a second thing to respect besides call count.
+const PER_KEY_DAILY_TOKENS = num(process.env.GROQ_DAILY_TOKENS_PER_KEY, 400_000);
 const AUTONOMOUS_SHARE = Math.min(0.9, num(process.env.DESK_BUDGET_SHARE, 0.15));
 const MAX_DIALOGUES_DAY = num(process.env.DESK_MAX_DIALOGUES_PER_DAY, 8);
 
@@ -37,6 +42,7 @@ let calls = 0;          // every Groq request this process has made today
 let autonomousCalls = 0; // the subset spent by the desk loop
 let dialoguesToday = 0;
 let eventsToday = 0;     // event-desk triage runs today
+let tokensToday = 0;     // actual (or estimated) tokens spent today
 let lastUserActivity = 0;
 
 // --- Firestore persistence (survives Render's 15-min process recycling) ------
@@ -54,6 +60,7 @@ async function hydrate() {
       autonomousCalls = Math.max(autonomousCalls, d.autonomousCalls || 0);
       dialoguesToday = Math.max(dialoguesToday, d.dialoguesToday || 0);
       eventsToday = Math.max(eventsToday, d.eventsToday || 0);
+      tokensToday = Math.max(tokensToday, d.tokensToday || 0);
     }
   } catch { /* Firestore not ready — fall back to in-memory */ }
   dayStamp = key;
@@ -66,7 +73,7 @@ function scheduleFlush(immediate = false) {
   flushTimer = setTimeout(() => {
     flushTimer = null;
     budgetDoc().set({
-      day: dayStamp, calls, autonomousCalls, dialoguesToday, eventsToday, updatedAt: Date.now(),
+      day: dayStamp, calls, autonomousCalls, dialoguesToday, eventsToday, tokensToday, updatedAt: Date.now(),
     }, { merge: true }).catch(() => {});
   }, immediate ? 0 : 10_000);
 }
@@ -79,6 +86,7 @@ function roll() {
     autonomousCalls = 0;
     dialoguesToday = 0;
     eventsToday = 0;
+    tokensToday = 0;
     hydrated = false;
     hydrate();
   }
@@ -88,6 +96,18 @@ export function keyCount(n) { keyCount.n = n || keyCount.n || 1; return keyCount
 
 export function dailyBudget() {
   return PER_KEY_DAILY * (keyCount.n || 1);
+}
+
+export function dailyTokenBudget() {
+  return PER_KEY_DAILY_TOKENS * (keyCount.n || 1);
+}
+
+/** Every Groq/NVIDIA response routes its actual (or estimated) token cost through here. */
+export function addTokens(n) {
+  roll();
+  const amt = Math.round(n);
+  if (Number.isFinite(amt) && amt > 0) tokensToday += amt;
+  scheduleFlush();
 }
 
 /** Every Groq request routes through here. */
@@ -125,6 +145,9 @@ export function canSpendAutonomous(n = 5) {
   if (calls + n > dailyBudget() * 0.9) {
     return { ok: false, why: 'overall daily budget nearly spent' };
   }
+  if (tokensToday > dailyTokenBudget() * 0.9) {
+    return { ok: false, why: `daily token budget nearly spent (${tokensToday}/${dailyTokenBudget()})` };
+  }
   return { ok: true };
 }
 
@@ -148,6 +171,9 @@ export function canSpendEvent(n = 8) {
     return { ok: false, why: 'event budget spent' };
   }
   if (calls + n > dailyBudget() * 0.95) return { ok: false, why: 'overall daily budget nearly spent' };
+  if (tokensToday > dailyTokenBudget() * 0.95) {
+    return { ok: false, why: `daily token budget nearly spent (${tokensToday}/${dailyTokenBudget()})` };
+  }
   return { ok: true };
 }
 
@@ -164,6 +190,8 @@ export function budgetStatus() {
     callsToday: calls,
     hydrated,
     dailyBudget: total,
+    tokensToday,
+    dailyTokenBudget: dailyTokenBudget(),
     autonomousCalls,
     autonomousPool: Math.floor(total * AUTONOMOUS_SHARE),
     dialoguesToday,

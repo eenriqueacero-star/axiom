@@ -1,5 +1,5 @@
 import Groq from 'groq-sdk';
-import { recordCall, keyCount } from './budget.js';
+import { recordCall, keyCount, addTokens } from './budget.js';
 
 const MODEL_BASE  = 'openai/gpt-oss-120b';
 const MODEL_SYNTH = 'openai/gpt-oss-120b';
@@ -40,6 +40,7 @@ async function callNvidia(system, user, maxTokens, effort = 'low', model = NVIDI
       if (res.status === 429) continue;
       if (!res.ok) throw Object.assign(new Error(`NVIDIA ${res.status}`), { status: res.status });
       const data = await res.json();
+      addTokens(data.usage?.total_tokens ?? estimateTokens(system, user, maxTokens));
       return data.choices?.[0]?.message?.content || '';
     } catch (err) {
       if (err.status === 429) continue;
@@ -80,6 +81,11 @@ function shuffled(arr) {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+// Rough fallback when a response has no usage block (~4 chars/token) — the
+// real count from data.usage.total_tokens is used whenever the API returns one.
+const estimateTokens = (system, user, maxTokens) =>
+  Math.ceil((String(system).length + String(user).length) / 4) + maxTokens;
+
 function trimForCompound(system, user) {
   for (const marker of ['\nCOUNCIL HISTORY ON', '\n\nEARLIER IN THIS ROUND:', '\nSECTOR CONTEXT TODAY:', '\nMARKET TAPE TODAY:']) {
     const idx = user.indexOf(marker);
@@ -106,6 +112,7 @@ async function callBase(apiKey, system, user, maxTokens, effort = 'low') {
     throw e;
   }
   const data = await res.json();
+  addTokens(data.usage?.total_tokens ?? estimateTokens(system, user, maxTokens));
   return data.choices?.[0]?.message?.content || '';
 }
 
@@ -117,6 +124,7 @@ async function callCompound(apiKey, system, user, maxTokens) {
     messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
     ...DETERMINISM,
   });
+  addTokens(c.usage?.total_tokens ?? estimateTokens(system, user, maxTokens));
   return c.choices?.[0]?.message?.content || '';
 }
 
@@ -190,6 +198,8 @@ export async function callAgentChat({ system, messages, maxTokens = 600, effort 
         throw new Error(e.error?.message || `Groq ${res.status}`);
       }
       const data = await res.json();
+      const userText = messages.map((m) => m.content).join(' ');
+      addTokens(data.usage?.total_tokens ?? estimateTokens(system, userText, maxTokens));
       return data.choices?.[0]?.message?.content || '';
     } catch (err) {
       if (k === order.length - 1) throw err;
@@ -268,6 +278,7 @@ export async function callSynthesis({ system, user, maxTokens = 2000, effort = '
         });
         if (!res.ok) { const e = await res.json().catch(() => ({})); throw Object.assign(new Error(e.error?.message || `Groq ${res.status}`), { status: res.status }); }
         const data = await res.json();
+        addTokens(data.usage?.total_tokens ?? estimateTokens(system, user, maxTokens));
         const text = data.choices?.[0]?.message?.content || '';
         if (text) return text;
         lastErr = new Error('empty synthesis response');
