@@ -27,43 +27,104 @@ function relTime(ts) {
   return `${Math.floor(s / 86400)}d`;
 }
 
+function ConvictionBar({ conviction, big }) {
+  if (!conviction) return <div className="mt-3 mono text-[10px] text-faint">council read loading…</div>;
+  return (
+    <div className={big ? 'w-full max-w-[280px]' : ''}>
+      <div className="mt-3 flex h-[3px] gap-[1.5px] overflow-hidden rounded-sm">
+        <span className="bg-good" style={{ width: `${conviction.high * 100}%` }} />
+        <span style={{ width: `${conviction.med * 100}%`, background: '#5a6b8c' }} />
+        <span className="bg-warn" style={{ width: `${conviction.low * 100}%` }} />
+        <span className="bg-crit" style={{ width: `${conviction.spec * 100}%` }} />
+      </div>
+      <div className="mt-1.5 flex justify-between mono text-[9px] tracking-[0.08em] text-faint">
+        <span>HIGH {Math.round(conviction.high * 100)}</span>
+        <span>MED {Math.round(conviction.med * 100)}</span>
+        <span>LOW {Math.round(conviction.low * 100)}</span>
+        <span>SPEC {Math.round(conviction.spec * 100)}</span>
+      </div>
+    </div>
+  );
+}
+
+function Value({ book, size = 'lg' }) {
+  const cls = size === 'xl'
+    ? 'font-wide text-[52px] font-bold leading-none tracking-tight text-lit tabular-nums'
+    : 'font-wide text-[40px] font-bold leading-none tracking-tight text-lit tabular-nums';
+  return (
+    <div className="flex items-baseline gap-3">
+      <span className={cls}>{book.value == null ? '—' : `$${Math.round(book.value).toLocaleString()}`}</span>
+      {book.dayChange != null && (
+        <span className={`mono flex items-center gap-1 text-xs ${book.dayChange >= 0 ? 'text-good' : 'text-crit'}`}>
+          <Icon name="up" size={9} className={book.dayChange >= 0 ? '' : 'rotate-180'} />
+          {signed(book.dayChange)} today
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* mobile: compact tappable header */
 function BookHead({ book, conviction, alertLine, onTap }) {
   return (
     <button onClick={onTap} className="block w-full px-6 pb-3 pt-1 text-left">
       <div className="label">The book</div>
-      <div className="mt-1.5 flex items-baseline gap-3">
-        <span className="font-wide text-[40px] font-bold leading-none tracking-tight text-lit tabular-nums">
-          {book.value == null ? '—' : `$${book.value.toLocaleString()}`}
-        </span>
-        {book.dayChange != null && (
-          <span className={`mono flex items-center gap-1 text-xs ${book.dayChange >= 0 ? 'text-good' : 'text-crit'}`}>
-            <Icon name="up" size={9} className={book.dayChange >= 0 ? '' : 'rotate-180'} />
-            {signed(book.dayChange)} today
-          </span>
-        )}
-      </div>
-      {conviction ? (
-        <>
-          <div className="mt-3 flex h-[3px] gap-[1.5px] overflow-hidden rounded-sm">
-            <span className="bg-good" style={{ width: `${conviction.high * 100}%` }} />
-            <span style={{ width: `${conviction.med * 100}%`, background: '#5a6b8c' }} />
-            <span className="bg-warn" style={{ width: `${conviction.low * 100}%` }} />
-            <span className="bg-crit" style={{ width: `${conviction.spec * 100}%` }} />
-          </div>
-          <div className="mt-1.5 flex justify-between mono text-[9px] tracking-[0.08em] text-faint">
-            <span>HIGH {Math.round(conviction.high * 100)}</span>
-            <span>MED {Math.round(conviction.med * 100)}</span>
-            <span>LOW {Math.round(conviction.low * 100)}</span>
-            <span>SPEC {Math.round(conviction.spec * 100)}</span>
-          </div>
-        </>
-      ) : <div className="mt-3 mono text-[10px] text-faint">council read loading…</div>}
+      <div className="mt-1.5"><Value book={book} /></div>
+      <ConvictionBar conviction={conviction} />
       {alertLine && (
         <div className="mt-2.5 flex items-center gap-1.5 mono text-[10px] tracking-[0.03em] text-warn">
           <Icon name="warn" size={11} /> {alertLine}
         </div>
       )}
     </button>
+  );
+}
+
+/* desktop: a header band across the top — book value + allocation side by side */
+function BookBand({ book, conviction, diag, alertLine, breaches, onHoldings, onRulebook }) {
+  const sectors = diag?.sectors?.slice(0, 3) || [];
+  const core = diag?.sleeve ? Math.round(diag.sleeve.corePct * 100) : null;
+  const target = diag?.sleeve ? Math.round((diag.sleeve.targetCore || 0.5) * 100) : 50;
+  return (
+    <div className="flex items-stretch gap-6 border-b border-line px-8 py-6">
+      <button onClick={onHoldings} className="text-left">
+        <div className="label">The book</div>
+        <div className="mt-2"><Value book={book} size="xl" /></div>
+        <ConvictionBar conviction={conviction} big />
+      </button>
+
+      <div className="ml-auto flex flex-col justify-center gap-1.5 min-w-[220px]">
+        <button onClick={onRulebook} className="label mb-0.5 text-left">Allocation</button>
+        {core != null && (
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="w-16 text-muted">Core</span>
+            <span className="relative h-[3px] flex-1 overflow-hidden rounded-sm bg-line-2">
+              <i className="absolute inset-y-0 left-0 bg-muted" style={{ width: `${core}%` }} />
+              <i className="absolute inset-y-0 w-px bg-lit/50" style={{ left: `${target}%` }} />
+            </span>
+            <span className="mono text-muted tabular-nums">{core}%</span>
+          </div>
+        )}
+        {sectors.map((s) => {
+          const p = Math.round(s.pct * 100);
+          const over = s.pct > 0.35;
+          return (
+            <div key={s.name} className="flex items-center gap-2 text-[11px]">
+              <span className="w-16 truncate text-muted">{s.name}</span>
+              <span className="relative h-[3px] flex-1 overflow-hidden rounded-sm bg-line-2">
+                <i className={`absolute inset-y-0 left-0 ${over ? 'bg-crit' : 'bg-muted'}`} style={{ width: `${Math.min(100, p / 35 * 100)}%` }} />
+              </span>
+              <span className={`mono tabular-nums ${over ? 'text-crit' : 'text-muted'}`}>{p}%</span>
+            </div>
+          );
+        })}
+        {alertLine && (
+          <button onClick={onRulebook} className="mt-1 flex items-center gap-1.5 mono text-[10px] text-warn">
+            <Icon name="warn" size={11} /> {breaches} breach{breaches !== 1 ? 'es' : ''}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -128,11 +189,13 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
   }, [pf, diag]);
 
   const conviction = useMemo(() => {
-    const c = stances?.buckets || stances?.counts || null;
+    const c = stances?.tierCounts;
     if (c) {
-      const g = (k) => c[k] ?? c[k.toLowerCase()] ?? 0;
-      const tot = g('HIGH') + g('MED') + g('LOW') + g('SPEC');
-      if (tot > 0) return { high: g('HIGH') / tot, med: g('MED') / tot, low: g('LOW') / tot, spec: g('SPEC') / tot };
+      const tot = (c.HIGH || 0) + (c.MEDIUM || 0) + (c.LOW || 0) + (c.SPECULATIVE || 0);
+      if (tot > 0) return {
+        high: (c.HIGH || 0) / tot, med: (c.MEDIUM || 0) / tot,
+        low: (c.LOW || 0) / tot, spec: (c.SPECULATIVE || 0) / tot,
+      };
     }
     return null;
   }, [stances]);
@@ -198,9 +261,16 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert }) {
     return (
       <div className="flex h-full">
         <div className="flex min-w-0 flex-1 flex-col">
-          {status}
-          <BookHead book={book} conviction={conviction} alertLine={alertLine} onTap={() => setSheet('holdings')} />
-          {err && <p className="px-6 mono text-[11px] text-crit">{err}</p>}
+          <BookBand book={book} conviction={conviction} diag={diag} alertLine={alertLine} breaches={breaches}
+            onHoldings={() => setSheet('holdings')} onRulebook={() => setSheet('rulebook')} />
+          <div className="flex items-center justify-between px-8 pt-3 mono text-[10px] tracking-[0.12em] text-faint">
+            <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toUpperCase()} ET</span>
+            <span className="flex items-center gap-1.5 text-muted">
+              <i className="h-1.5 w-1.5 rounded-full bg-good shadow-[0_0_8px_var(--zen)]" />
+              {workingCount ? `${workingCount} working` : 'desk quiet'}
+            </span>
+          </div>
+          {err && <p className="px-8 mono text-[11px] text-crit">{err}</p>}
           {core}
         </div>
         <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-line px-5 py-5">

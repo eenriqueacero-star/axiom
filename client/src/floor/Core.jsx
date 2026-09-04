@@ -45,13 +45,16 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
       canvas.width = W * DPR; canvas.height = H * DPR;
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
-      // Lay agents on an ellipse inside a CENTERED stage, so a wide viewport
-      // doesn't stretch the constellation across dead space.
-      const stageW = Math.min(W - 24, H * 1.35, 560);
-      const stageH = Math.min(H - 20, 520);
+      // Lay agents on an ellipse inside a CENTERED stage. The stage scales with
+      // the viewport but stays roughly square so a wide desktop doesn't stretch
+      // the constellation and a phone doesn't cramp it.
+      const wide = W >= 760;
+      const stageW = Math.min(W - (wide ? 64 : 20), H * 1.25, wide ? 860 : 580);
+      const stageH = Math.min(H - 16, wide ? 760 : 540);
       cx = W / 2; cy = H / 2 - 2;
-      coreR = Math.min(stageW, stageH) * 0.15;
-      const rx = stageW * 0.42, ry = stageH * 0.40;
+      coreR = Math.min(stageW, stageH) * (wide ? 0.16 : 0.155);
+      const rx = stageW * (wide ? 0.46 : 0.44);
+      const ry = stageH * (wide ? 0.44 : 0.42);
 
       const list = ids();
       list.forEach((id, i) => {
@@ -238,10 +241,11 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
             aria-label={on
               ? `${meta.name}. Working: ${a.work.task}. ${elapsed(a.work.startedMs)} in, ${a.work.pct}% done.`
               : `${meta.name}. Idle.`}
-            className="absolute -translate-x-1/2 -translate-y-1/2 w-[104px] flex flex-col items-center gap-1
-              p-1.5 data-[work=idle]:opacity-40 transition-opacity duration-500"
+            className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1
+              w-[108px] md:w-[132px] p-1.5 data-[work=idle]:opacity-40 transition-opacity duration-500"
           >
-            <span className="relative grid h-9 w-9 place-items-center rounded-full bg-panel border"
+            <span className="relative grid place-items-center rounded-full bg-panel border
+              h-9 w-9 md:h-11 md:w-11"
               style={{ borderColor: on ? 'currentColor' : 'var(--line-2)' }}>
               {on && (
                 <svg viewBox="0 0 44 44" className="absolute -inset-1 -rotate-90">
@@ -252,15 +256,16 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
                 </svg>
               )}
               {on && <span className="absolute -inset-1 rounded-full border border-current animate-[apulse_2.4s_ease-out_infinite]" />}
-              <Icon name={a.id} size={15} />
+              <Icon name={a.id} size={15} className="md:hidden" />
+              <Icon name={a.id} size={18} className="hidden md:block" />
             </span>
-            <span className="mono text-[9px] tracking-[0.14em] mt-0.5">{meta.name}</span>
+            <span className="mono tracking-[0.14em] mt-0.5 text-[9px] md:text-[10px]">{meta.name}</span>
             {on
               ? <>
-                  <span className="text-[9px] leading-tight text-faint line-clamp-2 max-w-[104px]">{a.work.task}</span>
-                  <span className="mono text-[8px] tracking-wider">{elapsed(a.work.startedMs)} · {a.work.pct}%</span>
+                  <span className="leading-tight text-faint line-clamp-2 text-[9px] md:text-[10px] max-w-[108px] md:max-w-[132px]">{a.work.task}</span>
+                  <span className="mono tracking-wider text-[8px] md:text-[9px]">{elapsed(a.work.startedMs)} · {a.work.pct}%</span>
                 </>
-              : <span className="mono text-[8px] tracking-wider text-faint">idle</span>}
+              : <span className="mono tracking-wider text-faint text-[8px] md:text-[9px]">idle</span>}
           </button>
         );
       })}
