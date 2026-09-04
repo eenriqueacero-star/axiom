@@ -31,6 +31,9 @@ const SCHEDULE = [
   { job: 'Scout sweep', cadence: 'Twice a day, weekdays', does: 'Runs the full council on every holding + the discovery pool; pushes ADD/EXIT alerts.' },
   { job: 'Congress trades', cadence: 'Every ~8 h', does: 'New congressional trades in names you hold → push + fed to the council.' },
   { job: 'Verdict scorecard', cadence: 'Twice a day', does: 'Scores past verdicts once they age, then recomputes agent weights + calibration notes.' },
+  { job: 'Boss inbox sweep', cadence: 'Every ~35 min', does: 'The boss reviews every new notification — held or not — for an angle: act on a holding, buy a new name, or watch it.' },
+  { job: 'Macro watch', cadence: 'Twice a day', does: 'Heads-up the day before a Fed decision, CPI, or jobs report.' },
+  { job: 'Notification digest', cadence: 'Market open + close', does: 'Rolls up everything that landed feed-only into one summary push.' },
   { job: 'Weekend all-hands', cadence: 'Weekly (weekend)', does: 'All six analysts review their track record, research their craft, and rewrite their playbooks with the boss’s sign-off.' },
 ];
 
@@ -134,9 +137,11 @@ router.get('/floor', async (req, res) => {
     const perAgent = {};
     for (const ag of AGENTS) {
       const recent = [];
+      const seenTickers = new Set();
       for (const r of runs) {
         const a = r.agents?.[ag.id];
-        if (!a) continue;
+        if (!a || seenTickers.has(r.ticker)) continue;  // one row per ticker — the newest
+        seenTickers.add(r.ticker);
         recent.push({
           ticker: r.ticker, ts: r.ts, verdict: r.verdict,
           stance: a.stance, note: a.note || a.headline || '',

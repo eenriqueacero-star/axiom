@@ -9,7 +9,7 @@ import { Router } from 'express';
 import { db } from '../lib/firebase.js';
 import { firmContext } from '../lib/desk/night.js';
 import { createThread, postMessage, getThread } from '../lib/desk/bossChat.js';
-import { notify } from '../lib/notify.js';
+import { notify, listNotifications } from '../lib/notify.js';
 
 const router = Router();
 
@@ -72,6 +72,17 @@ router.post('/push-test', async (req, res) => {
       dedupeKey: `dev-test:${Date.now()}`,
     });
     res.json({ uid, ...r });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Inspect the notification feed.
+router.get('/notifications', async (req, res) => {
+  try {
+    const uid = await resolveUid(req.query.uid);
+    const items = await listNotifications(uid, 30);
+    res.json({ uid, count: items.length, items: items.map((n) => ({ ts: n.ts, kind: n.kind, severity: n.severity, title: n.title, pushed: n.pushed || false, read: n.read })) });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

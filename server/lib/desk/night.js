@@ -110,12 +110,14 @@ export async function firmContext(uid) {
   const macro = await macroBlock({ days: 14 }).catch(() => '');
   if (macro) lines.push(macro);
 
-  // latest verdict per ticker
+  // latest verdict per HELD ticker (analyses collection keeps old manual runs on
+  // names we've since sold — those aren't "current verdicts on the book")
   try {
+    const held = new Set((d.names || []).map((n) => n.ticker));
     const snap = await db.collection(`users/${uid}/analyses`).get();
     const latest = new Map();
     for (const a of snap.docs.map((x) => x.data())) {
-      if (!a.ticker) continue;
+      if (!a.ticker || !held.has(a.ticker)) continue;
       const cur = latest.get(a.ticker);
       if (!cur || (a.ts || 0) > (cur.ts || 0)) latest.set(a.ticker, a);
     }
