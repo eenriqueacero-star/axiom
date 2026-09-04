@@ -11,6 +11,7 @@ import { markUserActivity } from '../budget.js';
 import { firmContext } from './night.js';
 import { listVault, vaultBlock, saveToVault } from './vault.js';
 import { listMemos } from '../memos.js';
+import { recordDone } from '../executions.js';
 
 const byId = Object.fromEntries(AGENTS.map((a) => [a.id, a]));
 
@@ -287,6 +288,12 @@ export async function resolveThread(uid, id, outcome = 'archive') {
       const snap = await db.collection(`users/${uid}/analyses`).where('ticker', '==', d.ticker).orderBy('ts', 'desc').limit(1).get();
       if (!snap.empty) await snap.docs[0].ref.set({ acted: true, actedAt: Date.now() }, { merge: true });
     } catch { /* non-fatal */ }
+    // Same ledger the Queue writes to, so this shows up in Working & Done too --
+    // was previously invisible outside this one chat thread.
+    await recordDone(uid, {
+      action: d.verdict, ticker: d.ticker, cash: d.value ?? null,
+      note: d.why || '', source: 'boss-chat',
+    }).catch(() => {});
   }
   await doc.ref.set({ resolved: true, resolvedAt: Date.now(), outcome, updatedAt: Date.now() }, { merge: true }).catch(() => {});
   return { ok: true };

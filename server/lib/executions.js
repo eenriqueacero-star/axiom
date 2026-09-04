@@ -55,6 +55,26 @@ export async function approveItems(uid, items) {
   return created;
 }
 
+/**
+ * Record something the investor says they already did, outside the Queue's
+ * approve-then-fill flow (e.g. confirming an execution-thread decision in
+ * boss chat). Written straight to 'done' rather than 'working' -- there's no
+ * pending intent to track, it's a retroactive record -- so it shows up in
+ * the same Working & Done strip everything else does.
+ */
+export async function recordDone(uid, { action, ticker, cash = null, note = '', source = 'chat' } = {}) {
+  if (!ticker) return null;
+  const ref = col(uid).doc();
+  const doc = {
+    status: 'done', action: action || 'ACT', ticker, tag: source,
+    plannedCash: cash, note,
+    createdAt: Date.now(), updatedAt: Date.now(),
+    filledAt: Date.now(), fillPrice: null, fillShares: null,
+  };
+  await ref.set(doc).catch(() => {});
+  return { id: ref.id, ...doc };
+}
+
 export async function listLedger(uid, limit = 40) {
   try {
     const snap = await col(uid).orderBy('createdAt', 'desc').limit(limit).get();
