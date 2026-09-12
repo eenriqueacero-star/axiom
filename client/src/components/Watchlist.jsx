@@ -8,7 +8,11 @@ export default function Watchlist({ onRun }) {
   const [busy, setBusy] = useState(false);
 
   const load = () => getWatchlist().then((r) => setItems(r.items || [])).catch(() => setItems([]));
-  useEffect(load, []);
+  // NOT useEffect(load, []) — load() returns the .then/.catch Promise chain,
+  // and React calls whatever an effect returns as its cleanup on unmount.
+  // Calling a Promise as a function threw "X is not a function" every time
+  // this component unmounted (e.g. navigating Book -> Floor).
+  useEffect(() => { load(); }, []);
 
   const add = async () => {
     const t = draft.trim().toUpperCase();
