@@ -10,25 +10,33 @@ ships on its own.
 
 The audit's operational risks. Small, no new surface.
 
-- [ ] **Token budgeting** (`lib/budget.js` + `lib/groq.js`). Groq free tier is
+- [x] **Token budgeting** (`lib/budget.js` + `lib/groq.js`). Groq free tier is
       token-limited, not request-limited. Estimate tokens per call in
       `recordCall` (input len + maxTokens) and add a daily token ceiling
       alongside the request count. A scout pass is ~1M tokens and currently
-      unaccounted.
-- [ ] **Prune `analyses`** (`lib/analyses.js`, new helper or in the write paths).
+      unaccounted. — Done: `budget.js` tracks real `tokensToday` from Groq/
+      NVIDIA `usage.total_tokens` (est. fallback), `GROQ_DAILY_TOKENS_PER_KEY`.
+- [x] **Prune `analyses`** (`lib/analyses.js`, new helper or in the write paths).
       Keep newest ~15 per ticker + newest ~100 overall, like `memos.js`/`vault.js`.
       Every council run full-scans this collection today (firmContext,
-      recentCalls, calibration, scorecard aggregate, /floor).
+      recentCalls, calibration, scorecard aggregate, /floor). — Done:
+      `pruneAllAnalyses()` + `saveAnalysis()` is the one write path, prunes on
+      every write.
 - [ ] **Finnhub empty-quote guard** (`lib/council.js` fetchLiveData). `{}` on
       rate-limit → `price` undefined → silent data-starved HOLD. Detect, retry
       once, fall back to Tiingo last close (`metrics.js`), else stamp
       `dataIncomplete: true` on the analysis and surface it in VerdictBanner.
-- [ ] **Verify `runPortfolioAlerts` position store** (`jobs/alertJob.js`). It
+      — Partial: `safeJson` guards the fetch from crashing, but no retry/
+      Tiingo-fallback/`dataIncomplete` stamp yet. Still open.
+- [x] **Verify `runPortfolioAlerts` position store** (`jobs/alertJob.js`). It
       reads `users/{uid}/data/positions`; everything else uses
       `users/{uid}/accounts/{id}.holdings`. Confirm which the client writes; the
-      alert path may be dead.
-- [ ] Unify the 3 JSON extractors → use `council.js extractJSON` everywhere
-      (`reflect.js`, `dialogue.js` have their own greedy regex).
+      alert path may be dead. — Resolved differently: it *was* dead (read two
+      paths nothing wrote to); removed the cron registration entirely.
+      `runMoveReview` (±8% intraday, same file) covers the real need instead.
+- [x] Unify the 3 JSON extractors → use `council.js extractJSON` everywhere
+      (`reflect.js`, `dialogue.js` have their own greedy regex). — Done
+      2026-09-12: both now import `extractJSON` from `council.js`.
 
 ---
 
@@ -76,19 +84,25 @@ POST body; `routes/council.js` reads them into `buildAgentContext`.
 
 ## Phase 2 — surfaces that make it feel connected
 
-- [ ] **Overnight digest screen.** New `client/src/components/Digest.jsx` +
+- [x] **Overnight digest screen.** New `client/src/components/Digest.jsx` +
       thin `GET /api/desk/digest` that returns: last night's `deskWork` brief +
       assignments/findings + reflection, new `signals` since `state.lastSeen`,
       any verdict that flipped since yesterday, the morning's DCA pick. Show it
       as a dismissible banner on Portfolio the first time you open the app each
       day ("While you were away…"), tap to expand. Data all exists; ~1 component
-      + 1 aggregation route.
-- [ ] **Open ticker in chat** (done in Phase 1's client half — verify it lands:
+      + 1 aggregation route. — Done: `server/lib/digest.js` + `Digest.jsx`,
+      confirmed live on prod ("While you were away — 20 things" banner).
+- [x] **Open ticker in chat** (done in Phase 1's client half — verify it lands:
       open Analyze on NVDA, go to The Floor, ask VEGA "what do you think of this
-      one?" with no ticker typed → it should know).
-- [ ] **Per-holding "desk's latest take"** — `buildStances` adds the freshest
+      one?" with no ticker typed → it should know). — Verified in code:
+      `App.jsx` threads `runTicker` down as `activeTicker`, `Floor.jsx` passes
+      it into `AgentSheet` as `ticker`. Plumbing is real, not just planned.
+- [x] **Per-holding "desk's latest take"** — `buildStances` adds the freshest
       `relevantMemos(uid,{ticker})` line per holding; `DecisionDetail` in
-      Portfolio renders it under the rationale. ~20 lines.
+      Portfolio renders it under the rationale. ~20 lines. — Done 2026-09-12:
+      wired into `GET /council/analysis/:ticker` (not `buildStances`, since
+      that route is what `DecisionDetail` actually reads from) as a `deskNote`
+      field; renders under the rationale in `Portfolio.jsx`.
 
 ---
 
@@ -144,10 +158,12 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
       `/api/signals/holdings` exists (48h/held). Broaden to paginated + kind
       filters (news/filing/insider/congress) + the dismiss/snooze actions + a
       link to the event-desk job if one opened.
-- [ ] **Congress alerts for held names** — `congressTrades` + `heldTickers` both
+- [x] **Congress alerts for held names** — `congressTrades` + `heldTickers` both
       exist; add a congress pass to `scanHoldingsNewsForUser` that pushes +
       triages a disclosed trade in a held name. ~30 lines. (The `triage.js`
-      header comment already claims this happens — it doesn't.)
+      header comment already claims this happens — it doesn't.) — Done
+      2026-09-12: congress pass added, deduped by trade id, buys go to the
+      event desk (thesis-level), sells are FYI-only push.
 - [ ] **DCA pick into agent context** (~10 lines once Phase 1 lands) + let the
       user ask ZEN/AXIOM "why this pick, not X".
 - [ ] **Event desk + vault on the 3D Office view** — `getDeskEvents` / `getVault`
@@ -155,6 +171,9 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
       Vault + a packet animation when an event job runs.
 - [ ] **Watchlist** proper — `users/{uid}/watchlist`, add-from-anywhere (Congress
       row, Analyze, agent action); the scout job already iterates a ticker list.
+      — Partial: base CRUD watchlist shipped (`server/lib/watchlist.js` +
+      `Watchlist.jsx`, in Book's sidebar). Still missing: add-from-anywhere
+      (Congress row / Analyze / agent action) and scout-job wiring.
 
 ---
 
@@ -166,3 +185,16 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
 4. Phase 3 AUTO tier + activity log.
 5. Phase 3 CONFIRM tier (mark_executed first, then portfolio edits).
 6. Phase 4 à la carte.
+
+---
+
+## Shipped outside this plan (2026-09-12)
+
+- **Liquidity calendar** (`server/lib/calendar.js`) — NYSE market holidays
+  (computed, incl. Good Friday via a real Easter algorithm), options
+  expiration Fridays (computed, quarterly triple-witching flagged), and
+  Jewish holidays (free hebcal.com API, no key, 30-day cache). Wired into
+  every council prompt via `calendarBlock()` right next to `macroBlock()` —
+  descriptive context ("thin volume expected"), never a signal. All three
+  sources are free and fully automatic; nothing needs manual yearly upkeep
+  like `macro.js`'s Fed/CPI schedule does.

@@ -12,6 +12,7 @@ import { diagnose, sectorOf, CAPS, SPLIT, CORE_LIST, BUFFER_ETF } from './strate
 import { priceFacts } from './metrics.js';
 import { callAgentChat, callAgent } from './groq.js';
 import { saveMemo, listMemos, memoBlock } from './memos.js';
+import { extractJSON } from './council.js';
 
 const byId = Object.fromEntries(AGENTS.map((a) => [a.id, a]));
 const nameOf = (id) => byId[id]?.name || id;
@@ -222,11 +223,7 @@ export async function distill(uid, dialogue) {
     + '"confidence":<0-1>,"actionable":<true|false>,"tags":["TICKER or theme", ...]}';
 
   const { text } = await callAgent({ system, user, maxTokens: 420 });
-  let parsed = {};
-  try {
-    const m = String(text).match(/\{[\s\S]*\}/);
-    parsed = m ? JSON.parse(m[0]) : {};
-  } catch { /* fall through to defaults */ }
+  const parsed = extractJSON(text) || {};
 
   return saveMemo(uid, {
     participants: [dialogue.a, dialogue.b],

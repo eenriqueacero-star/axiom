@@ -235,7 +235,23 @@ router.get('/analysis/:ticker', async (req, res) => {
       .map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
     if (!latest) return res.json({ found: false });
-    res.json({ found: true, analysis: latest });
+
+    // Freshest desk note mentioning this ticker — the agents' own take from
+    // a table conversation, not the council checklist. Best-effort: never
+    // let a memo lookup failure break the analysis response.
+    let deskNote = null;
+    try {
+      const [memo] = await relevantMemos(req.uid, { ticker });
+      if (memo) {
+        deskNote = {
+          participants: memo.participants || [],
+          conclusion: memo.conclusion || '',
+          ts: memo.ts || null,
+        };
+      }
+    } catch { /* non-fatal */ }
+
+    res.json({ found: true, analysis: { ...latest, deskNote } });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

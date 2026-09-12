@@ -4,12 +4,15 @@ import './index.css';
 import App from './App';
 import { AuthProvider } from './AuthProvider';
 import { navlog } from './lib/navdebug';
+import ErrorBoundary from './components/ErrorBoundary';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );
 

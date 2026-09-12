@@ -49,11 +49,15 @@ export default function Core({ agents = [], sectors = [], breaches = 0, dayPct =
       // the viewport but stays roughly square so a wide desktop doesn't stretch
       // the constellation and a phone doesn't cramp it.
       const wide = W >= 760;
-      const stageW = Math.min(W - (wide ? 32 : 14), wide ? 900 : 620);
-      const stageH = Math.min(H - (wide ? 24 : 14), wide ? 900 : 620);
+      // Clamp to >=0: if this runs before the container has been laid out
+      // (rect width/height still 0), W/H - padding goes negative, which
+      // propagates into coreR and crashes ctx.createRadialGradient (it throws
+      // on a negative radius) — took the whole Floor view down with it.
+      const stageW = Math.max(0, Math.min(W - (wide ? 32 : 14), wide ? 900 : 620));
+      const stageH = Math.max(0, Math.min(H - (wide ? 24 : 14), wide ? 900 : 620));
       const S = Math.min(stageW, stageH);
       cx = W / 2; cy = H / 2 - 2;
-      coreR = S * (wide ? 0.2 : 0.19);
+      coreR = Math.max(1, S * (wide ? 0.2 : 0.19));
       const rx = stageW * (wide ? 0.46 : 0.46);
       const ry = stageH * (wide ? 0.47 : 0.45);
 

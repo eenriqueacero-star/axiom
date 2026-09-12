@@ -9,6 +9,7 @@ import Alerts from './views/Alerts';
 import You from './views/You';
 import Floor from './views/Floor';
 import BossDock from './ui/BossDock';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const NAV = [
   { id: 'book',   icon: 'book',   label: 'Book' },
@@ -100,6 +101,10 @@ export default function App() {
   else if (view === 'alerts') content = <Alerts desktop={desktop} openId={alertOpenId} onRun={goRun} />;
   else if (view === 'you') content = <You desktop={desktop} />;
   else content = <Floor desktop={desktop} onRun={goRun} activeTicker={runTicker} />;
+
+  // Keyed by view: a crash in one tab shows an inline error there, and
+  // switching tabs remounts a fresh boundary instead of staying stuck.
+  content = <ErrorBoundary key={view} label={`The ${view} view`}>{content}</ErrorBoundary>;
 
   if (desktop) {
     return (

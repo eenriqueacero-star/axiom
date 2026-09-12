@@ -382,6 +382,15 @@ function DecisionDetail({ ticker, a, econ, signals, agents, onFull }) {
       {a.headline && <p className="text-sm text-neutral-100 font-medium">{stripMd(a.headline)}</p>}
       {a.rationale && <p className="text-xs text-neutral-400 leading-relaxed">{stripMd(a.rationale)}</p>}
 
+      {a.deskNote?.conclusion && (
+        <p className="text-[11px] text-ink-500 leading-relaxed border-l-2 border-ink-800 pl-2">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-indigo-400/80">
+            desk note{a.deskNote.participants?.length ? ` · ${a.deskNote.participants.join(' & ')}` : ''}{' '}
+          </span>
+          {stripMd(a.deskNote.conclusion)}
+        </p>
+      )}
+
       {flags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {flags.map(([label, col]) => (

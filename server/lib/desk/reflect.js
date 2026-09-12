@@ -12,9 +12,10 @@ import { callAgent, callSynthesis } from '../groq.js';
 import { getCalibration } from '../calibration.js';
 import { saveMemo } from '../memos.js';
 import { getPlaybook, revisePlaybook } from './playbooks.js';
+import { extractJSON } from '../council.js';
 
 const byId = Object.fromEntries(AGENTS.map((a) => [a.id, a]));
-const json = (t) => { try { const m = String(t).match(/\{[\s\S]*\}/); return m ? JSON.parse(m[0]) : null; } catch { return null; } };
+const json = extractJSON;
 const clip = (s, n) => String(s || '').slice(0, n);
 
 /** This agent's last ~3 weeks of calls, with the outcome where the scorecard has one. */

@@ -11,6 +11,7 @@ import { getPortfolio } from './portfolio.js';
 import { tickerNews } from './signals.js';
 import { recentFilings, edgarConfigured } from './edgar.js';
 import { insiderActivity, insiderHeadline } from './insiders.js';
+import { congressTrades, congressConfigured } from './congress/index.js';
 import { triageSignal } from './desk/triage.js';
 import { notify, notifyBatch } from './notify.js';
 
@@ -126,6 +127,38 @@ export async function scanHoldingsNewsForUser(uid) {
         }
       }
     } catch { /* non-fatal */ }
+
+    // Congressional trades disclosed in a name you hold — a real edge signal,
+    // not just "someone in Congress traded something." Dedup by trade id since
+    // disclosures land days after the actual transaction and don't repeat.
+    if (congressConfigured()) {
+      try {
+        const trades = await congressTrades({ ticker, days: 7 });
+        for (const t of trades) {
+          const key = `congress-${t.id}`;
+          if (seen.has(key)) continue;
+          newlySeen.push(key);
+          alerted++;
+          const amt = t.amountHigh
+            ? `$${(t.amountLow || 0).toLocaleString()}–${t.amountHigh.toLocaleString()}`
+            : 'undisclosed amount';
+          const head = `${t.member}${t.party ? ` (${t.party})` : ''} ${t.chamber}: ${t.type.toUpperCase()} ${ticker} ${amt}`;
+
+          const sigId = await signal({ ticker, kind: 'congress', headline: head, url: t.url || '', source: 'Congress disclosure', ts: new Date(t.filedDate || t.txDate).getTime() || now, material: true, thesis: t.type === 'buy' });
+          pending.push({
+            kind: 'congress',
+            severity: t.type === 'buy' ? 'review' : 'fyi',
+            ticker,
+            title: `${ticker} — Congress ${t.type}`,
+            body: head.slice(0, 200),
+            url: t.url || null,
+            refKind: sigId ? 'signal' : null, refId: sigId,
+          });
+          // A buy in a name you hold is worth the boss's attention; sells are FYI-only.
+          if (t.type === 'buy') toTriage.push({ ticker, kind: 'congress', headline: head, url: t.url || '', source: 'Congress disclosure', thesis: true });
+        }
+      } catch { /* non-fatal */ }
+    }
 
     await new Promise(r => setTimeout(r, 300));
   }

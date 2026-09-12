@@ -15,6 +15,7 @@ import { getCalibration } from './calibration.js';
 import { getPlaybooks, playbookBlock } from './desk/playbooks.js';
 import { backtestVerdictLine } from './quant.js';
 import { macroBlock } from './macro.js';
+import { calendarBlock } from './calendar.js';
 import { db } from './firebase.js';
 import { auditVerdict } from './verdictAudit.js';
 
@@ -70,6 +71,7 @@ export async function fetchLiveData(ticker) {
   const { facts, block: factsBlock } = await priceFacts(ticker, price).catch(() => ({ facts: { available: false }, block: '' }));
 
   const macro = await macroBlock({ days: 14 }).catch(() => '');
+  const calendar = await calendarBlock({ days: 14 }).catch(() => '');
 
   // Congressional trades in this name — a NOVA/ATLAS signal when configured.
   let congressBlock = '';
@@ -113,7 +115,7 @@ export async function fetchLiveData(ticker) {
       + (recent ? `The freshest headlines:\n${recent}\n` : `No news explains the move — treat a move with no news behind it as noise, not a thesis change.\n`);
   }
 
-  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${moveBlock}${filingsBlock}${insiderBlk}${congressBlock}${macro ? macro + '\n' : ''}${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
+  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${moveBlock}${filingsBlock}${insiderBlk}${congressBlock}${macro ? macro + '\n' : ''}${calendar ? calendar + '\n' : ''}${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
   return { liveDataBlock, price, changePct, nextEarnings, news, facts };
 }
 
