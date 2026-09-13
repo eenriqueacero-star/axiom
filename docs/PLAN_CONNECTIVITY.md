@@ -80,6 +80,21 @@ Then rewire the 6 builders to call it:
 Keep `buildAgentContext` deterministic for the verdict scope (date not minute,
 no Math.random) — the STABILITY RULE still applies there.
 
+**Status 2026-09-12:** the shared `agentContext.js` extraction (one function,
+6 call sites rewired) hasn't happened — that's still real, larger surgery.
+But the specific pain point this phase was chasing — the 1-on-1 chat being
+"the thinnest context" — was mostly already fixed in an earlier pass (see the
+comment at `routes/council.js`'s chat handler: portfolio, live price/news,
+desk memos, DCA pick, congress trades, backtest line, and recent signals were
+all already wired in). Filled in the two pieces the spec called for that were
+still missing: today's P&L $ + all-time gain on the book line, and a ranked
+TODAY'S MOVERS block (both pulled from data `getPortfolio` already returns —
+no new fetches), plus the per-holding "council's last verdict/conviction/tier"
+line for whatever ticker is in view. The actual `buildAgentContext()` unifying
+refactor across desk/night.js, desk/triage.js, dialogue.js, bossChat.js and
+council.js's own fetchLiveData is still open if you want the full architecture
+change — it's a bigger, riskier lift than what shipped here.
+
 **Client half:** `App.jsx` already has `view` + `analyzeTicker`. Pass them:
 `chatAgent(agent.id, msgs, ticker)` from `floor/shared.jsx` AgentChat (the API
 already accepts the 3rd arg — it's just unused), and add `{view}` to the chat

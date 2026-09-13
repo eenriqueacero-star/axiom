@@ -288,7 +288,7 @@ router.post('/agent/:id/chat', async (req, res) => {
     // plus the same firm-level signals the council/desk already see (DCA pick, congress
     // trades, backtest verdict, recent signals) — this was previously the thinnest of
     // the app's context builders.
-    const [portfolio, priced, news, memos, dca, congress, btLine, signalsSnap] = await Promise.all([
+    const [portfolio, priced, news, memos, dca, congress, btLine, signalsSnap, heldAnalysisSnap] = await Promise.all([
       getPortfolio(req.uid).catch(() => null),
       t ? priceFacts(t).catch(() => ({ block: '' })) : Promise.resolve({ block: '' }),
       t ? tickerNews(t, { days: 7, limit: 4 }).catch(() => []) : Promise.resolve([]),
@@ -297,6 +297,7 @@ router.post('/agent/:id/chat', async (req, res) => {
       (t && congressConfigured()) ? congressTrades({ ticker: t, days: 75 }).catch(() => []) : Promise.resolve([]),
       backtestVerdictLine(t || null).catch(() => ''),
       db.collection(`users/${req.uid}/signals`).orderBy('ts', 'desc').limit(20).get().catch(() => null),
+      t ? db.collection(`users/${req.uid}/analyses`).where('ticker', '==', t).get().catch(() => null) : Promise.resolve(null),
     ]);
 
     let context = '';
@@ -307,7 +308,10 @@ router.post('/agent/:id/chat', async (req, res) => {
         const held = t && d.names.find(n => n.ticker === t);
         const econ = t ? positionEconomics(portfolio, t) : null;
         context += `\n\nSCALE: dollar figures below are EXACT US dollars. This is the firm's real book, run for family accounts — small, not a fund. Never rescale into thousands, millions or billions, and never write "B" or "M".`;
-        context += `\n\nTHE FIRM'S BOOK ($${Math.round(d.total).toLocaleString('en-US')} under management): Core/Satellite ${Math.round(d.sleeve.corePct * 100)}/${Math.round(d.sleeve.satellitePct * 100)} (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100}). Sectors: ${topSectors}.`;
+        const dayChange = portfolio.totals?.dayChange;
+        const dayChangePct = portfolio.totals?.dayChangePct;
+        const allTimeGainPct = portfolio.totals?.gainPct;
+        context += `\n\nTHE FIRM'S BOOK ($${Math.round(d.total).toLocaleString('en-US')} under management, all-time ${allTimeGainPct != null ? `${allTimeGainPct >= 0 ? '+' : ''}${(allTimeGainPct * 100).toFixed(1)}%` : 'n/a'}${dayChange != null ? `, today ${dayChange >= 0 ? '+' : '−'}$${Math.abs(Math.round(dayChange)).toLocaleString()}${dayChangePct != null ? ` (${dayChangePct >= 0 ? '+' : ''}${(dayChangePct * 100).toFixed(1)}%)` : ''}` : ''}): Core/Satellite ${Math.round(d.sleeve.corePct * 100)}/${Math.round(d.sleeve.satellitePct * 100)} (target ${d.sleeve.targetCore * 100}/${(1 - d.sleeve.targetCore) * 100}). Sectors: ${topSectors}.`;
         if (held && econ?.avgCost != null) {
           context += ` The firm holds ${econ.shares} sh of ${t} (${(held.pct * 100).toFixed(1)}% of the book) at $${econ.avgCost.toFixed(2)} avg cost — currently ${econ.unreal >= 0 ? 'up' : 'down'} ${Math.abs(econ.unrealPct * 100).toFixed(0)}%.`;
         } else if (held) {
@@ -316,11 +320,34 @@ router.post('/agent/:id/chat', async (req, res) => {
           context += ` The firm does NOT hold ${t} — treat it as a candidate the firm might underwrite.`;
         }
         if (d.flags.length) context += ` Rulebook flags: ${d.flags.map(f => f.msg).join(' | ')}`;
+
+        // Today's ranked movers across the book — lets the agent answer "what's moving today" cold.
+        const allPositions = portfolio.accounts.flatMap(a => a.positions || []);
+        const byTicker = new Map();
+        for (const p of allPositions) {
+          if (p.changePct == null || byTicker.has(p.ticker)) continue;
+          byTicker.set(p.ticker, p.changePct);
+        }
+        const ranked = [...byTicker.entries()].sort((a, b) => b[1] - a[1]);
+        if (ranked.length) {
+          // portfolio.js changePct is already in percent units (1.48 = 1.48%), not a fraction.
+          const fmt = ([tk, pc]) => `${tk} ${pc >= 0 ? '+' : ''}${pc.toFixed(1)}%`;
+          const up = ranked.filter(r => r[1] > 0).slice(0, 3).map(fmt);
+          const down = ranked.filter(r => r[1] < 0).slice(-3).reverse().map(fmt);
+          context += `\n\nTODAY'S MOVERS — up: ${up.join(', ') || 'none'}. down: ${down.join(', ') || 'none'}.`;
+        }
       }
     }
     if (t && priced.block) {
       const headlines = news.map(n => `- ${n.headline} (${n.source})`).join('\n');
       context += `\n\nLIVE DATA — ${t}:\n${priced.block}\n${headlines ? 'Recent news:\n' + headlines : ''}`;
+    }
+    if (heldAnalysisSnap?.docs?.length) {
+      const latest = heldAnalysisSnap.docs.map(d => d.data()).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+      if (latest?.verdict) {
+        const age = latest.ts ? `${Math.round((Date.now() - latest.ts) / 864e5)}d ago` : '';
+        context += `\n\nCOUNCIL'S LAST READ ON ${t} (${age}): ${latest.verdict} · conviction ${latest.conviction}/10${latest.tier ? ` · ${latest.tier} tier` : ''}.`;
+      }
     }
     context += memoBlock(memos, { agentId: agent.id });
 
