@@ -155,7 +155,11 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
     const out = [];
     for (const acct of pf?.accounts || []) {
       for (const p of acct.positions || []) {
-        if (!p.ticker || (p.shares || 0) <= 0) continue;
+        if (!p.ticker) continue;
+        // A broker sync reporting 0 shares means "sold out" — skip it. But a
+        // manually-tracked position freshly added via "add a ticker" also
+        // starts at 0 shares, and needs to stay visible so it can be edited.
+        if (acct.linked && (p.shares || 0) <= 0) continue;
         out.push({ ...p, account: acct.label, accountId: acct.id, linked: !!acct.linked });
       }
     }
