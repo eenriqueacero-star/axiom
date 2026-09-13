@@ -98,6 +98,8 @@ export const getPortfolio = () => request('/portfolio');
 export const getQuotes = (tickers) => request('/quotes', { method: 'POST', body: { tickers } });
 export const setHolding = (accountId, ticker, body) =>
   request(`/portfolio/${accountId}/${ticker.toUpperCase()}`, { method: 'PUT', body });
+export const createAccount = (label) =>
+  request('/portfolio', { method: 'POST', body: { label } });
 export const addTicker = (accountId, ticker) =>
   request(`/portfolio/${accountId}/${ticker.toUpperCase()}`, { method: 'POST' });
 export const removeTicker = (accountId, ticker) =>

@@ -174,6 +174,17 @@ export async function removeTicker(uid, accountId, ticker) {
   await ref.update({ holdings });
 }
 
+export async function createAccount(uid, label) {
+  const name = String(label || '').trim().slice(0, 40) || 'New account';
+  const col = db.collection(`users/${uid}/accounts`);
+  const snap = await col.get();
+  const order = snap.docs.reduce((m, d) => Math.max(m, d.data().order ?? 0), 0) + 1;
+  const ref = await col.add({
+    label: name, sub: 'Manually tracked', linked: false, holdings: {}, order,
+  });
+  return ref.id;
+}
+
 export async function renameAccount(uid, accountId, nickname) {
   const ref = db.doc(`users/${uid}/accounts/${accountId}`);
   const doc = await ref.get();

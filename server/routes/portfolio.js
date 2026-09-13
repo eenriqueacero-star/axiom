@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { verifyToken } from '../lib/auth.js';
-import { getPortfolio, setHolding, addTicker, removeTicker, importPositions, deleteAccount, renameAccount } from '../lib/portfolio.js';
+import { getPortfolio, setHolding, addTicker, removeTicker, importPositions, createAccount, deleteAccount, renameAccount } from '../lib/portfolio.js';
 
 const router = Router();
 router.use(verifyToken);
@@ -12,6 +12,15 @@ router.get('/', async (req, res) => {
     res.json(await getPortfolio(req.uid));
   } catch (err) {
     res.status(502).json({ error: err.message });
+  }
+});
+
+router.post('/', async (req, res) => {
+  try {
+    await createAccount(req.uid, req.body?.label);
+    res.json(await getPortfolio(req.uid));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

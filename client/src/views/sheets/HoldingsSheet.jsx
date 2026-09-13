@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getLatestAnalysis, setHolding, addTicker, removeTicker } from '../../api';
+import {
+  getLatestAnalysis, setHolding, addTicker, removeTicker,
+  createAccount, renameAccount, deleteAccount,
+} from '../../api';
 import Icon from '../../ui/Icon';
 import { stripMd } from '../../components/stance.js';
 
@@ -144,6 +147,10 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
   const [addTk, setAddTk] = useState('');
   const [addAcct, setAddAcct] = useState('');
   const [addErr, setAddErr] = useState('');
+  const [newAcctName, setNewAcctName] = useState('');
+  const [renamingAcct, setRenamingAcct] = useState(null);
+  const [acctNameDraft, setAcctNameDraft] = useState('');
+  const [deletingAcct, setDeletingAcct] = useState(null);
   const rows = useMemo(() => {
     const out = [];
     for (const acct of pf?.accounts || []) {
@@ -195,6 +202,36 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
     } finally {
       setBusy(false);
     }
+  };
+
+  const submitNewAccount = async () => {
+    setBusy(true);
+    try {
+      await createAccount(newAcctName.trim() || 'New account');
+      setNewAcctName('');
+      onChanged?.();
+    } catch { /* leave the input as-is so the investor can retry */ }
+    finally { setBusy(false); }
+  };
+
+  const submitRename = async (acctId) => {
+    setBusy(true);
+    try {
+      await renameAccount(acctId, acctNameDraft);
+      setRenamingAcct(null);
+      onChanged?.();
+    } catch { /* leave rename open so the investor can retry */ }
+    finally { setBusy(false); }
+  };
+
+  const confirmDeleteAccount = async (acctId) => {
+    setBusy(true);
+    try {
+      await deleteAccount(acctId);
+      setDeletingAcct(null);
+      onChanged?.();
+    } catch { /* leave the confirm open so the investor can retry */ }
+    finally { setBusy(false); }
   };
 
   return (
@@ -292,11 +329,55 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
           </button>
           {addErr && <span className="text-[11px] text-crit">{addErr}</span>}
         </div>
-      ) : (
-        <p className="pt-3 text-[11px] text-faint leading-relaxed">
-          Add a manually-tracked account to start adding tickers by hand.
-        </p>
+      ) : null}
+
+      {unlinkedAccounts.length > 0 && (
+        <ul className="space-y-1 pt-2">
+          {unlinkedAccounts.map((a) => (
+            <li key={a.id} className="flex items-center gap-2">
+              {renamingAcct === a.id ? (
+                <>
+                  <input
+                    value={acctNameDraft}
+                    onChange={(e) => setAcctNameDraft(e.target.value)}
+                    autoFocus
+                    className="mono w-32 rounded-md border border-line-2 bg-base px-2 py-1 text-[11px] text-text"
+                  />
+                  <button onClick={() => submitRename(a.id)} disabled={busy} className="mono text-[10px] text-faint hover:text-text">save</button>
+                  <button onClick={() => setRenamingAcct(null)} className="mono text-[10px] text-faint hover:text-text">cancel</button>
+                </>
+              ) : deletingAcct === a.id ? (
+                <span className="mono text-[10px] text-faint">
+                  delete {a.label}? all its manual positions go with it —{' '}
+                  <button onClick={() => confirmDeleteAccount(a.id)} disabled={busy} className="text-crit hover:underline">yes</button>{' '}
+                  <button onClick={() => setDeletingAcct(null)} className="hover:underline">no</button>
+                </span>
+              ) : (
+                <>
+                  <span className="mono text-[11px] text-faint">{a.label}</span>
+                  <button onClick={() => { setRenamingAcct(a.id); setAcctNameDraft(a.label); }}
+                    className="mono text-[10px] text-faint hover:text-text">rename</button>
+                  <button onClick={() => setDeletingAcct(a.id)}
+                    className="mono text-[10px] text-faint hover:text-crit">delete</button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
+
+      <div className="flex items-center gap-2 pt-2">
+        <input
+          value={newAcctName}
+          onChange={(e) => setNewAcctName(e.target.value)}
+          placeholder="new account name"
+          className="mono w-40 rounded-md border border-line-2 bg-base px-2 py-1 text-[11px] text-text"
+        />
+        <button onClick={submitNewAccount} disabled={busy}
+          className="press mono text-[11px] text-faint hover:text-text disabled:opacity-40">
+          + account
+        </button>
+      </div>
 
       {editing && (
         <EditPositionModal p={editing} onClose={() => setEditing(null)} onSaved={onChanged} />
