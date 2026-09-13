@@ -34,7 +34,10 @@ export async function parseAndExecuteAction(text, uid) {
   const m = raw.match(/\[\[do:\s*([a-z_]+)(?:\s+([^\]]+))?\]\]\s*$/i);
   if (!m) return { text: raw.trim(), receipt: null };
 
-  const cleaned = raw.slice(0, m.index).trim() || raw.trim();
+  // NOTE: slice(0, m.index) — never fall back to the raw text here, or a
+  // directive with nothing before it (m.index === 0) leaks the [[do: ...]]
+  // straight into the reply the user sees.
+  const cleaned = raw.slice(0, m.index).trim();
   const name = m[1].toLowerCase();
   const arg = (m[2] || '').trim();
   const entry = REGISTRY[name];

@@ -450,7 +450,7 @@ router.post('/agent/:id/chat', async (req, res) => {
     }
 
     const { text: finalReply, receipt } = await parseAndExecuteAction(reply, req.uid);
-    reply = receipt ? `${finalReply}\n\n${receipt}` : finalReply;
+    reply = [finalReply, receipt].filter(Boolean).join('\n\n');
 
     res.json({ reply: reply || "…couldn't get a response, try again.", consulted });
   } catch (err) {

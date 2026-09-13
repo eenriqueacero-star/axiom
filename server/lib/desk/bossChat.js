@@ -248,7 +248,7 @@ export async function postMessage(uid, id, userText, viewContext) {
 
   const { text: cleanReply, actions } = parseActions(reply);
   const { text: finalReply, receipt } = await parseAndExecuteAction(cleanReply, uid);
-  reply = receipt ? `${finalReply}\n\n${receipt}` : finalReply;
+  reply = [finalReply, receipt].filter(Boolean).join('\n\n');
 
   const now = Date.now();
   const appended = [{ role: 'user', content: String(userText).slice(0, 4000), ts: now }];
