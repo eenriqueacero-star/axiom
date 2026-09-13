@@ -158,12 +158,23 @@ queues (CONFIRM) → result goes back into the conversation.
 - `write_desk_note` — already autonomous
 
 **CONFIRM** (approval card, nothing changes until the user taps Approve):
-- `portfolio_set_shares({account, ticker, shares, costBasis})`
-- `portfolio_add_ticker / portfolio_remove_ticker`
-- `account_add / account_remove / account_rename`
+- [x] `portfolio_set_shares({account, ticker, shares, costBasis})` — done
+      2026-09-12: the backend (`setHolding` + `PUT /portfolio/:accountId/:ticker`)
+      already existed but had zero live UI (only the dead `components/
+      Portfolio.jsx` used it). Added an "edit shares / cost" action on each
+      holding row in the real `HoldingsSheet.jsx` — a CONFIRM-style modal that
+      shows the exact old→new diff before Save is enabled, nothing changes
+      until confirmed.
+- [ ] `portfolio_add_ticker / portfolio_remove_ticker`
+- [ ] `account_add / account_remove / account_rename`
 - `mark_executed({ticker, verdict, account, shares, price})` — **keystone**:
   writes `users/{uid}/executions`, stamps the analysis `acted:true`, feeds the
-  paper portfolio. (Half-shipped as `resolveThread('act')` — finish it.)
+  paper portfolio. — **Status 2026-09-12: already fully shipped**, contrary
+  to this doc's old note. `executions.js` has the full lifecycle (`approveItems`
+  → working, `markFilled` → done + stamps `acted:true`, `recordDone` for the
+  boss-chat "I already did this" path, `cancelWorking`) and `Queue.jsx` has
+  real UI for all of it (approve, fill, cancel, Working & Done strip). Nothing
+  left to build here.
 - `strategy_set({split, caps})` — needs new `users/{uid}/strategyConfig` +
   `PUT /api/strategy/config` first (today SPLIT/CAPS are module constants in
   `lib/strategy.js`). Always confirm; show a diff of which flags change.

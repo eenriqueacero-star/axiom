@@ -306,6 +306,13 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss, act
   const [sheet, setSheet] = useState(null);
   const { items: notifs } = useNotifications(24);
 
+  const reload = () => {
+    Promise.all([
+      getPortfolio().catch(() => null),
+      getStrategyDiagnostics().catch(() => null),
+    ]).then(([p, d]) => { setPf(p); setDiag(d); });
+  };
+
   useEffect(() => {
     let alive = true;
     Promise.all([
@@ -415,7 +422,7 @@ export default function Book({ desktop, onOpenAgent, onOpenAlert, onAskBoss, act
         )}
       </Sheet>
       <Sheet open={sheet === 'holdings'} onClose={() => setSheet(null)} labelledBy="sheet-holdings-title">
-        {sheet === 'holdings' && <HoldingsSheet pf={pf} diag={diag} stances={stances}
+        {sheet === 'holdings' && <HoldingsSheet pf={pf} diag={diag} stances={stances} onChanged={reload}
           onAnalyze={(t) => { setSheet(null); onOpenAgent?.(t); }} />}
       </Sheet>
       <Sheet open={sheet === 'rulebook'} onClose={() => setSheet(null)} labelledBy="sheet-rulebook-title">

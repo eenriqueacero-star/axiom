@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { getLatestAnalysis } from '../../api';
+import { getLatestAnalysis, setHolding } from '../../api';
 import Icon from '../../ui/Icon';
 import { stripMd } from '../../components/stance.js';
 
@@ -66,14 +66,85 @@ function DecisionDetail({ ticker }) {
   );
 }
 
-export function HoldingsSheet({ pf, diag, stances, onAnalyze }) {
+// CONFIRM-tier action: nothing changes until the investor taps Save, and the
+// exact diff (old -> new) is on screen before it happens — never a silent edit.
+function EditPositionModal({ p, onClose, onSaved }) {
+  const [shares, setShares] = useState(String(p.shares ?? ''));
+  const [costBasis, setCostBasis] = useState(String(p.costBasis ?? ''));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const nShares = Number(shares);
+  const nCost = Number(costBasis);
+  const validShares = shares.trim() !== '' && Number.isFinite(nShares) && nShares >= 0;
+  const validCost = costBasis.trim() === '' || (Number.isFinite(nCost) && nCost >= 0);
+  const sharesChanged = validShares && nShares !== (p.shares ?? 0);
+  const costChanged = validCost && costBasis.trim() !== '' && nCost !== (p.costBasis ?? 0);
+  const canSave = validShares && validCost && (sharesChanged || costChanged) && !busy;
+
+  const save = async () => {
+    if (!canSave) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await setHolding(p.accountId, p.ticker, {
+        shares: nShares,
+        costBasis: costBasis.trim() === '' ? p.costBasis : nCost,
+      });
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      setErr(e.message || 'Could not save — try again.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-end bg-black/40 sm:place-items-center" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}
+        className="panel w-full max-w-xs rounded-t-xl border border-line bg-base-2 p-4 sm:rounded-xl">
+        <div className="mono text-[11px] text-text">Edit {p.ticker} — {p.account}</div>
+
+        <label className="mt-3 block text-[10px] uppercase tracking-wide text-faint">Shares</label>
+        <input value={shares} onChange={(e) => setShares(e.target.value)} inputMode="decimal"
+          className="mono mt-1 w-full rounded-md border border-line-2 bg-base px-2.5 py-1.5 text-[13px] text-text" />
+
+        <label className="mt-3 block text-[10px] uppercase tracking-wide text-faint">Cost basis (avg $/sh)</label>
+        <input value={costBasis} onChange={(e) => setCostBasis(e.target.value)} inputMode="decimal"
+          className="mono mt-1 w-full rounded-md border border-line-2 bg-base px-2.5 py-1.5 text-[13px] text-text" />
+
+        {(sharesChanged || costChanged) && (
+          <div className="mt-3 rounded-md bg-panel-2 p-2.5 text-[11px] leading-relaxed text-muted">
+            {sharesChanged && <p>Shares: {p.shares ?? 0} → <span className="text-text">{nShares}</span></p>}
+            {costChanged && <p>Cost basis: ${Number(p.costBasis ?? 0).toFixed(2)} → <span className="text-text">${nCost.toFixed(2)}</span></p>}
+          </div>
+        )}
+        {err && <p className="mt-2 text-[11px] text-crit">{err}</p>}
+
+        <div className="mt-4 flex gap-2">
+          <button onClick={onClose} disabled={busy}
+            className="press flex-1 rounded-md border border-line-2 py-2 text-[12px] text-muted hover:text-text">
+            Cancel
+          </button>
+          <button onClick={save} disabled={!canSave}
+            className="press flex-1 rounded-md bg-accent py-2 text-[12px] font-medium text-base disabled:opacity-40">
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
   const [open, setOpen] = useState(null);
+  const [editing, setEditing] = useState(null);
   const rows = useMemo(() => {
     const out = [];
     for (const acct of pf?.accounts || []) {
       for (const p of acct.positions || []) {
         if (!p.ticker || (p.shares || 0) <= 0) continue;
-        out.push({ ...p, account: acct.label });
+        out.push({ ...p, account: acct.label, accountId: acct.id });
       }
     }
     return out.sort((x, y) => (y.value || 0) - (x.value || 0));
@@ -116,9 +187,14 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze }) {
               </button>
               {isOpen && <DecisionDetail ticker={p.ticker} />}
               {isOpen && (
-                <button onClick={() => onAnalyze?.(p.ticker)} className="pb-2 mono text-[10px] text-rex">
-                  run the council →
-                </button>
+                <div className="flex gap-3 pb-2">
+                  <button onClick={() => onAnalyze?.(p.ticker)} className="mono text-[10px] text-rex">
+                    run the council →
+                  </button>
+                  <button onClick={() => setEditing(p)} className="mono text-[10px] text-faint hover:text-text">
+                    edit shares / cost
+                  </button>
+                </div>
               )}
             </li>
           );
@@ -126,8 +202,12 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze }) {
       </ul>
 
       <p className="pt-3 text-[11px] text-faint leading-relaxed">
-        Editing positions, importing, and account management move here in the next pass.
+        Importing and account management move here in the next pass.
       </p>
+
+      {editing && (
+        <EditPositionModal p={editing} onClose={() => setEditing(null)} onSaved={onChanged} />
+      )}
     </div>
   );
 }
