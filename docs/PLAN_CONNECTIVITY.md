@@ -260,6 +260,21 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
 
 ---
 
+## Correction (2026-09-12)
+
+Book.jsx has TWO separate holdings surfaces that both hit `getLatestAnalysis`
+and render a near-identical detail block: the inline `Holdings`/`CouncilRead`
+list shown directly on the page (this is the one visible by default — tap a
+name to expand), and `views/sheets/HoldingsSheet.jsx`'s `DecisionDetail`,
+reached only by tapping the "THE BOOK" $ header to open the full sheet. Every
+fix earlier in this session (desk note, flag chips incl. `dataIncomplete`)
+went into `HoldingsSheet.jsx`/`DecisionDetail` only — verified live there,
+but `CouncilRead` (the default-visible one) never got them and had NO flags
+display at all. Ported the same flags + `dataIncomplete` + desk-note block
+into `CouncilRead` so both surfaces actually match now. Worth a real merge
+into one shared component at some point — two copies of the same detail view
+is exactly the kind of drift that caused this.
+
 ## Shipped outside this plan (2026-09-12)
 
 - **Liquidity calendar** (`server/lib/calendar.js`) — NYSE market holidays

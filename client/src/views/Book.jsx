@@ -10,6 +10,7 @@ import { RulebookSheet } from './sheets/RulebookSheet';
 import Queue from '../components/Queue';
 import Digest from '../components/Digest';
 import Watchlist from '../components/Watchlist';
+import { stripMd } from '../components/stance.js';
 
 const signed = (n) => `${n >= 0 ? '+' : '−'}$${Math.abs(Math.round(n)).toLocaleString()}`;
 const money = (n) => `$${Math.round(n || 0).toLocaleString()}`;
@@ -134,10 +135,23 @@ function CouncilRead({ ticker, onRun }) {
       <button onClick={() => onRun(ticker)} className="mt-1.5 btn-accent h-7 px-3 text-[10px]">run the council →</button>
     </div>
   );
+  const c = a.computed || {};
+  const flags = [
+    c.broken && 'THESIS BROKEN', c.downtrendExit && 'DOWNTREND',
+    c.concentrationTrim && 'OVER CAP', (c.atCap && !c.concentrationTrim) && 'AT CAP',
+    c.entryClear === false && 'ENTRY NOT CLEAR',
+    c.dataIncomplete && 'LIVE QUOTE DOWN',
+  ].filter(Boolean);
+
   return (
     <div className="space-y-2 px-1 pb-3.5">
       {a.headline && <p className="text-[12px] leading-snug text-text">{a.headline}</p>}
       {(a.impact || a.rationale) && <p className="text-[11px] leading-relaxed text-muted">{a.impact || a.rationale}</p>}
+      {flags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {flags.map((f) => <span key={f} className="mono text-[8px] px-1.5 py-0.5 rounded" style={{ color: 'var(--crit)', background: 'rgba(224,87,78,0.12)' }}>{f}</span>)}
+        </div>
+      )}
       {Array.isArray(a.agents) && (
         <ul className="space-y-0.5 pt-0.5">
           {a.agents.map((ag) => (
@@ -146,6 +160,14 @@ function CouncilRead({ ticker, onRun }) {
             </li>
           ))}
         </ul>
+      )}
+      {a.deskNote?.conclusion && (
+        <p className="text-[11px] text-faint leading-relaxed border-l-2 border-line pl-2">
+          <span className="mono text-[10px] uppercase tracking-wider text-rex/80">
+            desk note{a.deskNote.participants?.length ? ` · ${a.deskNote.participants.join(' & ')}` : ''}{' '}
+          </span>
+          {stripMd(a.deskNote.conclusion)}
+        </p>
       )}
       <button onClick={() => onRun(ticker)} className="btn-accent h-7 px-3 text-[10px]">run it again →</button>
     </div>
