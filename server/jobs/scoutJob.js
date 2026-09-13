@@ -4,6 +4,7 @@ import { notify } from '../lib/notify.js';
 import { runCouncil } from '../lib/council.js';
 import { getPortfolio } from '../lib/portfolio.js';
 import { saveAnalysis } from '../lib/analyses.js';
+import { listWatchlist } from '../lib/watchlist.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -75,6 +76,54 @@ export async function scoutHoldingsForUser(uid, { force = false } = {}) {
   return { uid, ran };
 }
 
+/**
+ * Run the council on everything a user is WATCHING but doesn't hold —
+ * the watchlist previously got zero automatic coverage; a name only ever
+ * got rated if the user manually ran it. Same freshness/notify shape as
+ * scoutHoldingsForUser, minus the "held" framing.
+ */
+export async function scoutWatchlistForUser(uid, { force = false } = {}) {
+  const watching = await listWatchlist(uid).catch(() => []);
+  if (!watching.length) return { uid, ran: 0 };
+
+  const col = db.collection(`users/${uid}/analyses`);
+  let ran = 0;
+
+  for (const { ticker } of watching) {
+    try {
+      const snap = await col.where('ticker', '==', ticker).get();
+      const prev = snap.docs
+        .map(d => d.data())
+        .sort((a, b) => (b.ts || 0) - (a.ts || 0))[0];
+
+      if (!force) {
+        const fresh = prev && Date.now() - (prev.ts || 0) < FRESH_MS;
+        if (fresh && prev.tier && VERDICTS.has(prev.verdict)) continue;
+      }
+      const result = await runCouncil(ticker, { mode: 'scout', uid });
+      const added = await saveAnalysis(uid, { ...result, trigger: 'scout-watchlist' });
+      ran++;
+      console.log(`[scout:watchlist] ${uid.slice(0, 6)}… ${ticker}: ${result.verdict} ${result.conviction}/10 · ${result.tier}`);
+
+      if (prev && VERDICTS.has(prev.verdict) && VERDICTS.has(result.verdict) && prev.verdict !== result.verdict) {
+        await notify(uid, {
+          kind: 'rating',
+          severity: 'review',
+          ticker,
+          title: `${ticker} (watchlist): ${prev.verdict} → ${result.verdict}`,
+          body: `The council changed its call — ${result.conviction}/10${result.headline ? ` · ${result.headline}` : ''}`,
+          refKind: 'analysis', refId: added?.id || null,
+          dedupeKey: `rating:${ticker}:${result.verdict}`,
+        });
+      }
+    } catch (err) {
+      console.error(`[scout:watchlist] ${ticker} failed:`, err.message);
+    }
+    await sleep(2000);
+  }
+  return { uid, ran };
+}
+
 /** Every user's holdings (cron). Runs before the discovery sweep — the book matters most. */
 export async function scoutAllHoldings({ force = false } = {}) {
   let users = [];
@@ -83,6 +132,8 @@ export async function scoutAllHoldings({ force = false } = {}) {
   for (const uid of users) {
     const { ran } = await scoutHoldingsForUser(uid, { force });
     total += ran;
+    const { ran: ranWatch } = await scoutWatchlistForUser(uid, { force });
+    total += ranWatch;
   }
   console.log(`[scout:holdings] done — ${total} council runs across ${users.length} users`);
   return total;

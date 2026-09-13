@@ -224,13 +224,17 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
       gap: added 2026-09-12, a `Vault · N` panel same style as the others,
       fetched via the existing `getVault()`/`GET /desk/vault`. No packet
       animation — skipped as pure decoration outside this pass's scope.
-- [ ] **Watchlist** proper — `users/{uid}/watchlist`, add-from-anywhere (Congress
+- [x] **Watchlist** proper — `users/{uid}/watchlist`, add-from-anywhere (Congress
       row, Analyze, agent action); the scout job already iterates a ticker list.
-      — Partial: base CRUD shipped (`server/lib/watchlist.js` + `Watchlist.jsx`,
-      Book's sidebar). 2026-09-12: added a `+ watchlist` control to the Congress
-      trades list (`Alerts.jsx`) and the Run/council result header (`Run.jsx`) —
-      the two live ticker-surfacing screens (`Analyze.jsx` is dead code, not a
-      real entry point). Still missing: agent-action wiring and scout-job use.
+      — Base CRUD (`server/lib/watchlist.js` + `Watchlist.jsx`, Book's sidebar);
+      2026-09-12: `+ watchlist` on the Congress trades list and Run/council
+      result header; agent-action wiring via `[[do: watchlist_add/remove]]`
+      (boss + any analyst, see Phase 3 note below); and scout-job use — new
+      `scoutWatchlistForUser()` in `scoutJob.js` runs the council on every
+      watched (not held) ticker on the same cadence/freshness rule as
+      holdings, notifies on a verdict flip, and `Watchlist.jsx`'s sidebar now
+      shows each ticker's latest verdict instead of a bare list. `Analyze.jsx`
+      is dead code, never a real entry point.
 
 ---
 
