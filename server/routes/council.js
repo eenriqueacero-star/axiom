@@ -355,6 +355,16 @@ router.post('/agent/:id/chat', async (req, res) => {
 
     if (dca?.ready && dca.pick?.ticker) {
       context += `\n\nNEXT CONTRIBUTION: the DCA engine's current pick is ${dca.pick.ticker} — ${dca.pick.reason}`;
+      // The runner-up list — so "why this pick and not X" has real reasons to point to,
+      // not a guess. Skip the winner itself and cap it short.
+      const runnersUp = (dca.ranked || []).filter(r => r.ticker !== dca.pick.ticker).slice(0, 4);
+      if (runnersUp.length) {
+        const why = (r) => !r.tierOk ? `council conviction too low (${r.tier || 'unrated'})`
+          : !r.sectorRoom ? 'sector already at cap'
+          : r.entryOk === false ? r.entryWhy
+          : `smaller gap to target (${(r.current * 100).toFixed(1)}% vs ${(r.target * 100).toFixed(1)}% target)`;
+        context += `\nWHY NOT THE OTHERS: ${runnersUp.map(r => `${r.ticker} — ${why(r)}`).join('; ')}.`;
+      }
     } else if (dca?.ready && dca.buffer) {
       context += `\n\nNEXT CONTRIBUTION: nothing cleared the entry rule this cycle — parking it in ${dca.buffer.etf} (${dca.buffer.reason}).`;
     }

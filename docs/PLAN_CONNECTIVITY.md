@@ -184,8 +184,12 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
       header comment already claims this happens — it doesn't.) — Done
       2026-09-12: congress pass added, deduped by trade id, buys go to the
       event desk (thesis-level), sells are FYI-only push.
-- [ ] **DCA pick into agent context** (~10 lines once Phase 1 lands) + let the
-      user ask ZEN/AXIOM "why this pick, not X".
+- [x] **DCA pick into agent context** + let the user ask ZEN/AXIOM "why this
+      pick, not X". — Done 2026-09-12: the pick itself was already in the chat
+      context; added a "WHY NOT THE OTHERS" line built from `dcaSuggestion`'s
+      existing `ranked` array (conviction tier, sector cap, entry rule, or
+      just a smaller gap-to-target) — no new data source, `dcaSuggestion`
+      already computed all of it.
 - [ ] **Event desk + vault on the 3D Office view** — `getDeskEvents` / `getVault`
       exist; `TheOffice` only shows `notes.length`. Add hub tabs Notes / Events /
       Vault + a packet animation when an event job runs.
