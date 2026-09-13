@@ -212,9 +212,15 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
       existing `ranked` array (conviction tier, sector cap, entry rule, or
       just a smaller gap-to-target) — no new data source, `dcaSuggestion`
       already computed all of it.
-- [ ] **Event desk + vault on the 3D Office view** — `getDeskEvents` / `getVault`
-      exist; `TheOffice` only shows `notes.length`. Add hub tabs Notes / Events /
-      Vault + a packet animation when an event job runs.
+- [x] **Event desk + vault** — `TheOffice.jsx` (the component this item names)
+      turned out to be dead code, same as `Portfolio.jsx`/`Analyze.jsx`/
+      `VerdictBanner.jsx` before it — nothing imports it. The real live hub is
+      `views/Floor.jsx`, which already had Notes and an "Event desk" panel
+      wired in (a broader search would've found `events.slice(0,6).map` —
+      an earlier regex miss made it look unused). Vault was the one genuine
+      gap: added 2026-09-12, a `Vault · N` panel same style as the others,
+      fetched via the existing `getVault()`/`GET /desk/vault`. No packet
+      animation — skipped as pure decoration outside this pass's scope.
 - [ ] **Watchlist** proper — `users/{uid}/watchlist`, add-from-anywhere (Congress
       row, Analyze, agent action); the scout job already iterates a ticker list.
       — Partial: base CRUD shipped (`server/lib/watchlist.js` + `Watchlist.jsx`,

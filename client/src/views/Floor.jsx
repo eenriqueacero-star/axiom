@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getDeskState, getDeskWork, getOpportunities, getDeskEvents, getMacro, getFloor, getFloorLive, convene, getStrategyDiagnostics } from '../api';
+import { getDeskState, getDeskWork, getOpportunities, getDeskEvents, getMacro, getFloor, getFloorLive, convene, getStrategyDiagnostics, getVault } from '../api';
 import Icon, { AGENT_META, AGENT_IDS } from '../ui/Icon';
 import Core from '../floor/Core';
 import Sheet from '../ui/Sheet';
@@ -96,6 +96,7 @@ export default function Floor({ desktop, onRun, activeTicker }) {
   const [floor, setFloor] = useState(null);
   const [live, setLive] = useState(null);
   const [diag, setDiag] = useState(null);
+  const [vault, setVault] = useState([]);
   const [sheet, setSheet] = useState(null);
   const [jobsOpen, setJobsOpen] = useState(false);
 
@@ -112,12 +113,14 @@ export default function Floor({ desktop, onRun, activeTicker }) {
       getMacro().catch(() => ({ events: [] })),
       getFloor().catch(() => null),
       getStrategyDiagnostics().catch(() => null),
-    ]).then(([w, e, m, f, d]) => {
+      getVault().catch(() => ({ vault: [] })),
+    ]).then(([w, e, m, f, d, v]) => {
       if (!alive) return;
       setWork(w?.work || null);
       setEvents(e?.events || []);
       setMacro(m?.events || []);
       setFloor(f); setDiag(d);
+      setVault(v?.vault || []);
     });
     load();
     const poll = () => getFloorLive().then((l) => alive && setLive(l)).catch(() => {});
@@ -243,6 +246,28 @@ export default function Floor({ desktop, onRun, activeTicker }) {
                 <span className="mono w-12 shrink-0 text-faint">{String(e.date).slice(5)}</span>
                 <span className="w-8 shrink-0 text-faint">{e.daysOut === 0 ? 'today' : `${e.daysOut}d`}</span>
                 <span className="truncate text-muted">{e.event}</span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {vault.length > 0 && (
+        <Panel title={`Vault · ${vault.length}`} icon="vault">
+          <p className="mb-2 text-[11px] leading-relaxed text-faint">
+            Things the desk looked at and set aside — not acted on, kept for context.
+          </p>
+          <ul className="space-y-2.5">
+            {vault.slice(0, 6).map((v) => (
+              <li key={v.id} className="text-[11.5px] leading-snug">
+                <div className="flex items-baseline gap-2">
+                  {v.ticker && (
+                    <button onClick={() => onRun?.(v.ticker)} className="mono text-[10px] text-accent">{v.ticker}</button>
+                  )}
+                  <span className="mono ml-auto text-[9px] text-faint">{rel(v.ts)}</span>
+                </div>
+                <p className="mt-0.5 text-text">{v.headline}</p>
+                {v.bossNote && <p className="text-faint">set aside: {v.bossNote}</p>}
               </li>
             ))}
           </ul>

@@ -51,6 +51,7 @@ const PATHS = {
   spark:  <path d="M10 3v3M10 14v3M3 10h3M14 10h3M5.2 5.2l2 2M12.8 12.8l2 2M14.8 5.2l-2 2M7.2 12.8l-2 2" {...P} />,
   sync:   <path d="M15 6a6 6 0 1 0 1.5 4M15 3v3h-3" {...P} />,
   coin:   <><ellipse cx="10" cy="6" rx="6" ry="2.6" {...P} /><path d="M4 6v8c0 1.4 2.7 2.6 6 2.6s6-1.2 6-2.6V6" {...P} /><path d="M4 10c0 1.4 2.7 2.6 6 2.6s6-1.2 6-2.6" {...P} /></>,
+  vault:  <><rect x="3.5" y="4" width="13" height="12" rx="1.5" {...P} /><circle cx="10" cy="10" r="2.6" {...P} /><path d="M10 8.5v0.01" {...P} /></>,
 };
 
 export default function Icon({ name, size = 16, className = '', style }) {
