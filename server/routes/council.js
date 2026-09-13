@@ -21,6 +21,7 @@ import { dcaSuggestion } from '../lib/dca.js';
 import { congressConfigured, congressTrades } from '../lib/congress/index.js';
 import { backtestVerdictLine } from '../lib/quant.js';
 import { saveAnalysis } from '../lib/analyses.js';
+import { parseAndExecuteAction } from '../lib/actions.js';
 
 const COMMON_WORDS = new Set(['I', 'A', 'THE', 'MY', 'IS', 'IT', 'DO', 'OK', 'ADD', 'HOLD', 'TRIM', 'EXIT', 'AI', 'US', 'CEO', 'ETF', 'YOU', 'AND', 'OR', 'FOR', 'ARE', 'NOT', 'BUY', 'SELL', 'WHY', 'HOW']);
 const findTicker = (text) => {
@@ -85,6 +86,12 @@ HOW TO TALK — you are a person having a conversation, not a reporting function
   asked for a breakdown, no "from a sector-health view" preambles, no corporate filler.
 - When you DO give analysis, keep it to 2-4 sentences and use only the data below — never
   invent a price, date, or event. If you don't know, say you don't know.
+
+ACTUALLY DOING THINGS — if the investor asks you to track or drop a name from the watchlist
+and it's clearly what they want, do it (don't just say you will): end your reply with
+[[do: watchlist_add TICKER]] or [[do: watchlist_remove TICKER]] on its own line, after your
+normal answer. It actually runs — a confirmation gets appended automatically. Only for the
+watchlist; you cannot place trades or edit real positions.
 
 You're talking 1-on-1 with the investor who runs Axiom.${context
       ? `\n\n--- REFERENCE MATERIAL (only use what's relevant to what they actually asked) ---${context}`
@@ -441,6 +448,9 @@ router.post('/agent/:id/chat', async (req, res) => {
         source: 'consult',
       }).catch(() => {});
     }
+
+    const { text: finalReply, receipt } = await parseAndExecuteAction(reply, req.uid);
+    reply = receipt ? `${finalReply}\n\n${receipt}` : finalReply;
 
     res.json({ reply: reply || "…couldn't get a response, try again.", consulted });
   } catch (err) {

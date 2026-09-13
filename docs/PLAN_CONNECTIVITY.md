@@ -128,6 +128,21 @@ POST body; `routes/council.js` reads them into `buildAgentContext`.
 
 ## Phase 3 — agent action layer
 
+**Status 2026-09-12:** discovered `navigate` was already fully built — the
+boss ends a reply with `[[open:run TICKER]]` / `[[open:alerts|jobs|book|floor]]`,
+`desk/bossChat.js parseActions()` turns it into a button, `App.jsx onBossAction`
+executes it. That's a real, working AUTO action, just under a different name
+than this doc's `{"action":...}` JSON spec. Added `server/lib/actions.js` — a
+small registry (`watchlist_add`, `watchlist_remove` so far) driven by a second
+directive, `[[do: name arg]]`, that EXECUTES immediately (no button — these
+are receipt-style, not navigation) and appends a plain confirmation sentence.
+Wired into both `desk/bossChat.js` (the boss) and `routes/council.js`'s
+per-agent chat handler (any analyst) per the "analysts → watchlist only"
+scoping rule below. `run_council`, `dismiss_signal/snooze_signal`, `pin` and
+the whole CONFIRM tier (`mark_executed`, `portfolio_set_shares`, etc.) are
+still open — dismiss/snooze needs a new `dismissed` flag on
+`users/{uid}/signals` first, per the original Phase 4 note.
+
 **`server/lib/actions.js`** — registry `{ name, scope, mode, validate, exec }`.
 Parser clones `parseConsult`: the boss (or an analyst, scoped) emits
 `{"action":"navigate","args":{...}}`; server validates → executes (AUTO) or

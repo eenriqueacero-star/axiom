@@ -12,6 +12,7 @@ import { firmContext } from './night.js';
 import { listVault, vaultBlock, saveToVault } from './vault.js';
 import { listMemos } from '../memos.js';
 import { recordDone } from '../executions.js';
+import { parseAndExecuteAction } from '../actions.js';
 
 const byId = Object.fromEntries(AGENTS.map((a) => [a.id, a]));
 
@@ -165,6 +166,11 @@ DRIVING THE UI — when it genuinely helps the investor act (not every message),
 [[open:floor]]
 Use it only when the next step is obvious and the button saves them a tap. Don't add one just to have one.
 
+ACTUALLY DOING THINGS — separately, if the investor clearly wants a name tracked or dropped from
+the watchlist, do it (don't just say you will): end your reply with [[do: watchlist_add TICKER]]
+or [[do: watchlist_remove TICKER]] instead of an [[open:...]] line — it actually runs and a
+confirmation gets appended automatically. Only the watchlist; never trades or real positions.
+
 --- REFERENCE (use what's relevant) ---
 FIRM STATE:
 ${context}${vaultBlock(vault)}${memoLines ? `\n\nRECENT DESK NOTES:\n${memoLines}` : ''}`;
@@ -241,7 +247,8 @@ export async function postMessage(uid, id, userText, viewContext) {
   }
 
   const { text: cleanReply, actions } = parseActions(reply);
-  reply = cleanReply;
+  const { text: finalReply, receipt } = await parseAndExecuteAction(cleanReply, uid);
+  reply = receipt ? `${finalReply}\n\n${receipt}` : finalReply;
 
   const now = Date.now();
   const appended = [{ role: 'user', content: String(userText).slice(0, 4000), ts: now }];
