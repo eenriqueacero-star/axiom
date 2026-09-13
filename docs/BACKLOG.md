@@ -423,7 +423,9 @@ content shown inside each 3D room.
   Connect a brokerage, then hit Sync in Axiom.**
   Verify the position field mapping (symbol / units / cost basis paths in `broker.js`
   are defensive guesses) once the first real sync runs.
-- [ ] Cost-basis entry UI for manual accounts (field + parser exist; no dedicated input).
+- [x] Cost-basis entry UI for manual accounts — done 2026-09-13: `EditPositionModal`
+  in the live `HoldingsSheet.jsx` has both a shares and a cost-basis field, gated
+  to unlinked accounts (see connectivity plan's `portfolio_set_shares` entry).
 
 ## Quant service (Python, `quant/`)
 
@@ -494,7 +496,9 @@ content shown inside each 3D room.
   Empty until verdicts age 7d — data accumulates from here.
 - [x] **Scorecard → agent weights** — `lib/agentWeights.js` (T3 above). Was: once there's data, tune AXIOM's agent weighting
   and drop/fix agents that don't predict. (The point of collecting it.)
-- [ ] **Paper-portfolio of AXIOM's own calls** — makes "the edge" a real number.
+- [x] **Paper-portfolio of AXIOM's own calls** — done 2026-09-13: see connectivity
+  plan's Phase 4 entry — "Paper Portfolio" section on the You tab, new
+  `GET /api/council/paper` endpoint.
 - [~] Watchlist + auto-scan — the discovery sweep's `scoutResults` now feeds a
   "Worth a look — scout picks you don't own" card on The Floor (`lib/discovery.js`
   `topDiscoveries`, ranked ADD-first then conviction, held names excluded, tap →
