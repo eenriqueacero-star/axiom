@@ -5,6 +5,7 @@ import {
   getNotifyPrefs, setNotifyPrefs, sendTestPush,
   getHealth, getKeyStatus, getJobs,
   getBacktest, getQuantStatus,
+  getFloor, getQuotes,
 } from '../api';
 import { useAuth } from '../AuthProvider';
 import { pushState, enablePush, disablePush } from '../lib/push';
@@ -521,6 +522,98 @@ function PerformanceSection() {
   );
 }
 
+/* ---------- 7. Paper portfolio ---------- */
+
+const shortDate = (ts) => ts ? new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—';
+
+function PaperPortfolioSection() {
+  const [state, setState] = useState(null); // { rows, avgReturn } | { error: true }
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const floor = await getFloor();
+        const runs = (floor.runs || []).slice().sort((a, b) => (a.ts || 0) - (b.ts || 0));
+        // First qualifying ADD per ticker is the hypothetical entry — later
+        // re-runs of the same ticker don't buy it again.
+        const entries = new Map();
+        for (const r of runs) {
+          if (r.ticker && r.verdict === 'ADD' && (r.conviction || 0) >= 7 && r.price > 0 && !entries.has(r.ticker)) {
+            entries.set(r.ticker, { ts: r.ts, entryPrice: r.price, conviction: r.conviction });
+          }
+        }
+        const tickers = [...entries.keys()];
+        if (!tickers.length) { if (alive) setState({ rows: [], avgReturn: null }); return; }
+        const quotes = await getQuotes(tickers);
+        const rows = tickers.map((ticker) => {
+          const e = entries.get(ticker);
+          const curPrice = quotes[ticker]?.price ?? null;
+          const ret = curPrice > 0 ? (curPrice - e.entryPrice) / e.entryPrice : null;
+          return { ticker, ...e, curPrice, ret };
+        }).sort((a, b) => (b.ret ?? -Infinity) - (a.ret ?? -Infinity));
+        const valid = rows.filter((r) => r.ret != null);
+        const avgReturn = valid.length ? valid.reduce((s, r) => s + r.ret, 0) / valid.length : null;
+        if (alive) setState({ rows, avgReturn });
+      } catch {
+        if (alive) setState({ rows: [], avgReturn: null, error: true });
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  return (
+    <Section id="paper" title="Paper Portfolio" icon="trend">
+      <p className="mb-3 text-[11px] leading-relaxed text-muted">
+        If you'd bought every ADD call at conviction ≥7, held it, and never sold —
+        equal-weighted, no rebalancing. Hypothetical only, no dollars actually moved.
+      </p>
+      {!state ? (
+        <p className="mono text-[11px] text-faint">…</p>
+      ) : state.error ? (
+        <p className="text-[12px] text-faint">Couldn't load the council's history right now.</p>
+      ) : !state.rows.length ? (
+        <p className="text-[12px] text-faint">No ADD calls at conviction ≥7 yet — the council hasn't found one it's sure enough of.</p>
+      ) : (
+        <>
+          <div className={`mono text-lg ${state.avgReturn >= 0 ? 'text-good' : 'text-crit'}`}>
+            {state.avgReturn != null ? signedPct(state.avgReturn) : '—'}
+            <span className="ml-2 label align-middle text-[9px]">
+              avg since entry · {state.rows.length} name{state.rows.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full mono text-[11px]">
+              <thead>
+                <tr className="label text-left text-[9px]">
+                  <th className="pb-1.5 font-normal">Ticker</th>
+                  <th className="pb-1.5 font-normal">Entry</th>
+                  <th className="pb-1.5 text-right font-normal">Entry $</th>
+                  <th className="pb-1.5 text-right font-normal">Now $</th>
+                  <th className="pb-1.5 text-right font-normal">Return</th>
+                </tr>
+              </thead>
+              <tbody>
+                {state.rows.map((r) => (
+                  <tr key={r.ticker} className="border-t border-line">
+                    <td className="py-1.5 pr-2 text-text">{r.ticker}</td>
+                    <td className="py-1.5 text-faint">{shortDate(r.ts)}</td>
+                    <td className="py-1.5 text-right text-muted">${r.entryPrice.toFixed(2)}</td>
+                    <td className="py-1.5 text-right text-muted">{r.curPrice != null ? `$${r.curPrice.toFixed(2)}` : '—'}</td>
+                    <td className={`py-1.5 text-right ${r.ret == null ? 'text-faint' : r.ret >= 0 ? 'text-good' : 'text-crit'}`}>
+                      {r.ret == null ? '—' : signedPct(r.ret)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Section>
+  );
+}
+
 /* ---------- shell ---------- */
 
 const NAV = [
@@ -530,6 +623,7 @@ const NAV = [
   ['notifications', 'Notifications', 'alerts'],
   ['system', 'System', 'spark'],
   ['performance', 'Performance', 'trend'],
+  ['paper', 'Paper Portfolio', 'trend'],
 ];
 
 export default function You({ desktop }) {
@@ -544,6 +638,7 @@ export default function You({ desktop }) {
       <NotificationsSection />
       <SystemSection />
       <PerformanceSection />
+      <PaperPortfolioSection />
     </>
   );
 
