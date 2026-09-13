@@ -59,6 +59,7 @@ export const runJob = (name) => request(`/status/jobs/${name}/run`, { method: 'P
 // Notifications feed + preferences.
 export const getNotifications = (limit = 50) => request(`/notifications?limit=${limit}`);
 export const markNotificationsRead = (ids) => request('/notifications/read', { method: 'POST', body: { ids: ids ?? null } });
+export const dismissNotification = (id) => request(`/notifications/${id}/dismiss`, { method: 'POST' });
 export const getNotifyPrefs = () => request('/notifications/prefs');
 export const setNotifyPrefs = (prefs) => request('/notifications/prefs', { method: 'PUT', body: prefs });
 

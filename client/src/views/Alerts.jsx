@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNotifications } from '../hooks/useNotifications';
-import { markNotificationsRead, getNotifyPrefs, setNotifyPrefs, getCongress, addWatchlist } from '../api';
+import { markNotificationsRead, getNotifyPrefs, setNotifyPrefs, getCongress, addWatchlist, dismissNotification } from '../api';
 import Icon from '../ui/Icon';
 import Sheet from '../ui/Sheet';
 import { AlertDetail } from './sheets/AlertDetail';
@@ -30,11 +30,22 @@ function relTime(ts) {
 }
 const money = (n) => (n == null ? '' : `$${Math.round(n).toLocaleString()}`);
 
-function FeedRow({ n, active, onClick }) {
+function FeedRow({ n, active, onClick, onDismiss }) {
+  const [dismissing, setDismissing] = useState(false);
+  const dismiss = async (e) => {
+    e.stopPropagation();
+    if (dismissing) return;
+    setDismissing(true);
+    try { await dismissNotification(n.id); onDismiss?.(n.id); }
+    catch { setDismissing(false); }
+  };
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className={`press grid w-full grid-cols-[16px_1fr_auto] items-start gap-3 border-b border-line px-4 py-3 text-left
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
+      className={`press grid w-full cursor-pointer grid-cols-[16px_1fr_auto_auto] items-start gap-3 border-b border-line px-4 py-3 text-left
         ${active ? 'bg-white/[0.03]' : ''}`}
     >
       <span className="relative mt-0.5">
@@ -52,7 +63,11 @@ function FeedRow({ n, active, onClick }) {
         {!n.read && <i className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />}
         <time className="mono text-[10px] text-faint">{relTime(n.ts)}</time>
       </span>
-    </button>
+      <button onClick={dismiss} disabled={dismissing} title="Dismiss"
+        className="press grid h-5 w-5 place-items-center rounded-sm text-faint hover:text-text disabled:opacity-40">
+        <Icon name="close" size={11} />
+      </button>
+    </div>
   );
 }
 
@@ -292,7 +307,8 @@ export default function Alerts({ desktop, openId, onRun }) {
           ) : (
             <div className="rise-in">
               {feed.map((n) => (
-                <FeedRow key={n.id} n={n} active={desktop && n.id === selId} onClick={() => openItem(n)} />
+                <FeedRow key={n.id} n={n} active={desktop && n.id === selId} onClick={() => openItem(n)}
+                  onDismiss={(id) => setSelId((cur) => (cur === id ? null : cur))} />
               ))}
             </div>
           )}

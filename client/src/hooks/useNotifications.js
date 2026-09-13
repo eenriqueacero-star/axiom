@@ -28,7 +28,7 @@ export function useNotifications(max = 60) {
       limit(max),
     );
     return onSnapshot(q, (snap) => {
-      setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((n) => !n.dismissed));
     }, () => {});
   }, [user, max]);
 

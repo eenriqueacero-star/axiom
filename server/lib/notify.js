@@ -175,9 +175,19 @@ export async function notifyBatch(uid, items, summary, threshold = 3) {
 export async function listNotifications(uid, limit = 50) {
   try {
     const snap = await feedCol(uid).orderBy('ts', 'desc').limit(Math.min(limit, 100)).get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((n) => !n.dismissed);
   } catch {
     return [];
+  }
+}
+
+/** Hide a card from the feed for good — a soft delete, not a read receipt. */
+export async function dismissNotification(uid, id) {
+  try {
+    await feedCol(uid).doc(id).set({ dismissed: true, dismissedAt: Date.now() }, { merge: true });
+    return { ok: true };
+  } catch {
+    return { ok: false };
   }
 }
 

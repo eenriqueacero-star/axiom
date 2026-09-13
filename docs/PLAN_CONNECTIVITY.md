@@ -189,10 +189,17 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
 - [ ] **Paper portfolio** — "if you'd followed every ADD at conviction ≥7" equity
       curve. Pure client math on `analyses` (has verdict + price + ts +
       score.perf). Overlay real vs hypothetical once `mark_executed` lands.
-- [ ] **Signals feed screen** — `users/{uid}/signals` is fully populated;
-      `/api/signals/holdings` exists (48h/held). Broaden to paginated + kind
-      filters (news/filing/insider/congress) + the dismiss/snooze actions + a
-      link to the event-desk job if one opened.
+- [x] **Signals feed screen** — turned out `views/Alerts.jsx` already covers
+      most of this: it reads `users/{uid}/notifications` (a richer feed than
+      raw `users/{uid}/signals`), already has kind filters (news/filing/
+      insider/congress/moves/ratings/scout/desk/macro), a detail pane, and
+      links out to source/council. The one real gap — dismiss — is done
+      2026-09-12: `notify.js dismissNotification()` soft-deletes a card
+      (`dismissed: true`, filtered out of both the REST list and the live
+      Firestore query), `POST /api/notifications/:id/dismiss`, and a "×" on
+      each row in `Alerts.jsx`. Snooze (temporary re-hide + resurface) is
+      still open — needs a `snoozedUntil` field and a sweep job to bring it
+      back, not just a flag flip.
 - [x] **Congress alerts for held names** — `congressTrades` + `heldTickers` both
       exist; add a congress pass to `scanHoldingsNewsForUser` that pushes +
       triages a disclosed trade in a held name. ~30 lines. (The `triage.js`

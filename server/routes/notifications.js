@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { verifyToken } from '../lib/auth.js';
-import { listNotifications, markRead, getNotifyPrefs, setNotifyPrefs } from '../lib/notify.js';
+import { listNotifications, markRead, getNotifyPrefs, setNotifyPrefs, dismissNotification } from '../lib/notify.js';
 
 const router = Router();
 router.use(verifyToken);
@@ -18,6 +18,14 @@ router.post('/read', async (req, res) => {
   try {
     const n = await markRead(req.uid, req.body?.ids ?? null);  // ids array, single id, or null = all
     res.json({ ok: true, marked: n });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.post('/:id/dismiss', async (req, res) => {
+  try {
+    res.json(await dismissNotification(req.uid, req.params.id));
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
