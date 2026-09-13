@@ -164,7 +164,11 @@ queues (CONFIRM) → result goes back into the conversation.
       Portfolio.jsx` used it). Added an "edit shares / cost" action on each
       holding row in the real `HoldingsSheet.jsx` — a CONFIRM-style modal that
       shows the exact old→new diff before Save is enabled, nothing changes
-      until confirmed.
+      until confirmed. Caught live during testing: `broker.js syncHoldings()`
+      fully overwrites a linked account's `holdings` map on every sync, so
+      editing a broker-linked position is pointless — the edit silently
+      vanishes on the next sync. Gated the edit button to unlinked (manually
+      tracked) accounts only; linked rows show "synced from {account}" instead.
 - [ ] `portfolio_add_ticker / portfolio_remove_ticker`
 - [ ] `account_add / account_remove / account_rename`
 - `mark_executed({ticker, verdict, account, shares, price})` — **keystone**:

@@ -144,7 +144,7 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
     for (const acct of pf?.accounts || []) {
       for (const p of acct.positions || []) {
         if (!p.ticker || (p.shares || 0) <= 0) continue;
-        out.push({ ...p, account: acct.label, accountId: acct.id });
+        out.push({ ...p, account: acct.label, accountId: acct.id, linked: !!acct.linked });
       }
     }
     return out.sort((x, y) => (y.value || 0) - (x.value || 0));
@@ -191,9 +191,15 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
                   <button onClick={() => onAnalyze?.(p.ticker)} className="mono text-[10px] text-rex">
                     run the council →
                   </button>
-                  <button onClick={() => setEditing(p)} className="mono text-[10px] text-faint hover:text-text">
-                    edit shares / cost
-                  </button>
+                  {p.linked ? (
+                    <span className="mono text-[10px] text-faint" title="Synced from your broker — edit it there, not here">
+                      synced from {p.account}
+                    </span>
+                  ) : (
+                    <button onClick={() => setEditing(p)} className="mono text-[10px] text-faint hover:text-text">
+                      edit shares / cost
+                    </button>
+                  )}
                 </div>
               )}
             </li>
