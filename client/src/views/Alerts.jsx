@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNotifications } from '../hooks/useNotifications';
-import { markNotificationsRead, getNotifyPrefs, setNotifyPrefs, getCongress } from '../api';
+import { markNotificationsRead, getNotifyPrefs, setNotifyPrefs, getCongress, addWatchlist } from '../api';
 import Icon from '../ui/Icon';
 import Sheet from '../ui/Sheet';
 import { AlertDetail } from './sheets/AlertDetail';
@@ -73,6 +73,26 @@ function Chips({ chips, value, onChange }) {
   );
 }
 
+function WatchButton({ ticker }) {
+  const [state, setState] = useState('idle'); // idle | busy | added | error
+  if (!ticker || ticker === '—') return null;
+  const add = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (state !== 'idle') return;
+    setState('busy');
+    try { await addWatchlist(ticker); setState('added'); }
+    catch { setState('error'); }
+  };
+  if (state === 'added') return <Icon name="check" size={11} className="text-good" />;
+  return (
+    <button onClick={add} disabled={state === 'busy'} title={`Add ${ticker} to watchlist`}
+      className="press grid h-4 w-4 place-items-center rounded-sm text-faint hover:text-text disabled:opacity-40">
+      <Icon name={state === 'error' ? 'close' : 'plus'} size={10} />
+    </button>
+  );
+}
+
 function CongressList({ desktop }) {
   const [rows, setRows] = useState(null);
   const [sub, setSub] = useState({ heldOnly: false, type: '', chamber: '' });
@@ -125,6 +145,7 @@ function CongressList({ desktop }) {
                 <span className="mono text-[11px] text-faint">{t.ticker || '—'}</span>
                 <span className={`mono text-[10px] ${t.type === 'buy' ? 'text-good' : 'text-crit'}`}>{String(t.type || '').toUpperCase()}</span>
                 {(t.isHeld ?? t.held) && <Icon name="check" size={11} className="text-muted" />}
+                <WatchButton ticker={t.ticker} />
               </span>
               <span className="mt-0.5 block truncate text-[11px] text-faint">
                 {t.member}{t.party ? ` (${t.party})` : ''} · {t.chamber}

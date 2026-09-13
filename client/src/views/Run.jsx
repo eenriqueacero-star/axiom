@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { runCouncil, startExecution } from '../api';
+import { runCouncil, startExecution, addWatchlist } from '../api';
 import Icon, { AGENT_IDS, AGENT_META } from '../ui/Icon';
 
 /* ---- helpers ---------------------------------------------------------- */
@@ -110,6 +110,24 @@ function FlagChips({ computed }) {
         </span>
       ))}
     </div>
+  );
+}
+
+function WatchButton({ ticker }) {
+  const [state, setState] = useState('idle'); // idle | busy | added | error
+  if (!ticker) return null;
+  const add = async () => {
+    if (state !== 'idle') return;
+    setState('busy');
+    try { await addWatchlist(ticker); setState('added'); }
+    catch { setState('error'); }
+  };
+  if (state === 'added') return <span className="mono text-[10px] text-good">watching</span>;
+  return (
+    <button onClick={add} disabled={state === 'busy'} title={`Add ${ticker} to watchlist`}
+      className="press mono text-[10px] tracking-[0.08em] text-faint hover:text-text disabled:opacity-40">
+      {state === 'error' ? "couldn't add" : '+ watchlist'}
+    </button>
   );
 }
 
@@ -426,6 +444,7 @@ export default function Run({ desktop, initialTicker }) {
           {pct(result.changePct)}
         </span>
       )}
+      <span className="ml-auto"><WatchButton ticker={result.ticker} /></span>
     </div>
   );
 

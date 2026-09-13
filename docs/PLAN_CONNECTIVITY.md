@@ -176,9 +176,11 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
       Vault + a packet animation when an event job runs.
 - [ ] **Watchlist** proper — `users/{uid}/watchlist`, add-from-anywhere (Congress
       row, Analyze, agent action); the scout job already iterates a ticker list.
-      — Partial: base CRUD watchlist shipped (`server/lib/watchlist.js` +
-      `Watchlist.jsx`, in Book's sidebar). Still missing: add-from-anywhere
-      (Congress row / Analyze / agent action) and scout-job wiring.
+      — Partial: base CRUD shipped (`server/lib/watchlist.js` + `Watchlist.jsx`,
+      Book's sidebar). 2026-09-12: added a `+ watchlist` control to the Congress
+      trades list (`Alerts.jsx`) and the Run/council result header (`Run.jsx`) —
+      the two live ticker-surfacing screens (`Analyze.jsx` is dead code, not a
+      real entry point). Still missing: agent-action wiring and scout-job use.
 
 ---
 
