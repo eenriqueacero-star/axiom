@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNotifications } from '../hooks/useNotifications';
-import { markNotificationsRead, getNotifyPrefs, setNotifyPrefs, getCongress, addWatchlist, dismissNotification } from '../api';
+import { markNotificationsRead, getNotifyPrefs, setNotifyPrefs, getCongress, addWatchlist, dismissNotification, snoozeNotification } from '../api';
 import Icon from '../ui/Icon';
 import Sheet from '../ui/Sheet';
 import { AlertDetail } from './sheets/AlertDetail';
@@ -30,15 +30,24 @@ function relTime(ts) {
 }
 const money = (n) => (n == null ? '' : `$${Math.round(n).toLocaleString()}`);
 
-function FeedRow({ n, active, onClick, onDismiss }) {
-  const [dismissing, setDismissing] = useState(false);
-  const dismiss = async (e) => {
-    e.stopPropagation();
-    if (dismissing) return;
-    setDismissing(true);
-    try { await dismissNotification(n.id); onDismiss?.(n.id); }
-    catch { setDismissing(false); }
-  };
+function DismissMenu({ n, onPick, onClose }) {
+  return (
+    <div className="fixed inset-0 z-40 grid place-items-end bg-black/40 sm:place-items-center" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}
+        className="panel w-full max-w-xs rounded-t-xl border border-line bg-base-2 p-4 sm:rounded-xl">
+        <div className="mono text-[10px] text-faint truncate">{n.title}</div>
+        <div className="mt-2 flex flex-col gap-1">
+          {[['day', 'Snooze 1 day'], ['week', 'Snooze 1 week'], ['dismiss', 'Dismiss for good']].map(([mode, label]) => (
+            <button key={mode} onClick={() => onPick(mode)}
+              className="press rounded-md px-2 py-2 text-left text-[12px] text-text hover:bg-line-2/60">{label}</button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FeedRow({ n, active, onClick, onOpenMenu }) {
   return (
     <div
       role="button"
@@ -63,8 +72,8 @@ function FeedRow({ n, active, onClick, onDismiss }) {
         {!n.read && <i className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />}
         <time className="mono text-[10px] text-faint">{relTime(n.ts)}</time>
       </span>
-      <button onClick={dismiss} disabled={dismissing} title="Dismiss"
-        className="press grid h-5 w-5 place-items-center rounded-sm text-faint hover:text-text disabled:opacity-40">
+      <button onClick={(e) => { e.stopPropagation(); onOpenMenu(n); }} title="Dismiss or snooze"
+        className="press grid h-5 w-5 place-items-center rounded-sm text-faint hover:text-text">
         <Icon name="close" size={11} />
       </button>
     </div>
@@ -225,7 +234,19 @@ export default function Alerts({ desktop, openId, onRun }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const [prefs, setPrefs] = useState(null);
+  const [menuItem, setMenuItem] = useState(null);
   const didDeepLink = useRef(false);
+
+  const pickDismiss = async (mode) => {
+    const n = menuItem;
+    setMenuItem(null);
+    if (!n) return;
+    if (selId === n.id) setSelId(null);
+    try {
+      if (mode === 'dismiss') await dismissNotification(n.id);
+      else await snoozeNotification(n.id, mode === 'week' ? 7 : 1);
+    } catch { /* the live query will just keep showing it — no harm */ }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -308,7 +329,7 @@ export default function Alerts({ desktop, openId, onRun }) {
             <div className="rise-in">
               {feed.map((n) => (
                 <FeedRow key={n.id} n={n} active={desktop && n.id === selId} onClick={() => openItem(n)}
-                  onDismiss={(id) => setSelId((cur) => (cur === id ? null : cur))} />
+                  onOpenMenu={setMenuItem} />
               ))}
             </div>
           )}
@@ -316,6 +337,8 @@ export default function Alerts({ desktop, openId, onRun }) {
       )}
     </div>
   );
+
+  const dismissMenu = menuItem && <DismissMenu n={menuItem} onPick={pickDismiss} onClose={() => setMenuItem(null)} />;
 
   if (desktop) {
     return (
@@ -329,6 +352,7 @@ export default function Alerts({ desktop, openId, onRun }) {
             <AlertDetail item={selected} onRun={onRun} titleId="alert-detail-title" />
           </div>
         </div>
+        {dismissMenu}
       </div>
     );
   }
@@ -340,6 +364,7 @@ export default function Alerts({ desktop, openId, onRun }) {
       <Sheet open={sheetOpen} onClose={() => setSheetOpen(false)} labelledBy="alert-detail-title">
         {sheetOpen && <AlertDetail item={selected} onRun={(t) => { setSheetOpen(false); onRun?.(t); }} titleId="alert-detail-title" />}
       </Sheet>
+      {dismissMenu}
     </div>
   );
 }

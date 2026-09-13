@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { verifyToken } from '../lib/auth.js';
-import { listNotifications, markRead, getNotifyPrefs, setNotifyPrefs, dismissNotification } from '../lib/notify.js';
+import { listNotifications, markRead, getNotifyPrefs, setNotifyPrefs, dismissNotification, snoozeNotification } from '../lib/notify.js';
 
 const router = Router();
 router.use(verifyToken);
@@ -26,6 +26,14 @@ router.post('/read', async (req, res) => {
 router.post('/:id/dismiss', async (req, res) => {
   try {
     res.json(await dismissNotification(req.uid, req.params.id));
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+router.post('/:id/snooze', async (req, res) => {
+  try {
+    res.json(await snoozeNotification(req.uid, req.params.id, req.body?.days));
   } catch (err) {
     res.status(502).json({ error: err.message });
   }

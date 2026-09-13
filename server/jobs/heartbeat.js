@@ -25,7 +25,7 @@ import { calibrateAllUsers } from '../lib/calibration.js';
 import { deskTick } from './deskLoop.js';
 import { runDeskNightAll } from './deskNight.js';
 import { runWeekendReflection } from './weekendReflection.js';
-import { runNotifyDigest } from '../lib/notify.js';
+import { runNotifyDigest, runSnoozeSweep } from '../lib/notify.js';
 import { runBossSweepAll } from '../lib/desk/sweep.js';
 import { runMacroWatch } from '../lib/macro.js';
 
@@ -104,6 +104,12 @@ const JOBS = [
     when: () => { const e = etParts(); return e.hour >= 7 && e.hour <= 20; },
     window: '7am–8pm ET',
     run: () => runMacroWatch(),
+  },
+  {
+    name: 'snooze-sweep',         // bring back alerts whose snooze window has passed
+    label: 'Alert snooze sweep',
+    every: 30 * MIN,
+    run: () => runSnoozeSweep(),
   },
   {
     name: 'digest-am',            // morning roll-up of everything that landed feed-only overnight

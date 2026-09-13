@@ -197,9 +197,12 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
       2026-09-12: `notify.js dismissNotification()` soft-deletes a card
       (`dismissed: true`, filtered out of both the REST list and the live
       Firestore query), `POST /api/notifications/:id/dismiss`, and a "×" on
-      each row in `Alerts.jsx`. Snooze (temporary re-hide + resurface) is
-      still open — needs a `snoozedUntil` field and a sweep job to bring it
-      back, not just a flag flip.
+      each row in `Alerts.jsx`. Snooze — done 2026-09-12: `snoozeNotification()`
+      stamps `snoozedUntil`, a new `snooze-sweep` heartbeat job (every 30 min)
+      un-hides anything past its window (`runSnoozeSweep()`), `POST
+      /:id/snooze` with `{days}`, and the "×" now opens a small menu (snooze
+      1 day / 1 week / dismiss for good) instead of an instant dismiss — same
+      pattern as the queue's skip menu.
 - [x] **Congress alerts for held names** — `congressTrades` + `heldTickers` both
       exist; add a congress pass to `scanHoldingsNewsForUser` that pushes +
       triages a disclosed trade in a held name. ~30 lines. (The `triage.js`

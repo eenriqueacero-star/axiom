@@ -191,6 +191,37 @@ export async function dismissNotification(uid, id) {
   }
 }
 
+/** Hide a card temporarily — runSnoozeSweep() brings it back once snoozedUntil passes. */
+export async function snoozeNotification(uid, id, days = 1) {
+  try {
+    const snoozedUntil = Date.now() + Math.max(1, Number(days) || 1) * 86_400_000;
+    await feedCol(uid).doc(id).set({ dismissed: true, snoozedUntil }, { merge: true });
+    return { ok: true, snoozedUntil };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Un-hide anything whose snooze window has passed. Runs on a timer (heartbeat). */
+export async function runSnoozeSweep() {
+  if (!db) return 0;
+  let users = [];
+  try { users = (await db.collection('users').get()).docs.map((d) => d.id); } catch { return 0; }
+
+  const now = Date.now();
+  let restored = 0;
+  for (const uid of users) {
+    try {
+      const snap = await feedCol(uid).where('snoozedUntil', '<=', now).get();
+      if (snap.empty) continue;
+      await Promise.all(snap.docs.map((d) =>
+        d.ref.set({ dismissed: false, snoozedUntil: null }, { merge: true })));
+      restored += snap.size;
+    } catch { /* skip this user, keep going */ }
+  }
+  return restored;
+}
+
 export async function markRead(uid, ids) {
   const list = Array.isArray(ids) ? ids : (ids ? [ids] : null);
   try {
