@@ -4,6 +4,28 @@ Living list. Keep it current. Newer thinking in `project_axiom_roadmap` memory.
 
 ---
 
+## ⏳ Waiting on you (2026-09-13)
+
+**Decisions:**
+- Firestore plan — stay on free Spark (daily read cap, hit it once already)
+  vs. upgrade to Blaze (pay-as-you-go, removes the cap).
+- Verdict-engine redesign — answer the 3 open questions in
+  `docs/PLAN_VERDICT_ENGINE.md` before any code changes there.
+
+**Actions (need you, not code):**
+- Create the 3rd Render service for the quant backtest; set `TIINGO_TOKEN` +
+  `QUANT_API_KEY` on it, then `QUANT_URL` + `QUANT_API_KEY` on the main service.
+- Connect the remaining 2 brokerages in SnapTrade's own dashboard (1 of 3 done).
+- Re-run `python run_axiom.py` once Tiingo's hourly limit clears, to backfill
+  the ~25 missing post-2009 tickers.
+
+**In progress with `floor-redesign-v2` (separate agent, Round Table concept):**
+- Center of the table needs a real focal point (currently feels empty).
+- The red dispute lines between disagreeing agents are unclear to a new
+  user — rethinking how a disagreement is communicated, not just restyling.
+
+---
+
 ## 🔜 Up next (2026-09-04) — don't lose these
 
 0. **FIRESTORE QUOTA — decide + run cleanup.** Hit the 50K/day free-tier read
