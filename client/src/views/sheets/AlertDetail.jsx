@@ -45,6 +45,7 @@ function BookMeaning({ ticker }) {
     c.concentrationTrim && 'concentration trim',
     c.atCap && 'at cap',
     c.entryClear && 'entry clear',
+    c.dataIncomplete && 'live quote down — last close used',
   ].filter(Boolean);
 
   return (

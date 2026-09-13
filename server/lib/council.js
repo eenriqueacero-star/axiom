@@ -2,7 +2,7 @@ import { AGENTS, PROTOCOLS, AXIOM_SYSTEM } from '../agents/definitions.js';
 import { callAgent, callSynthesis } from './groq.js';
 import { safeJson } from './fetchJson.js';
 import { tickerNews } from './signals.js';
-import { priceFacts } from './metrics.js';
+import { priceFacts, lastClose } from './metrics.js';
 import { getPortfolio } from './portfolio.js';
 import { diagnose, sectorOf, sleeveOf, CAPS, CORE_LIST } from './strategy.js';
 import { relevantMemos, memoBlock } from './memos.js';
@@ -45,18 +45,39 @@ export async function fetchLiveData(ticker) {
     tickerNews(ticker, { days: 7, limit: 8 }).catch(() => []),
   ]);
 
-  const q = (await safeJson(qRes)) || {};
+  let q = (await safeJson(qRes)) || {};
   const earnings = (await safeJson(eRes)) || {};
 
-  const price = q.c > 0 ? q.c : q.pc;
-  const changePct = q.dp ?? null;
+  // Finnhub returns `{}` (no `c`/`pc`) on a rate-limit or transient hiccup —
+  // that used to silently become `price: undefined` and a data-starved HOLD.
+  // Retry once, then fall back to Tiingo's last close, and say so explicitly.
+  let dataIncomplete = false;
+  if (!(q.c > 0) && !(q.pc > 0)) {
+    await sleep(800);
+    try {
+      const retryRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB}`);
+      q = (await safeJson(retryRes)) || {};
+    } catch { /* keep q as-is */ }
+  }
+
+  let price = q.c > 0 ? q.c : q.pc;
+  let changePct = q.dp ?? null;
+  if (!(price > 0)) {
+    const fallback = await lastClose(ticker).catch(() => null);
+    if (fallback?.price > 0) {
+      price = fallback.price;
+      dataIncomplete = true;
+    } else {
+      changePct = null;
+    }
+  }
   const nextEarnings = earnings.earningsCalendar?.[0]?.date || null;
 
   // Date only, no clock time — the same facts on the same day must produce the
   // same prompt (STABILITY RULE). A minute-precise timestamp made borderline
   // checks flip between two runs 3 minutes apart.
   const timeStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const priceStr = price ? `$${price.toFixed(2)}` : 'N/A';
+  const priceStr = price ? `$${price.toFixed(2)}${dataIncomplete ? ' (last close, live quote unavailable)' : ''}` : 'N/A';
   const changeStr = changePct != null ? ` ${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}% today` : '';
   const earningsLine = nextEarnings
     ? `Next earnings: ${nextEarnings} (in ${Math.round((new Date(nextEarnings) - new Date(today)) / 864e5)} days)`
@@ -115,8 +136,8 @@ export async function fetchLiveData(ticker) {
       + (recent ? `The freshest headlines:\n${recent}\n` : `No news explains the move — treat a move with no news behind it as noise, not a thesis change.\n`);
   }
 
-  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${moveBlock}${filingsBlock}${insiderBlk}${congressBlock}${macro ? macro + '\n' : ''}${calendar ? calendar + '\n' : ''}${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
-  return { liveDataBlock, price, changePct, nextEarnings, news, facts };
+  const liveDataBlock = `\nLIVE DATA (as of ${timeStr}): ${ticker} ${priceStr}${changeStr}. ${earningsLine}.\n${dataIncomplete ? 'NOTE: the live quote feed is down for this name — the price above is the last daily close, not real-time. Treat any tight intraday-move reasoning as unreliable.\n' : ''}${moveBlock}${filingsBlock}${insiderBlk}${congressBlock}${macro ? macro + '\n' : ''}${calendar ? calendar + '\n' : ''}${factsBlock ? factsBlock + '\n' : ''}RECENT NEWS:\n${newsText || 'No recent news.'}\n`;
+  return { liveDataBlock, price, changePct, nextEarnings, news, facts, dataIncomplete };
 }
 
 const FALLBACK = { checks: {}, note: 'No response', headline: 'No response', error: true };
@@ -420,7 +441,7 @@ export function convictionTier(agents, sym) {
 // mode: 'scout' = fast cron pass; 'full' = conversational.
 export async function runCouncil(ticker, { mode = 'full', uid = null } = {}) {
   const sym = ticker.toUpperCase().trim();
-  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts }, holdings, memos, fund, aw, cal] = await Promise.all([
+  const [{ liveDataBlock, price, changePct, nextEarnings, news, facts, dataIncomplete }, holdings, memos, fund, aw, cal] = await Promise.all([
     fetchLiveData(sym),
     buildHoldingsContext(uid, sym).catch(() => null),
     uid ? relevantMemos(uid, { ticker: sym }).catch(() => []) : Promise.resolve([]),
@@ -516,6 +537,7 @@ Output ONLY raw JSON: {"headline":"<one bold line>","rationale":"<2-4 sentences,
       concentrationBlock: computed.concentrationBlock, concentrationTrim: computed.concentrationTrim,
       atCap: computed.atCap, overCapX: computed.overCapX, why: computed.why,
       score100: computed.score100, thinData: computed.thinData,
+      dataIncomplete,
     },
     holdings: holdings && {
       held: holdings.held, positionPct: holdings.positionPct,

@@ -22,12 +22,17 @@ The audit's operational risks. Small, no new surface.
       recentCalls, calibration, scorecard aggregate, /floor). — Done:
       `pruneAllAnalyses()` + `saveAnalysis()` is the one write path, prunes on
       every write.
-- [ ] **Finnhub empty-quote guard** (`lib/council.js` fetchLiveData). `{}` on
+- [x] **Finnhub empty-quote guard** (`lib/council.js` fetchLiveData). `{}` on
       rate-limit → `price` undefined → silent data-starved HOLD. Detect, retry
       once, fall back to Tiingo last close (`metrics.js`), else stamp
       `dataIncomplete: true` on the analysis and surface it in VerdictBanner.
-      — Partial: `safeJson` guards the fetch from crashing, but no retry/
-      Tiingo-fallback/`dataIncomplete` stamp yet. Still open.
+      — Done 2026-09-12: retries the Finnhub quote once, falls back to
+      `metrics.js lastClose()` (Tiingo), stamps `computed.dataIncomplete` and
+      a note in the LLM prompt. Surfaced as a flag chip in the three *actually
+      live* verdict surfaces — `views/Run.jsx`, `views/sheets/HoldingsSheet.jsx`,
+      `views/sheets/AlertDetail.jsx` — not `components/VerdictBanner.jsx`,
+      which (like `components/Portfolio.jsx` before it) turned out to be dead
+      code: `components/Analyze.jsx` imports it but nothing imports Analyze.jsx.
 - [x] **Verify `runPortfolioAlerts` position store** (`jobs/alertJob.js`). It
       reads `users/{uid}/data/positions`; everything else uses
       `users/{uid}/accounts/{id}.holdings`. Confirm which the client writes; the

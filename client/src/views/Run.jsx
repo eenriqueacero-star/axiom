@@ -20,6 +20,7 @@ const FLAG_LABEL = {
   atCap: 'AT CAP',
   entryClear: 'ENTRY NOT CLEAR', // shown only when entryClear === false
   concentrationTrim: 'CONCENTRATION',
+  dataIncomplete: 'LIVE QUOTE DOWN — LAST CLOSE USED',
 };
 
 function humanize(key) {
@@ -95,6 +96,7 @@ function FlagChips({ computed }) {
   if (computed.atCap) flags.push('atCap');
   if (computed.entryClear === false) flags.push('entryClear');
   if (computed.concentrationTrim) flags.push('concentrationTrim');
+  if (computed.dataIncomplete) flags.push('dataIncomplete');
   if (!flags.length) return null;
   return (
     <div className="mt-3 flex flex-wrap gap-1.5">

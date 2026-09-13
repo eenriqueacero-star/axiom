@@ -26,6 +26,7 @@ function DecisionDetail({ ticker }) {
     c.broken && 'THESIS BROKEN', c.downtrendExit && 'DOWNTREND',
     c.concentrationTrim && 'OVER CAP', (c.atCap && !c.concentrationTrim) && 'AT CAP',
     c.entryClear === false && 'ENTRY NOT CLEAR',
+    c.dataIncomplete && 'LIVE QUOTE DOWN',
   ].filter(Boolean);
 
   return (

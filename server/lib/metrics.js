@@ -45,6 +45,14 @@ const sma = (arr, n) =>
  * Returns computed facts + a formatted block for agent prompts.
  * `livePrice` (from Finnhub quote) is appended so trend uses the freshest price.
  */
+/** Last known close from Tiingo — used as a price fallback when the live quote feed is down. */
+export async function lastClose(ticker) {
+  const rows = await dailyCloses(ticker);
+  if (!rows.length) return null;
+  const last = rows[rows.length - 1];
+  return { price: last.close, date: last.date };
+}
+
 export async function priceFacts(ticker, livePrice = null) {
   const rows = await dailyCloses(ticker);
   if (rows.length < 60) {
