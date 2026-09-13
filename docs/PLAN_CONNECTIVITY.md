@@ -201,9 +201,17 @@ Route targets mostly exist: `routes/portfolio.js` (PUT/POST/DELETE
 
 ## Phase 4 — near-free features (data already collected; pick by appetite)
 
-- [ ] **Paper portfolio** — "if you'd followed every ADD at conviction ≥7" equity
-      curve. Pure client math on `analyses` (has verdict + price + ts +
-      score.perf). Overlay real vs hypothetical once `mark_executed` lands.
+- [x] **Paper portfolio** — done 2026-09-13: "if you'd followed every ADD at
+      conviction ≥7, held it, and never sold" — equal-weighted, no rebalancing.
+      `/council/floor`'s `recentRuns` turned out capped at 12 and stripped of
+      price, so it couldn't answer this; added a small dedicated
+      `GET /api/council/paper` that reduces the full `analyses` collection
+      server-side (first qualifying ADD per ticker by ts) and returns
+      ticker/ts/entryPrice/conviction. New "Paper Portfolio" section on the
+      You tab does the rest (batch live quotes, per-name return table, avg
+      return) — no smooth equity curve, since only two price points exist per
+      name (entry + now), not a daily series; a table is the honest version.
+      Overlay real vs hypothetical once `mark_executed` lands.
 - [x] **Signals feed screen** — turned out `views/Alerts.jsx` already covers
       most of this: it reads `users/{uid}/notifications` (a richer feed than
       raw `users/{uid}/signals`), already has kind filters (news/filing/
