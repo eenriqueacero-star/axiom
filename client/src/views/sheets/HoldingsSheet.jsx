@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { getLatestAnalysis, setHolding } from '../../api';
+import { useEffect, useMemo, useState } from 'react';
+import { getLatestAnalysis, setHolding, addTicker, removeTicker } from '../../api';
 import Icon from '../../ui/Icon';
 import { stripMd } from '../../components/stance.js';
 
@@ -139,6 +139,11 @@ function EditPositionModal({ p, onClose, onSaved }) {
 export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
   const [open, setOpen] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [removing, setRemoving] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [addTk, setAddTk] = useState('');
+  const [addAcct, setAddAcct] = useState('');
+  const [addErr, setAddErr] = useState('');
   const rows = useMemo(() => {
     const out = [];
     for (const acct of pf?.accounts || []) {
@@ -150,8 +155,47 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
     return out.sort((x, y) => (y.value || 0) - (x.value || 0));
   }, [pf]);
 
+  const unlinkedAccounts = useMemo(
+    () => (pf?.accounts || []).filter((a) => !a.linked),
+    [pf],
+  );
+
+  useEffect(() => {
+    if (unlinkedAccounts.length === 1 && addAcct !== unlinkedAccounts[0].id) {
+      setAddAcct(unlinkedAccounts[0].id);
+    }
+  }, [unlinkedAccounts, addAcct]);
+
   const total = pf?.totals?.value || diag?.total || 1;
   const st = stances?.stances || {};
+
+  const confirmRemove = async (p) => {
+    setBusy(true);
+    try {
+      await removeTicker(p.accountId, p.ticker);
+      setRemoving(null);
+      setOpen(null);
+      onChanged?.();
+    } catch { /* leave the confirm open so the investor can retry */ }
+    finally { setBusy(false); }
+  };
+
+  const submitAdd = async () => {
+    const t = addTk.toUpperCase().trim();
+    if (!/^[A-Z.\-]{1,10}$/.test(t)) { setAddErr('Enter a valid ticker.'); return; }
+    if (!addAcct) { setAddErr('Pick an account.'); return; }
+    setBusy(true);
+    setAddErr('');
+    try {
+      await addTicker(addAcct, t);
+      setAddTk('');
+      onChanged?.();
+    } catch (e) {
+      setAddErr(e.message || 'Could not add — try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-1">
@@ -196,9 +240,24 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
                       synced from {p.account}
                     </span>
                   ) : (
-                    <button onClick={() => setEditing(p)} className="mono text-[10px] text-faint hover:text-text">
-                      edit shares / cost
-                    </button>
+                    <>
+                      <button onClick={() => setEditing(p)} className="mono text-[10px] text-faint hover:text-text">
+                        edit shares / cost
+                      </button>
+                      {removing === p.ticker + p.accountId ? (
+                        <span className="mono text-[10px] text-faint">
+                          remove {p.ticker}?{' '}
+                          <button onClick={() => confirmRemove(p)} disabled={busy} className="text-crit hover:underline">
+                            yes
+                          </button>{' '}
+                          <button onClick={() => setRemoving(null)} className="hover:underline">no</button>
+                        </span>
+                      ) : (
+                        <button onClick={() => setRemoving(p.ticker + p.accountId)} className="mono text-[10px] text-faint hover:text-crit">
+                          remove
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -207,9 +266,37 @@ export function HoldingsSheet({ pf, diag, stances, onAnalyze, onChanged }) {
         })}
       </ul>
 
-      <p className="pt-3 text-[11px] text-faint leading-relaxed">
-        Importing and account management move here in the next pass.
-      </p>
+      {unlinkedAccounts.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 pt-3">
+          <input
+            value={addTk}
+            onChange={(e) => setAddTk(e.target.value)}
+            placeholder="add a ticker"
+            className="mono w-24 rounded-md border border-line-2 bg-base px-2 py-1 text-[11px] uppercase text-text"
+          />
+          {unlinkedAccounts.length > 1 ? (
+            <select
+              value={addAcct}
+              onChange={(e) => setAddAcct(e.target.value)}
+              className="mono rounded-md border border-line-2 bg-base px-2 py-1 text-[11px] text-text"
+            >
+              <option value="">to account…</option>
+              {unlinkedAccounts.map((a) => (
+                <option key={a.id} value={a.id}>{a.label}</option>
+              ))}
+            </select>
+          ) : null}
+          <button onClick={submitAdd} disabled={busy || !addTk.trim()}
+            className="press mono text-[11px] text-faint hover:text-text disabled:opacity-40">
+            add →
+          </button>
+          {addErr && <span className="text-[11px] text-crit">{addErr}</span>}
+        </div>
+      ) : (
+        <p className="pt-3 text-[11px] text-faint leading-relaxed">
+          Add a manually-tracked account to start adding tickers by hand.
+        </p>
+      )}
 
       {editing && (
         <EditPositionModal p={editing} onClose={() => setEditing(null)} onSaved={onChanged} />
