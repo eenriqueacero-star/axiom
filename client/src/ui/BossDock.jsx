@@ -133,7 +133,7 @@ export default function BossDock({ view, focus, onAction, draft, onDraftConsumed
   const ctx = `on the ${view || 'floor'} screen${(pendingFocus || focus) ? ` · ${pendingFocus || focus}` : ''}`;
 
   const panelPos = desktop
-    ? `right-0 top-0 h-dvh w-[380px] max-w-[92vw] border-l border-line-2 ${open ? 'translate-x-0' : 'translate-x-full'}`
+    ? `right-0 top-0 h-dvh w-[480px] max-w-[92vw] border-l border-line-2 ${open ? 'translate-x-0' : 'translate-x-full'}`
     : `inset-x-0 bottom-0 h-[82dvh] rounded-t-[22px] border-t border-line-2 ${open ? 'translate-y-0' : 'translate-y-full'}`;
 
   return (

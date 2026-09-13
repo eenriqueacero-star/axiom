@@ -37,7 +37,7 @@ function AgentChatPanel({ id, name, ticker }) {
           Talk to {name}{ticker ? ` · ${ticker}` : ''}
         </span>
       </div>
-      <div className="max-h-[240px] min-h-[80px] space-y-2.5 overflow-y-auto px-3 py-3">
+      <div className="max-h-[420px] min-h-[140px] space-y-2.5 overflow-y-auto px-3 py-3">
         {msgs.length === 0 && !busy && (
           <p className="text-[11px] text-faint">Ask {name} anything in their remit{ticker ? ` — ${ticker} is already in context` : ''}.</p>
         )}

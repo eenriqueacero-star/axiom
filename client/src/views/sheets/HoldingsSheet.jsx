@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { getLatestAnalysis } from '../../api';
 import Icon from '../../ui/Icon';
+import { stripMd } from '../../components/stance.js';
 
 const V = {
   ADD:  { c: 'var(--good)', bg: 'rgba(75,173,131,0.13)' },
@@ -51,6 +52,14 @@ function DecisionDetail({ ticker }) {
             </li>
           ))}
         </ul>
+      )}
+      {a.deskNote?.conclusion && (
+        <p className="text-[11px] text-faint leading-relaxed border-l-2 border-line pl-2">
+          <span className="mono text-[10px] uppercase tracking-wider text-rex/80">
+            desk note{a.deskNote.participants?.length ? ` · ${a.deskNote.participants.join(' & ')}` : ''}{' '}
+          </span>
+          {stripMd(a.deskNote.conclusion)}
+        </p>
       )}
     </div>
   );

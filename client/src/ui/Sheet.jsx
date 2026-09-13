@@ -17,7 +17,7 @@ export default function Sheet({ open, onClose, children, labelledBy }) {
   }, [open, onClose]);
 
   const panel = desktop
-    ? `right-0 top-0 h-dvh w-[400px] max-w-[92vw] border-l border-line-2 rounded-none
+    ? `right-0 top-0 h-dvh w-[520px] max-w-[92vw] border-l border-line-2 rounded-none
        ${open ? 'translate-x-0' : 'translate-x-full'}`
     : `inset-x-0 bottom-0 mx-auto w-full max-w-md border-t border-line-2 rounded-t-[22px]
        max-h-[82dvh]
