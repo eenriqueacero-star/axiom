@@ -5,7 +5,7 @@ import {
   getNotifyPrefs, setNotifyPrefs, sendTestPush,
   getHealth, getKeyStatus, getJobs,
   getBacktest, getQuantStatus,
-  getFloor, getQuotes,
+  getPaperEntries, getQuotes,
 } from '../api';
 import { useAuth } from '../AuthProvider';
 import { pushState, enablePush, disablePush } from '../lib/push';
@@ -533,24 +533,14 @@ function PaperPortfolioSection() {
     let alive = true;
     (async () => {
       try {
-        const floor = await getFloor();
-        const runs = (floor.runs || []).slice().sort((a, b) => (a.ts || 0) - (b.ts || 0));
-        // First qualifying ADD per ticker is the hypothetical entry — later
-        // re-runs of the same ticker don't buy it again.
-        const entries = new Map();
-        for (const r of runs) {
-          if (r.ticker && r.verdict === 'ADD' && (r.conviction || 0) >= 7 && r.price > 0 && !entries.has(r.ticker)) {
-            entries.set(r.ticker, { ts: r.ts, entryPrice: r.price, conviction: r.conviction });
-          }
-        }
-        const tickers = [...entries.keys()];
+        const { entries: list } = await getPaperEntries();
+        const tickers = list.map((e) => e.ticker);
         if (!tickers.length) { if (alive) setState({ rows: [], avgReturn: null }); return; }
         const quotes = await getQuotes(tickers);
-        const rows = tickers.map((ticker) => {
-          const e = entries.get(ticker);
-          const curPrice = quotes[ticker]?.price ?? null;
+        const rows = list.map((e) => {
+          const curPrice = quotes[e.ticker]?.price ?? null;
           const ret = curPrice > 0 ? (curPrice - e.entryPrice) / e.entryPrice : null;
-          return { ticker, ...e, curPrice, ret };
+          return { ...e, curPrice, ret };
         }).sort((a, b) => (b.ret ?? -Infinity) - (a.ret ?? -Infinity));
         const valid = rows.filter((r) => r.ret != null);
         const avgReturn = valid.length ? valid.reduce((s, r) => s + r.ret, 0) / valid.length : null;

@@ -123,6 +123,7 @@ export const reviewHoldings = (force = false) =>
 export const getLatestAnalysis = (ticker) =>
   request(`/council/analysis/${ticker.toUpperCase()}`);
 export const getFloor = () => request('/council/floor');
+export const getPaperEntries = () => request('/council/paper');
 
 // The Queue — desk decisions ranked, one screen. Basket = client-side sum of
 // selected items' cash fields; approve just commits the picks to the ledger.

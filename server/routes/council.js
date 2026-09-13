@@ -188,6 +188,26 @@ router.get('/floor', async (req, res) => {
   }
 });
 
+// Paper portfolio: "if you'd followed every ADD at conviction >=7 and held".
+// /floor's recentRuns is capped at 12 and strips price, so it can't answer
+// this — first qualifying ADD per ticker (by ts) is the hypothetical entry;
+// a later re-run of the same ticker never re-buys it.
+router.get('/paper', async (req, res) => {
+  try {
+    const snap = await db.collection(`users/${req.uid}/analyses`).get();
+    const runs = snap.docs.map(d => d.data()).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    const entries = new Map();
+    for (const r of runs) {
+      if (r.ticker && r.verdict === 'ADD' && (r.conviction || 0) >= 7 && r.price > 0 && !entries.has(r.ticker)) {
+        entries.set(r.ticker, { ts: r.ts, entryPrice: r.price, conviction: r.conviction });
+      }
+    }
+    res.json({ entries: [...entries.entries()].map(([ticker, e]) => ({ ticker, ...e })) });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
 // Per-holding council stance — latest verdict on every name the user owns.
 // Cheap Firestore read (no LLM); drives the stance badges on the Portfolio view.
 router.get('/stances', async (req, res) => {
